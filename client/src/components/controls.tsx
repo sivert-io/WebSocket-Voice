@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Mic, MicOff } from "react-feather";
 import { useWebSocket } from "../hooks/useWebsocket";
 import { Microphone } from "./microphone";
+import { useMicrophone } from "../hooks/useMicrophone";
 
 interface Props {
   nickname: string;
@@ -12,6 +13,9 @@ interface Props {
 export function Controls({ color, nickname }: Props) {
   const { readyState, sendMessage } = useWebSocket("ws://192.168.10.168:5000");
   const [isMuted, setIsMuted] = useState(true);
+
+  const { devices, micId, setMicId, setLoopbackEnabled, loopbackEnabled } =
+    useMicrophone();
 
   function handleMute() {
     sendMessage({
@@ -29,7 +33,6 @@ export function Controls({ color, nickname }: Props) {
         flexShrink: 0,
       }}
     >
-      <Microphone />
       <Flex direction="column" gap="4" align="center">
         {readyState === WebSocket.OPEN ? (
           <Flex gap="1" align="center">

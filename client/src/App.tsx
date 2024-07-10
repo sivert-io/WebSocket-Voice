@@ -3,6 +3,7 @@ import { Button, Card, Flex, Text, TextField } from "@radix-ui/themes";
 import { useWebSocket } from "./hooks/useWebsocket";
 import { User } from "./components/user";
 import { Controls } from "./components/controls";
+import { useMicrophone } from "./hooks/useMicrophone";
 
 export function App() {
   const { clients, sendMessage, id, readyState } = useWebSocket(
@@ -10,6 +11,9 @@ export function App() {
   );
   const [nickname, setNickname] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
+
+  const { devices, micId, setMicId, setLoopbackEnabled, loopbackEnabled } =
+    useMicrophone();
 
   useEffect(() => {
     if (
