@@ -27,9 +27,9 @@ export function App() {
       direction="column"
       gap="2"
       style={{
-        padding: "128px",
+        padding: "64px",
       }}
-      justify="start"
+      justify="center"
       align="center"
       width="100%"
       height="100%"
@@ -58,7 +58,7 @@ export function App() {
       )}
 
       {submitted && (
-        <Flex direction="column" gap="2">
+        <Flex direction="column" gap="2" overflow="scroll">
           <Controls
             color={id.length > 0 ? clients[id].color : "gray"}
             nickname={nickname}
@@ -68,7 +68,7 @@ export function App() {
             className="rt-r-gap-2"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(128px, 1fr))",
+              gridTemplateColumns: "repeat(4, minmax(128px, 1fr))",
               width: "100%",
             }}
           >

@@ -24,6 +24,7 @@ export function Controls({ color, nickname }: Props) {
     <Card
       style={{
         width: "100%",
+        flexShrink: 0,
       }}
     >
       <Flex direction="column" gap="4" align="center">
