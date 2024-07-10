@@ -3,17 +3,17 @@ import { Button, Card, Flex, Text, TextField } from "@radix-ui/themes";
 import { useWebSocket } from "./hooks/useWebsocket";
 import { User } from "./components/user";
 import { Controls } from "./components/controls";
-import { useMicrophone } from "./hooks/useMicrophone";
 
 export function App() {
   const { clients, sendMessage, id, readyState } = useWebSocket(
     import.meta.env.VITE_WS_HOST || "ws://localhost:5000"
   );
-  const [nickname, setNickname] = useState<string>("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const { devices, micId, setMicId, setLoopbackEnabled, loopbackEnabled } =
-    useMicrophone();
+  const [nickname, setNickname] = useState<string>(
+    localStorage.getItem("nickname") || ""
+  );
+  const [submitted, setSubmitted] = useState<boolean>(
+    !!localStorage.getItem("nickname") || false
+  );
 
   useEffect(() => {
     if (
@@ -37,6 +37,7 @@ export function App() {
       });
 
       setSubmitted(true);
+      localStorage.setItem("nickname", nickname);
     }
   };
 
