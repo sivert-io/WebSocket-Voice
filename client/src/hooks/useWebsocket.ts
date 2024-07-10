@@ -30,47 +30,63 @@ const createSingletonWebSocket = (() => {
   let id: string = "";
   let listeners: Array<() => void> = [];
   let clients: Clients = {};
+  let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  const connect = (url: string, options: UseWebSocketOptions) => {
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
+
+    socket = new WebSocket(url);
+
+    socket.onopen = (event) => {
+      readyState = socket!.readyState;
+      options.onOpen?.(event);
+      listeners.forEach((listener) => listener());
+    };
+
+    socket.onclose = (event) => {
+      readyState = socket!.readyState;
+      options.onClose?.(event);
+      listeners.forEach((listener) => listener());
+      attemptReconnect(url, options);
+    };
+
+    socket.onmessage = (event: MessageEvent) => {
+      console.log(event);
+
+      try {
+        const json = JSON.parse(event.data);
+        options.onMessage?.(json);
+
+        if (json.message === "yourID") {
+          id = json.value;
+          listeners.forEach((listener) => listener());
+        }
+
+        if (json.message === "peers") {
+          clients = json.value;
+          listeners.forEach((listener) => listener());
+        }
+      } catch (error) {
+        console.error("Failed to parse WebSocket message", error);
+      }
+    };
+
+    socket.onerror = (event) => {
+      options.onError?.(event);
+      attemptReconnect(url, options);
+    };
+  };
+
+  const attemptReconnect = (url: string, options: UseWebSocketOptions) => {
+    reconnectTimeout = setTimeout(() => connect(url, options), 1000);
+  };
 
   return (url: string, options: UseWebSocketOptions) => {
-    if (!socket) {
-      socket = new WebSocket(url);
-
-      socket.onopen = (event) => {
-        readyState = socket!.readyState;
-        options.onOpen?.(event);
-        listeners.forEach((listener) => listener());
-      };
-
-      socket.onclose = (event) => {
-        readyState = socket!.readyState;
-        options.onClose?.(event);
-        listeners.forEach((listener) => listener());
-      };
-
-      socket.onmessage = (event: any) => {
-        console.log(event);
-
-        try {
-          const json = JSON.parse(event.data);
-          options.onMessage?.(json);
-
-          if (json.message === "yourID") {
-            id = json.value;
-            listeners.forEach((listener) => listener());
-          }
-
-          if (json.message === "peers") {
-            clients = json.value;
-            listeners.forEach((listener) => listener());
-          }
-        } catch (error) {
-          // do nothing
-        }
-      };
-
-      socket.onerror = (event) => {
-        options.onError?.(event);
-      };
+    if (!socket || socket.readyState === WebSocket.CLOSED) {
+      connect(url, options);
     }
 
     return {
