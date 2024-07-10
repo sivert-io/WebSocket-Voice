@@ -2,6 +2,7 @@ import { Button, Card, Flex, Text } from "@radix-ui/themes";
 import { useState } from "react";
 import { Mic, MicOff } from "react-feather";
 import { useWebSocket } from "../hooks/useWebsocket";
+import { Microphone } from "./microphone";
 
 interface Props {
   nickname: string;
@@ -17,6 +18,7 @@ export function Controls({ color, nickname }: Props) {
       message: "updateMuted",
       value: !isMuted,
     });
+
     setIsMuted(!isMuted);
   }
 
@@ -27,6 +29,7 @@ export function Controls({ color, nickname }: Props) {
         flexShrink: 0,
       }}
     >
+      <Microphone />
       <Flex direction="column" gap="4" align="center">
         {readyState === WebSocket.OPEN ? (
           <Flex gap="1" align="center">
