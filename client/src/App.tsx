@@ -1,13 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button, Card, Flex, Text, TextField } from "@radix-ui/themes";
 import { useWebSocket } from "./hooks/useWebsocket";
 import { User } from "./components/user";
 import { Controls } from "./components/controls";
 
 export function App() {
-  const { clients, sendMessage, id } = useWebSocket("ws://192.168.10.168:5000");
+  const { clients, sendMessage, id, readyState } = useWebSocket(
+    "ws://192.168.10.168:5000"
+  );
   const [nickname, setNickname] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (
+      readyState === WebSocket.OPEN &&
+      nickname.length > 2 &&
+      nickname.length < 12
+    )
+      sendMessage({
+        message: "updateNickname",
+        value: nickname,
+      });
+  }, [readyState]);
 
   const handleSubmit = (e: any) => {
     e.preventDefault();
