@@ -6,7 +6,7 @@ import { Controls } from "./components/controls";
 
 export function App() {
   const { clients, sendMessage, id, readyState } = useWebSocket(
-    "ws://192.168.10.168:5000"
+    process.env.WS_HOST || "ws://localhost:5000"
   );
   const [nickname, setNickname] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
