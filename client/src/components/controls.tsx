@@ -86,7 +86,7 @@ export function Controls({ color, nickname }: Props) {
       }}
     >
       {isBrowserSupported && (
-        <Flex direction="column" gap="4" align="center" position="relative">
+        <Flex direction="column" gap="2" align="center" position="relative">
           <IconButton
             style={{
               position: "absolute",
@@ -118,9 +118,9 @@ export function Controls({ color, nickname }: Props) {
                   <Flex direction="column" gap="4">
                     {/* Devices */}
                     {devices.length > 0 && (
-                      <Flex direction="column" gap="1">
+                      <Flex direction="column" gap="2">
                         <Text weight="medium" size="2">
-                          Microphone Device
+                          Device
                         </Text>
                         <Flex align="center" gap="2">
                           <Select.Root onValueChange={setMicID} value={micID}>
@@ -166,7 +166,7 @@ export function Controls({ color, nickname }: Props) {
                         />
                         <Text
                           style={{
-                            width: "28.5px",
+                            width: "36px",
                           }}
                           weight="bold"
                         >
@@ -183,7 +183,7 @@ export function Controls({ color, nickname }: Props) {
                       <Flex align="center" gap="2">
                         <Slider
                           min={0}
-                          max={100}
+                          max={50}
                           value={[noiseGate]}
                           onValueChange={(value) => {
                             setNoiseGate(value[0]);
@@ -191,7 +191,7 @@ export function Controls({ color, nickname }: Props) {
                         />
                         <Text
                           style={{
-                            width: "28.5px",
+                            width: "36px",
                           }}
                           weight="bold"
                         >
@@ -205,7 +205,7 @@ export function Controls({ color, nickname }: Props) {
                         />
                         <Text
                           style={{
-                            width: "28.5px",
+                            width: "36px",
                           }}
                           weight="bold"
                         >

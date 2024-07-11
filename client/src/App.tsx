@@ -102,7 +102,7 @@ export function App() {
             className="rt-r-gap-2"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(128px, 1fr))",
+              gridTemplateColumns: "repeat(3, minmax(128px, 1fr))",
               width: "100%",
             }}
           >
