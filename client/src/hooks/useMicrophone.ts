@@ -16,14 +16,16 @@ interface MicrophoneInterface {
 }
 
 function createMicrophoneHook() {
-  const [audioContext] = useState(new AudioContext());
+  const [audioContext, setAudioContext] = useState<AudioContext>(
+    new AudioContext()
+  );
   const [isBrowserSupported, setSupported] = useState<boolean | undefined>(
     undefined
   );
   const [devices, setDevices] = useState<InputDeviceInfo[]>([]);
   const [_, setStream] = useState<MediaStream | undefined>(undefined);
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
-  const { micID, micVolume } = useSettings();
+  const { micID, setMicID, micVolume } = useSettings();
 
   // Create microphonebuffer based on audioContext
   const microphoneBuffer = useMemo<{
@@ -71,6 +73,8 @@ function createMicrophoneHook() {
           navigator.mediaDevices.enumerateDevices().then((devices) => {
             devices = devices.filter((d) => d.kind === "audioinput");
             setDevices(devices as InputDeviceInfo[]);
+            if (devices.length > 0) setMicID(devices[0].deviceId);
+            setAudioContext(new AudioContext());
           });
         });
     }
@@ -93,8 +97,6 @@ function createMicrophoneHook() {
             noiseSuppression: false,
           },
         });
-
-        console.log("yellooo");
 
         const mediaStream = audioContext.createMediaStreamSource(_stream);
         mediaStream.connect(microphoneBuffer.input);

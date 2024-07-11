@@ -6,6 +6,7 @@ import { Controls } from "./components/controls";
 import { useSettings } from "./hooks/useSettings";
 import { useMicrophone } from "./hooks/useMicrophone";
 import { isSpeaking } from "./utils/speaking";
+import { useStream } from "./hooks/useStream";
 
 export function App() {
   const { clients, sendMessage, id, readyState } = useWebSocket(
@@ -15,9 +16,11 @@ export function App() {
     !!localStorage.getItem("nickname") || false
   );
   const [amISpeaking, setAmISpeaking] = useState(false);
-  const { microphoneBuffer } = useMicrophone();
   const { nickname, setNickname, noiseGate } = useSettings();
   const [localNickname, setLocalNickname] = useState(nickname);
+
+  const { microphoneBuffer } = useMicrophone();
+  const { isMuted } = useStream();
 
   useEffect(() => {
     //Implementing the setInterval method
@@ -25,7 +28,7 @@ export function App() {
       if (microphoneBuffer.analyser) {
         setAmISpeaking(isSpeaking(microphoneBuffer.analyser, noiseGate));
       }
-    }, 10);
+    }, 5);
 
     //Clearing the interval
     return () => clearInterval(interval);
@@ -114,7 +117,7 @@ export function App() {
                   isSpeaking={clientID === id ? amISpeaking : false}
                   color={client.color}
                   key={clientID}
-                  isMuted={client.isMuted}
+                  isMuted={clientID === id ? isMuted : client.isMuted}
                 />
               );
             })}
