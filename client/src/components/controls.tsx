@@ -14,7 +14,7 @@ interface Props {
 
 export function Controls({ color, nickname }: Props) {
   const [showSettings, setShowSettings] = useState(false);
-  const { readyState, sendMessage } = useWebSocket("ws://192.168.10.168:5000");
+  const { readyState, sendMessage } = useWebSocket();
   const { isBrowserSupported } = useMicrophone();
   const { isMuted, setIsMuted } = useStream();
   const { micID } = useSettings();

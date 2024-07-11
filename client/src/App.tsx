@@ -1,64 +1,34 @@
 import { useState, useEffect } from "react";
-import { Button, Card, Flex, Text, TextField } from "@radix-ui/themes";
+import { Flex } from "@radix-ui/themes";
 import { useWebSocket } from "./hooks/useWebsocket";
-import { User } from "./components/user";
 import { Controls } from "./components/controls";
 import { useSettings } from "./hooks/useSettings";
-import { useMicrophone } from "./hooks/useMicrophone";
-import { isSpeaking } from "./utils/speaking";
-import { useStream } from "./hooks/useStream";
+import { Intro } from "./components/intro";
+import { UsersMap } from "./components/usersMap";
 
 export function App() {
-  const { clients, sendMessage, id, readyState } = useWebSocket(
-    import.meta.env.VITE_WS_HOST || "ws://localhost:5000"
-  );
-  const [submitted, setSubmitted] = useState<boolean>(
-    !!localStorage.getItem("nickname") || false
-  );
-  const [amISpeaking, setAmISpeaking] = useState(false);
-  const { nickname, setNickname, noiseGate } = useSettings();
-  const [localNickname, setLocalNickname] = useState(nickname);
+  const { clients, sendMessage, id, readyState } = useWebSocket();
+  const [submitted, setSubmitted] = useState<boolean>(false);
+  const { nickname, setNickname } = useSettings();
 
-  const { microphoneBuffer } = useMicrophone();
-  const { isMuted } = useStream();
-
-  useEffect(() => {
-    //Implementing the setInterval method
-    const interval = setInterval(() => {
-      if (microphoneBuffer.analyser) {
-        setAmISpeaking(isSpeaking(microphoneBuffer.analyser, noiseGate));
-      }
-    }, 5);
-
-    //Clearing the interval
-    return () => clearInterval(interval);
-  }, [microphoneBuffer.analyser, noiseGate]);
-
-  useEffect(() => {
-    if (
-      readyState === WebSocket.OPEN &&
-      localNickname.length > 2 &&
-      localNickname.length < 12
-    )
+  function handleSubmit(_nick: string) {
+    if (_nick.length > 2 && _nick.length < 12) {
       sendMessage({
         message: "updateNickname",
-        value: localNickname,
-      });
-  }, [readyState]);
-
-  const handleSubmit = (e: any) => {
-    e.preventDefault();
-
-    if (localNickname.length > 2 && localNickname.length < 12) {
-      sendMessage({
-        message: "updateNickname",
-        value: localNickname,
+        value: _nick,
       });
 
       setSubmitted(true);
-      setNickname(localNickname);
+      setNickname(_nick); // Update nickname. Is also used in @/components/intro.tsx
     }
-  };
+  }
+
+  // If nickname already exists from localstorage
+  useEffect(() => {
+    if (readyState === WebSocket.OPEN) {
+      handleSubmit(nickname);
+    }
+  }, [readyState]);
 
   return (
     <Flex
@@ -72,56 +42,15 @@ export function App() {
       width="100%"
       height="100%"
     >
-      {!submitted && (
-        <Card>
-          <Flex direction="column" gap="2">
-            <Text weight="medium" size="4">
-              Choose a nickname
-            </Text>
-            <form onSubmit={handleSubmit}>
-              <Flex gap="2">
-                <TextField.Root
-                  minLength={3}
-                  maxLength={12}
-                  title="Nickname"
-                  placeholder="Bulleberg"
-                  value={localNickname}
-                  onChange={(e) => setLocalNickname(e.target.value)}
-                />
-                <Button type="submit">Submit</Button>
-              </Flex>
-            </form>
-          </Flex>
-        </Card>
-      )}
+      {!submitted && <Intro submit={handleSubmit} />}
 
       {submitted && (
-        <Flex direction="column" gap="2" overflow="scroll">
+        <Flex direction="column" gap="2">
           <Controls
             color={id.length > 0 ? clients[id]?.color : "gray"}
             nickname={nickname}
           />
-          <div
-            className="rt-r-gap-2"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(128px, 1fr))",
-              width: "100%",
-            }}
-          >
-            {Object.keys(clients).map((clientID) => {
-              const client = clients[clientID];
-              return (
-                <User
-                  nickname={client.nickname}
-                  isSpeaking={clientID === id ? amISpeaking : false}
-                  color={client.color}
-                  key={clientID}
-                  isMuted={clientID === id ? isMuted : client.isMuted}
-                />
-              );
-            })}
-          </div>
+          <UsersMap />
         </Flex>
       )}
     </Flex>

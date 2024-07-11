@@ -16,16 +16,18 @@ interface MicrophoneInterface {
 }
 
 function createMicrophoneHook() {
-  const [audioContext, setAudioContext] = useState<AudioContext>(
-    new AudioContext()
-  );
+  // TODO: Add handles to automatically open and close audio context
+  // Each consumer should open a handle when they need microphone output (put themselves in a list), and close this handle when they don't need it anymore
+  // When this list is empty, close the audio context
+  // When the list is not empty, open the audio context if not already open
+  const [audioContext] = useState<AudioContext>(new AudioContext());
   const [isBrowserSupported, setSupported] = useState<boolean | undefined>(
     undefined
   );
   const [devices, setDevices] = useState<InputDeviceInfo[]>([]);
   const [_, setStream] = useState<MediaStream | undefined>(undefined);
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
-  const { micID, setMicID, micVolume } = useSettings();
+  const { micID, micVolume } = useSettings();
 
   // Create microphonebuffer based on audioContext
   const microphoneBuffer = useMemo<{
@@ -33,18 +35,22 @@ function createMicrophoneHook() {
     output: MediaStreamAudioSourceNode;
     analyser: AnalyserNode;
   }>(() => {
-    const input = audioContext.createGain();
-    const inputDestination = audioContext.createMediaStreamDestination();
-    input.connect(inputDestination);
-
+    const input = audioContext.createGain(); // Microphone Input
+    const analyser = audioContext.createAnalyser(); // Analyser Node (Passthrough)
+    const inputDestination = audioContext.createMediaStreamDestination(); // Buffer
     const streamSource = audioContext.createMediaStreamSource(
+      // useMicrophone Output
       inputDestination.stream
     );
 
-    const analyser = audioContext.createAnalyser();
-    streamSource.connect(analyser);
+    input.connect(analyser);
+    analyser.connect(inputDestination);
 
-    return { input: input, output: streamSource, analyser };
+    return {
+      input: input,
+      output: streamSource,
+      analyser,
+    };
   }, [audioContext]);
 
   // Get browser support
@@ -73,8 +79,6 @@ function createMicrophoneHook() {
           navigator.mediaDevices.enumerateDevices().then((devices) => {
             devices = devices.filter((d) => d.kind === "audioinput");
             setDevices(devices as InputDeviceInfo[]);
-            if (devices.length > 0) setMicID(devices[0].deviceId);
-            setAudioContext(new AudioContext());
           });
         });
     }

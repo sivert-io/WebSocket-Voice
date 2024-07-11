@@ -105,14 +105,16 @@ const createSingletonWebSocket = (() => {
 })();
 
 export const useWebSocket = (
-  url: string,
   options: UseWebSocketOptions = {}
 ): UseWebSocketReturn => {
   const [readyState, setReadyState] = useState<number>(WebSocket.CLOSED);
   const [id, setId] = useState("");
   const [clients, setClients] = useState<Clients>({});
 
-  const singletonWebSocket = createSingletonWebSocket(url, options);
+  const singletonWebSocket = createSingletonWebSocket(
+    import.meta.env.VITE_WS_HOST || "ws://localhost:5000",
+    options
+  );
 
   useEffect(() => {
     const updateState = () => {
