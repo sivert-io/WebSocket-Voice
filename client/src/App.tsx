@@ -3,41 +3,57 @@ import { Button, Card, Flex, Text, TextField } from "@radix-ui/themes";
 import { useWebSocket } from "./hooks/useWebsocket";
 import { User } from "./components/user";
 import { Controls } from "./components/controls";
+import { useSettings } from "./hooks/useSettings";
+import { useMicrophone } from "./hooks/useMicrophone";
+import { isSpeaking } from "./utils/speaking";
 
 export function App() {
   const { clients, sendMessage, id, readyState } = useWebSocket(
     import.meta.env.VITE_WS_HOST || "ws://localhost:5000"
   );
-  const [nickname, setNickname] = useState<string>(
-    localStorage.getItem("nickname") || ""
-  );
   const [submitted, setSubmitted] = useState<boolean>(
     !!localStorage.getItem("nickname") || false
   );
+  const [amISpeaking, setAmISpeaking] = useState(false);
+  const { microphoneBuffer } = useMicrophone();
+  const { nickname, setNickname, noiseGate } = useSettings();
+  const [localNickname, setLocalNickname] = useState(nickname);
+
+  useEffect(() => {
+    //Implementing the setInterval method
+    const interval = setInterval(() => {
+      if (microphoneBuffer.analyser) {
+        setAmISpeaking(isSpeaking(microphoneBuffer.analyser, noiseGate));
+      }
+    }, 10);
+
+    //Clearing the interval
+    return () => clearInterval(interval);
+  }, [microphoneBuffer.analyser, noiseGate]);
 
   useEffect(() => {
     if (
       readyState === WebSocket.OPEN &&
-      nickname.length > 2 &&
-      nickname.length < 12
+      localNickname.length > 2 &&
+      localNickname.length < 12
     )
       sendMessage({
         message: "updateNickname",
-        value: nickname,
+        value: localNickname,
       });
   }, [readyState]);
 
   const handleSubmit = (e: any) => {
     e.preventDefault();
 
-    if (nickname.length > 2 && nickname.length < 12) {
+    if (localNickname.length > 2 && localNickname.length < 12) {
       sendMessage({
         message: "updateNickname",
-        value: nickname,
+        value: localNickname,
       });
 
       setSubmitted(true);
-      localStorage.setItem("nickname", nickname);
+      setNickname(localNickname);
     }
   };
 
@@ -65,9 +81,9 @@ export function App() {
                   minLength={3}
                   maxLength={12}
                   title="Nickname"
-                  placeholder="BerPer"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="Bulleberg"
+                  value={localNickname}
+                  onChange={(e) => setLocalNickname(e.target.value)}
                 />
                 <Button type="submit">Submit</Button>
               </Flex>
@@ -79,15 +95,14 @@ export function App() {
       {submitted && (
         <Flex direction="column" gap="2" overflow="scroll">
           <Controls
-            color={id.length > 0 ? clients[id].color : "gray"}
+            color={id.length > 0 ? clients[id]?.color : "gray"}
             nickname={nickname}
           />
-
           <div
             className="rt-r-gap-2"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(128px, 1fr))",
+              gridTemplateColumns: "repeat(2, minmax(128px, 1fr))",
               width: "100%",
             }}
           >
@@ -96,10 +111,9 @@ export function App() {
               return (
                 <User
                   nickname={client.nickname}
-                  isSpeaking={client.isSpeaking}
+                  isSpeaking={clientID === id ? amISpeaking : false}
                   color={client.color}
                   key={clientID}
-                  isMe={clientID === id}
                   isMuted={client.isMuted}
                 />
               );

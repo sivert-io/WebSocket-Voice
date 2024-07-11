@@ -6,7 +6,6 @@ interface Props {
   isSpeaking: boolean;
   isMuted: boolean;
   color: string;
-  isMe: boolean;
 }
 
 export function User({ nickname, isSpeaking, color, isMuted }: Props) {
@@ -14,9 +13,10 @@ export function User({ nickname, isSpeaking, color, isMuted }: Props) {
     <Card
       data-accent-color={color}
       style={{
-        border: "1px solid",
-        borderColor: isSpeaking ? "var(--accent-9)" : "var(--accent-2)",
+        border: "2px solid",
+        borderColor: isSpeaking ? "var(--accent-9)" : "var(--accent-surface)",
         width: "100%",
+        transition: "all 0.1s ease-out",
       }}
     >
       <Flex

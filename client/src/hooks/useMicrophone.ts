@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
+import { useSettings } from "./useSettings";
 
 interface MicrophoneInterface {
   microphoneBuffer: {
-    input?: MediaStreamAudioDestinationNode;
+    input?: GainNode;
     output?: MediaStreamAudioSourceNode;
+    analyser?: AnalyserNode;
   };
-  micId: string | undefined;
-  setMicId: (id: string) => any;
   isBrowserSupported: boolean | undefined;
   devices: InputDeviceInfo[];
   loopbackEnabled: boolean;
   setLoopbackEnabled: (value: boolean) => any;
+  audioContext?: AudioContext;
 }
 
 function createMicrophoneHook() {
@@ -20,23 +21,28 @@ function createMicrophoneHook() {
     undefined
   );
   const [devices, setDevices] = useState<InputDeviceInfo[]>([]);
-  const [micId, setMicId] = useState<string | undefined>(
-    localStorage.getItem("micID") || undefined
-  );
   const [_, setStream] = useState<MediaStream | undefined>(undefined);
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
+  const { micID, micVolume } = useSettings();
 
   // Create microphonebuffer based on audioContext
   const microphoneBuffer = useMemo<{
-    input: MediaStreamAudioDestinationNode;
+    input: GainNode;
     output: MediaStreamAudioSourceNode;
+    analyser: AnalyserNode;
   }>(() => {
-    const streamDestination = audioContext.createMediaStreamDestination();
-    const _stream = audioContext.createMediaStreamSource(
-      streamDestination.stream
+    const input = audioContext.createGain();
+    const inputDestination = audioContext.createMediaStreamDestination();
+    input.connect(inputDestination);
+
+    const streamSource = audioContext.createMediaStreamSource(
+      inputDestination.stream
     );
 
-    return { input: streamDestination, output: _stream };
+    const analyser = audioContext.createAnalyser();
+    streamSource.connect(analyser);
+
+    return { input: input, output: streamSource, analyser };
   }, [audioContext]);
 
   // Get browser support
@@ -98,8 +104,12 @@ function createMicrophoneHook() {
       }
     }
 
-    changeDevice(micId);
-  }, [micId, audioContext]);
+    changeDevice(micID);
+  }, [micID, audioContext]);
+
+  useEffect(() => {
+    microphoneBuffer.input.gain.value = micVolume / 50;
+  }, [micVolume]);
 
   // If loopback changed, lets enable live feedback
   useEffect(() => {
@@ -114,19 +124,13 @@ function createMicrophoneHook() {
     }
   }, [loopbackEnabled]);
 
-  function updateMicID(newID: string) {
-    setMicId(newID);
-    localStorage.setItem("micID", newID);
-  }
-
   return {
     microphoneBuffer,
-    micId,
-    setMicId: updateMicID,
     isBrowserSupported,
     devices,
     loopbackEnabled,
     setLoopbackEnabled,
+    audioContext,
   };
 }
 
@@ -135,12 +139,12 @@ const init: MicrophoneInterface = {
   isBrowserSupported: undefined,
   loopbackEnabled: false,
   setLoopbackEnabled: () => {},
-  micId: "",
   microphoneBuffer: {
     input: undefined,
     output: undefined,
+    analyser: undefined,
   },
-  setMicId: () => {},
+  audioContext: undefined,
 };
 
 export const useMicrophone = singletonHook(init, createMicrophoneHook);
