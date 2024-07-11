@@ -7,10 +7,14 @@ import { IncomingMessage } from "http";
 
 const clients: Clients = {};
 
+const peerSDPs: { [clientID: string]: string } = {};
+
 export function socketHandler(
   wss: WebSocket.Server<typeof WebSocket, typeof IncomingMessage>,
   ws: WebSocket
 ) {
+  const id = getUniqueID();
+
   function sendNewClientInfo() {
     wss.clients.forEach((client) => {
       client.send(
@@ -38,13 +42,17 @@ export function socketHandler(
       };
       sendNewClientInfo();
     }
+
+    // SDP from clients, we need to store this somewhere for later
+    if (json.message === "offer") {
+      peerSDPs[id] = json.value;
+    }
   }
 
   function sendJson(obj: any) {
     ws.send(JSON.stringify(obj));
   }
 
-  const id = getUniqueID();
   clients[id] = {
     nickname: "Unknown",
     isSpeaking: false,

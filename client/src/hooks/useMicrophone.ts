@@ -55,8 +55,6 @@ function createMicrophoneHook() {
 
   // Get browser support
   useEffect(() => {
-    console.log("stuff", navigator.mediaDevices, AudioContext);
-
     if (navigator.mediaDevices && AudioContext) {
       setSupported(true);
     } else {

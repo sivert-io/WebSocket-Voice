@@ -1,11 +1,11 @@
 import { Button, Card, Flex, Text, IconButton } from "@radix-ui/themes";
 import { useEffect, useState } from "react";
 import { Settings as SettingsIcon } from "react-feather";
-import { useWebSocket } from "../hooks/useWebsocket";
 import { useMicrophone } from "../hooks/useMicrophone";
 import { useSettings } from "../hooks/useSettings";
 import { Settings } from "./settings";
 import { useStream } from "../hooks/useStream";
+import { useSocket } from "../hooks/useSocket";
 
 interface Props {
   nickname: string;
@@ -14,7 +14,7 @@ interface Props {
 
 export function Controls({ color, nickname }: Props) {
   const [showSettings, setShowSettings] = useState(false);
-  const { readyState, sendMessage } = useWebSocket();
+  const { socket, sendMessage } = useSocket();
   const { isBrowserSupported } = useMicrophone();
   const { isMuted, setIsMuted } = useStream();
   const { micID } = useSettings();
@@ -59,7 +59,7 @@ export function Controls({ color, nickname }: Props) {
 
           <Settings show={showSettings} setShow={setShowSettings} />
 
-          {readyState === WebSocket.OPEN ? (
+          {socket?.readyState === WebSocket.OPEN ? (
             <Flex gap="1" align="center">
               <Text>Connected as</Text>
               <Text weight="bold" highContrast color={color as any}>

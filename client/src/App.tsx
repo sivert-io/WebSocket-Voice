@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { Flex } from "@radix-ui/themes";
-import { useWebSocket } from "./hooks/useWebsocket";
 import { Controls } from "./components/controls";
 import { useSettings } from "./hooks/useSettings";
 import { Intro } from "./components/intro";
 import { UsersMap } from "./components/usersMap";
+import { useSocket } from "./hooks/useSocket";
 
 export function App() {
-  const { clients, sendMessage, id, readyState } = useWebSocket();
+  const { socket, clients, sendMessage, id } = useSocket();
   const [submitted, setSubmitted] = useState<boolean>(false);
   const { nickname, setNickname } = useSettings();
 
@@ -25,10 +25,10 @@ export function App() {
 
   // If nickname already exists from localstorage
   useEffect(() => {
-    if (readyState === WebSocket.OPEN) {
+    if (socket?.readyState === WebSocket.OPEN) {
       handleSubmit(nickname);
     }
-  }, [readyState]);
+  }, [socket?.readyState, nickname]);
 
   return (
     <Flex

@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { useWebSocket } from "../hooks/useWebsocket";
 import { useMicrophone } from "../hooks/useMicrophone";
 import { useStream } from "../hooks/useStream";
 import { isSpeaking } from "../utils/speaking";
 import { useSettings } from "../hooks/useSettings";
 import { User } from "./user";
+import { useSocket } from "../hooks/useSocket";
 
 export function UsersMap() {
   const [amISpeaking, setAmISpeaking] = useState(false);
-  const { clients, id } = useWebSocket();
+  const { clients, id } = useSocket();
   const { microphoneBuffer } = useMicrophone();
   const { isMuted } = useStream();
   const { noiseGate } = useSettings();
