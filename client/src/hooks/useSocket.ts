@@ -23,9 +23,10 @@ export interface Clients {
 
 interface SocketInterface {
   socket?: WebSocket;
-  sendMessage: (message: Message) => any;
+  sendMessage: (message: string, value: any) => any;
   clients: Clients;
   id: string;
+  addOnMessage: (message: string, newEvent: MessageEventType) => any;
 }
 
 function webSocketHook() {
@@ -38,10 +39,14 @@ function webSocketHook() {
     setOnMessageEvents((old) => ({ ...old, [message]: newEvent }));
   }
 
-  function sendMessage(message: Message) {
+  function sendMessage(message: string, value: any) {
     if (socket) {
       try {
-        socket.send(JSON.stringify(message));
+        const msg: Message = {
+          message,
+          value,
+        };
+        socket.send(JSON.stringify(msg));
       } catch (error) {
         console.log("Failed to send message", error);
       }
@@ -90,6 +95,7 @@ function webSocketHook() {
     sendMessage,
     clients,
     id,
+    addOnMessage,
   };
 }
 
@@ -98,6 +104,7 @@ const init: SocketInterface = {
   sendMessage: () => {},
   clients: {},
   id: "",
+  addOnMessage: () => {},
 };
 
 export const useSocket = singletonHook(init, webSocketHook);

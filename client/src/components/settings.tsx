@@ -138,7 +138,7 @@ export function Settings({
                     style={{
                       minWidth: "36px",
                     }}
-                    weight="bold"
+                    size="2"
                   >
                     {micVolume}
                   </Text>
@@ -163,7 +163,7 @@ export function Settings({
                     style={{
                       minWidth: "36px",
                     }}
-                    weight="bold"
+                    size="2"
                   >
                     {noiseGate}
                   </Text>
@@ -176,9 +176,8 @@ export function Settings({
                   <div style={{ minWidth: "36px" }} />
                   {/* <Text
                     style={{
-                      width: "36px",
+                      minWidth: "36px",
                     }}
-                    weight="bold"
                   >
                     {Math.floor(micLiveVolume)}
                   </Text> */}

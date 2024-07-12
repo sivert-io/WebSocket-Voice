@@ -21,10 +21,7 @@ export function Controls({ color, nickname }: Props) {
 
   function handleMute() {
     if (micID) {
-      sendMessage({
-        message: "updateMuted",
-        value: !isMuted,
-      });
+      sendMessage("updateMuted", !isMuted);
 
       setIsMuted(!isMuted);
     }

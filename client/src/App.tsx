@@ -13,10 +13,7 @@ export function App() {
 
   function handleSubmit(_nick: string) {
     if (_nick.length > 2 && _nick.length < 12) {
-      sendMessage({
-        message: "updateNickname",
-        value: _nick,
-      });
+      sendMessage("updateNickname", _nick);
 
       setSubmitted(true);
       setNickname(_nick); // Update nickname. Is also used in @/components/intro.tsx
