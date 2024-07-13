@@ -25,24 +25,26 @@ function getStunServers() {
 const configuration: RTCConfiguration = {
   iceServers: [
     { urls: getStunServers() }, // Example of a public STUN server provided by Google
-    {
-      urls: import.meta.env.VITE_TURN_HOST || "",
-      username: import.meta.env.VITE_TURN_USERNAME,
-      credential: import.meta.env.VITE_TURN_PASSWORD,
-    },
   ],
 };
+
+import.meta.env.VITE_TURN_HOST &&
+  configuration.iceServers?.push({
+    urls: import.meta.env.VITE_TURN_HOST,
+    username: import.meta.env.VITE_TURN_USERNAME,
+    credential: import.meta.env.VITE_TURN_PASSWORD,
+  });
 
 // Handles how client interacts with SFU server via signaling server
 function streamHook() {
   const [isMuted, setIsMuted] = useState(false);
-  const [peerConnection] = useState(new RTCPeerConnection()); // Step 2: Create RTCPeerConnection object
+  const { microphoneBuffer } = useMicrophone(); // Step 1: Initialize local media stream
+  const [peerConnection] = useState(new RTCPeerConnection(configuration)); // Step 2: Create RTCPeerConnection object
   const [streams, setStreams] = useState<readonly MediaStream[]>([]);
 
-  const { microphoneBuffer } = useMicrophone(); // Step 1: Initialize local media stream
   const { sendMessage, addOnMessage } = useSocket();
 
-  // Add tracks to SFU
+  // Add tracks to peerConnection (these are streamed to SFU)
   useEffect(() => {
     // Step 3: Add tracks we will send to SFU
     microphoneBuffer.output?.mediaStream.getTracks().forEach((track) => {
@@ -54,7 +56,7 @@ function streamHook() {
   useEffect(() => {
     // Step 4: Handle incoming stream from SFU
     peerConnection.ontrack = function (event) {
-      setStreams(event.streams);
+      setStreams(event.streams); // Update list of streams. We use this list of streams to play audio on client
     };
 
     async function createSDPoffer() {

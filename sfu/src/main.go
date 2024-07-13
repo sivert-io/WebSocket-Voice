@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -28,7 +27,6 @@ var (
 	upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
-	indexTemplate = &template.Template{}
 
 	// lock for peerConnections and trackLocals
 	listLock        sync.RWMutex
@@ -54,22 +52,8 @@ func main() {
 	log.SetFlags(0)
 	trackLocals = map[string]*webrtc.TrackLocalStaticRTP{}
 
-	// Read index.html from disk into memory, serve whenever anyone requests /
-	indexHTML, err := os.ReadFile("index.html")
-	if err != nil {
-		panic(err)
-	}
-	indexTemplate = template.Must(template.New("").Parse(string(indexHTML)))
-
 	// websocket handler
-	http.HandleFunc("/websocket", websocketHandler)
-
-	// index.html handler
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if err := indexTemplate.Execute(w, "ws://"+r.Host+"/websocket"); err != nil {
-			log.Fatal(err)
-		}
-	})
+	http.HandleFunc("/", websocketHandler)
 
 	// request a keyframe every 3 seconds
 	go func() {
