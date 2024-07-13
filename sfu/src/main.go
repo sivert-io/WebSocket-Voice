@@ -4,7 +4,7 @@
 //go:build !js
 // +build !js
 
-// sfu-ws is a many-to-many websocket based SFU
+// sfu-ws is a many-to-many websocket based SFU (Selective Forwarding Unit)
 package main
 
 import (
@@ -23,12 +23,14 @@ import (
 
 // nolint
 var (
+	// Command-line flag for specifying the server address (default is ":8080")
 	addr     = flag.String("addr", ":8080", "http service address")
 	upgrader = websocket.Upgrader{
+		// Allow all origins to connect. In a production app, you should limit this to your allowed origins.
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 
-	// lock for peerConnections and trackLocals
+	// Mutex to safely access shared data structures from multiple goroutines
 	listLock        sync.RWMutex
 	peerConnections []peerConnectionState
 	trackLocals     map[string]*webrtc.TrackLocalStaticRTP
@@ -45,28 +47,29 @@ type peerConnectionState struct {
 }
 
 func main() {
-	// Parse the flags passed to program
+	// Parse command-line flags
 	flag.Parse()
 
-	// Init other state
+	// Set logging options
 	log.SetFlags(0)
 	trackLocals = map[string]*webrtc.TrackLocalStaticRTP{}
 
-	// websocket handler
+	// Handle WebSocket connections at the root URL
 	http.HandleFunc("/", websocketHandler)
 
-	// request a keyframe every 3 seconds
+	// Periodically request keyframes to ensure good video quality
 	go func() {
 		for range time.NewTicker(time.Second * 3).C {
 			dispatchKeyFrame()
 		}
 	}()
 
-	// start HTTP server
+	// Start the HTTP server
 	log.Fatal(http.ListenAndServe(*addr, nil)) // nolint:gosec
 }
 
-// Add to list of tracks and fire renegotation for all PeerConnections
+// addTrack adds a new media track to the list of local tracks and triggers a renegotiation
+// e.g. A user starts streaming their video or audio
 func addTrack(t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
 	listLock.Lock()
 	defer func() {
@@ -74,7 +77,7 @@ func addTrack(t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
 		signalPeerConnections()
 	}()
 
-	// Create a new TrackLocal with the same codec as our incoming
+	// Create a new local track with the same codec as the incoming remote track
 	trackLocal, err := webrtc.NewTrackLocalStaticRTP(t.Codec().RTPCodecCapability, t.ID(), t.StreamID())
 	if err != nil {
 		panic(err)
@@ -84,7 +87,8 @@ func addTrack(t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
 	return trackLocal
 }
 
-// Remove from list of tracks and fire renegotation for all PeerConnections
+// removeTrack removes a media track from the list of local tracks and triggers a renegotiation
+// e.g. A user stops streaming their video or audio
 func removeTrack(t *webrtc.TrackLocalStaticRTP) {
 	listLock.Lock()
 	defer func() {
@@ -95,7 +99,8 @@ func removeTrack(t *webrtc.TrackLocalStaticRTP) {
 	delete(trackLocals, t.ID())
 }
 
-// signalPeerConnections updates each PeerConnection so that it is getting all the expected media tracks
+// signalPeerConnections updates each peer connection so that it sends/receives the correct media tracks
+// e.g. When a new track is added or removed, update all peer connections to reflect this change
 func signalPeerConnections() {
 	listLock.Lock()
 	defer func() {
@@ -105,12 +110,13 @@ func signalPeerConnections() {
 
 	attemptSync := func() (tryAgain bool) {
 		for i := range peerConnections {
+			// Remove closed peer connections
 			if peerConnections[i].peerConnection.ConnectionState() == webrtc.PeerConnectionStateClosed {
 				peerConnections = append(peerConnections[:i], peerConnections[i+1:]...)
-				return true // We modified the slice, start from the beginning
+				return true // Restart the loop since we modified the slice
 			}
 
-			// map of sender we already are seanding, so we don't double send
+			// Map of senders we are already using to avoid duplicates
 			existingSenders := map[string]bool{}
 
 			for _, sender := range peerConnections[i].peerConnection.GetSenders() {
@@ -120,7 +126,7 @@ func signalPeerConnections() {
 
 				existingSenders[sender.Track().ID()] = true
 
-				// If we have a RTPSender that doesn't map to a existing track remove and signal
+				// If a sender's track is not in our list of local tracks, remove it
 				if _, ok := trackLocals[sender.Track().ID()]; !ok {
 					if err := peerConnections[i].peerConnection.RemoveTrack(sender); err != nil {
 						return true
@@ -128,7 +134,7 @@ func signalPeerConnections() {
 				}
 			}
 
-			// Don't receive videos we are sending, make sure we don't have loopback
+			// Avoid receiving tracks we are sending to prevent loopback
 			for _, receiver := range peerConnections[i].peerConnection.GetReceivers() {
 				if receiver.Track() == nil {
 					continue
@@ -137,7 +143,7 @@ func signalPeerConnections() {
 				existingSenders[receiver.Track().ID()] = true
 			}
 
-			// Add all track we aren't sending yet to the PeerConnection
+			// Add any missing local tracks to the peer connection
 			for trackID := range trackLocals {
 				if _, ok := existingSenders[trackID]; !ok {
 					if _, err := peerConnections[i].peerConnection.AddTrack(trackLocals[trackID]); err != nil {
@@ -146,6 +152,7 @@ func signalPeerConnections() {
 				}
 			}
 
+			// Create and send an offer to the peer to update the connection state
 			offer, err := peerConnections[i].peerConnection.CreateOffer(nil)
 			if err != nil {
 				return true
@@ -173,7 +180,7 @@ func signalPeerConnections() {
 
 	for syncAttempt := 0; ; syncAttempt++ {
 		if syncAttempt == 25 {
-			// Release the lock and attempt a sync in 3 seconds. We might be blocking a RemoveTrack or AddTrack
+			// If we've tried 25 times, release the lock and try again in 3 seconds
 			go func() {
 				time.Sleep(time.Second * 3)
 				signalPeerConnections()
@@ -187,7 +194,8 @@ func signalPeerConnections() {
 	}
 }
 
-// dispatchKeyFrame sends a keyframe to all PeerConnections, used everytime a new user joins the call
+// dispatchKeyFrame sends a keyframe request to all peer connections
+// e.g. When a new user joins, request keyframes to quickly establish video quality
 func dispatchKeyFrame() {
 	listLock.Lock()
 	defer listLock.Unlock()
@@ -207,9 +215,9 @@ func dispatchKeyFrame() {
 	}
 }
 
-// Handle incoming websockets
+// websocketHandler handles incoming WebSocket connections
 func websocketHandler(w http.ResponseWriter, r *http.Request) {
-	// Upgrade HTTP request to Websocket
+	// Upgrade the HTTP request to a WebSocket connection
 	unsafeConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
@@ -218,20 +226,20 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 
 	c := &threadSafeWriter{unsafeConn, sync.Mutex{}}
 
-	// When this frame returns close the Websocket
-	defer c.Close() //nolint
+	// When this function exits, close the WebSocket
+	defer c.Close() // nolint
 
-	// Create new PeerConnection
+	// Create a new WebRTC peer connection
 	peerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		log.Print(err)
 		return
 	}
 
-	// When this frame returns close the PeerConnection
-	defer peerConnection.Close() //nolint
+	// When this function exits, close the peer connection
+	defer peerConnection.Close() // nolint
 
-	// Accept one audio and one video track incoming
+	// Prepare to receive both audio and video tracks from clients
 	for _, typ := range []webrtc.RTPCodecType{webrtc.RTPCodecTypeVideo, webrtc.RTPCodecTypeAudio} {
 		if _, err := peerConnection.AddTransceiverFromKind(typ, webrtc.RTPTransceiverInit{
 			Direction: webrtc.RTPTransceiverDirectionRecvonly,
@@ -241,7 +249,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Add our new PeerConnection to global list
+	// Add this new client connection to the list of peer connections
 	listLock.Lock()
 	peerConnections = append(peerConnections, peerConnectionState{peerConnection, c})
 	listLock.Unlock()
@@ -266,7 +274,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	})
 
-	// If PeerConnection is closed remove it from global list
+	// If the peer connection state changes, handle it
 	peerConnection.OnConnectionStateChange(func(p webrtc.PeerConnectionState) {
 		switch p {
 		case webrtc.PeerConnectionStateFailed:
@@ -279,13 +287,15 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	})
 
+	// When a new track is received, add it to the list and start forwarding data
 	peerConnection.OnTrack(func(t *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
-		// Create a track to fan out our incoming video to all peers
+		// Create a local track to forward the incoming track
 		trackLocal := addTrack(t)
 		defer removeTrack(trackLocal)
 
 		buf := make([]byte, 1500)
 		for {
+			// Continuously read data from the remote track and send it to the local track
 			i, _, err := t.Read(buf)
 			if err != nil {
 				return
@@ -297,10 +307,10 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	})
 
-	// Signal for the new PeerConnection
+	// Signal the new peer connection to start the negotiation process
 	signalPeerConnections()
 
-	message := &websocketMessage{}
+	// Handle incoming WebSocket messages from the client
 	for {
 		_, raw, err := c.ReadMessage()
 		if err != nil {
@@ -338,12 +348,13 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Helper to make Gorilla Websockets threadsafe
+// threadSafeWriter wraps a WebSocket connection with a mutex to ensure safe concurrent access
 type threadSafeWriter struct {
 	*websocket.Conn
 	sync.Mutex
 }
 
+// WriteJSON writes a JSON message to the WebSocket connection in a thread-safe manner
 func (t *threadSafeWriter) WriteJSON(v interface{}) error {
 	t.Lock()
 	defer t.Unlock()
