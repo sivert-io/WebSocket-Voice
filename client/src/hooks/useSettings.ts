@@ -10,6 +10,10 @@ interface Settings {
   setMicVolume: (num: number) => any;
   noiseGate: number;
   setNoiseGate: (num: number) => any;
+  setLoopbackEnabled: (value: boolean) => any;
+  loopbackEnabled: boolean;
+  isMuted: boolean;
+  setIsMuted: (value: boolean) => any;
 }
 
 function updateStorage(key: string, value: string, useState: (d: any) => any) {
@@ -18,6 +22,8 @@ function updateStorage(key: string, value: string, useState: (d: any) => any) {
 }
 
 function settingsHook() {
+  const [loopbackEnabled, setLoopbackEnabled] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [micID, setMicID] = useState(
     localStorage.getItem("micID") || undefined
   );
@@ -56,6 +62,10 @@ function settingsHook() {
     setMicVolume: updateMicVolume,
     noiseGate,
     setNoiseGate: updateNoiseGate,
+    loopbackEnabled,
+    setLoopbackEnabled,
+    isMuted,
+    setIsMuted,
   };
 }
 
@@ -68,6 +78,10 @@ const init: Settings = {
   setMicVolume: () => {},
   noiseGate: Number(localStorage.getItem("noiseGate") || 10),
   setNoiseGate: () => {},
+  loopbackEnabled: false,
+  setLoopbackEnabled: () => {},
+  isMuted: false,
+  setIsMuted: () => {},
 };
 
 export const useSettings = singletonHook(init, settingsHook);

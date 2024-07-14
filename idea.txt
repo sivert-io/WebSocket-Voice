@@ -1,0 +1,42 @@
+User 1 is local (we are user 1), and user 2 is remote.
+
+1. User 1 joins voice chat room
+2. User 1 says "Hello"
+3. User 2 joins voice chat room
+4. User 2 says "Hello!"
+5. User 1 says "Hello"
+6. User 1 opens settings and clicks test microphone
+7. User 1 finishes tuning mic and goes back to voice chat room overview, and says "Just fixed my mic"
+8. User 1 leaves voice chat room
+9. User 2 leaves voice chat room
+
+Technical BTS:
+1. User 1 clicks voice chat room -> useSpeakers & useMicrophone hooks are used.
+useSpeakers generates a handle for the voice chat room - this is the first speaker handle generated, which means an audio context needs to be created.
+useMicrophone generates a handle for the microphone - this is the first microphone handle generated, which means a microphone "context" and buffer needs to be created.
+The microphone buffer is recorded in tiny chunks and sent to the server in a UDP packet (on a single port the server has open), this packet CAN contain username or some sort of session token.
+
+2. The microphone buffer captures the voice, and the noise gate triggers, sending the data packet to the server.
+No one is in the room, so the packet does not get retransmitted.
+
+3. User 2 joins the voice chat room -> A local voice buffer with gain node is set up for this user (fropm pov of user 1)
+
+4. User 2 sends voice packet to server, and server retransmits to all users in voice chat room (user 1).
+On each data packet received, User 1 locally creates a BufferSourceNode, fills the buffer with this data packet, connects it to the locally generated gain node for user 2, and plays it into the speakers.
+
+5. The microphone buffer captures the voice, and the noise gate triggers, sending the data packet to the server.
+The packet is retransmitted to all users in the voice chat room (user 2)
+
+6. The test microphone button generates a new handle for both useSpeakers & useMicrophone.
+Since these handles are not the first for each of them, there is already an existing context and nothing has to be done, except for connecting the microphone to speakers.
+
+7. The handles for both useSpeakers & useMicrophone created in step 6, for the settings menu, are deleted.
+The microphone is disconnected from the speakers.
+Since there still exists active handles for both of these from step 1, nothing is done.
+The voice packet is also transmitted to the server, and retransmitted to all users in the voice chat room (user 2)
+
+8. The handles created in step 1 are now deleted.
+These were the last active handles, and therefore the audio context is destroyed, and microphone is disabled (We don't need to listen to it anymore).
+User 1 is removed from the active participants of the voice chat.
+
+9. Nothing happens for user 1.

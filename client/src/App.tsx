@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Flex } from "@radix-ui/themes";
+import { Button, Flex } from "@radix-ui/themes";
 import { Controls } from "./components/controls";
 import { useSettings } from "./hooks/useSettings";
 import { Intro } from "./components/intro";
@@ -11,6 +11,7 @@ export function App() {
   const { socket, clients, sendMessage, id } = useSocket();
   const [submitted, setSubmitted] = useState<boolean>(false);
   const { nickname, setNickname } = useSettings();
+  const [joined, setJoined] = useState(false);
 
   function handleSubmit(_nick: string) {
     if (_nick.length > 2 && _nick.length < 12) {
@@ -48,8 +49,20 @@ export function App() {
             color={id.length > 0 ? clients[id]?.color : "gray"}
             nickname={nickname}
           />
-          <UsersMap />
-          <TestRTC />
+          {!joined ? (
+            <Button
+              onClick={() => {
+                setJoined(true);
+              }}
+            >
+              Join!
+            </Button>
+          ) : (
+            <>
+              <UsersMap />
+              <TestRTC />
+            </>
+          )}
         </Flex>
       )}
     </Flex>

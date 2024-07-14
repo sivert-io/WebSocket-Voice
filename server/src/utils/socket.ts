@@ -32,23 +32,6 @@ export function socketHandler(
     );
   }
 
-  if (!process.env.TURN_HOST) {
-    consola.error(
-      "Missing TURN Host! some clients may be unable to connect to SFU"
-    );
-  } else {
-    ws.send(
-      JSON.stringify({
-        message: "turn_host",
-        value: {
-          host: process.env.TURN_HOST,
-          username: process.env.TURN_USERNAME,
-          password: process.env.TURN_PASSWORD,
-        },
-      })
-    );
-  }
-
   if (!process.env.STUN_SERVERS) {
     consola.error("Missing STUN servers! SFU may be unable to reach clients");
   } else {

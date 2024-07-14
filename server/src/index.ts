@@ -4,7 +4,7 @@ import { config } from "dotenv";
 import { socketHandler } from "./utils/socket";
 config();
 
-consola.start("Starting server...");
+consola.start("Starting signaling server...");
 var PORT = 5000;
 
 if (process.env.PORT) PORT = Number(process.env.PORT);
@@ -22,4 +22,4 @@ const wss = new WebSocketServer({ port: PORT });
 
 wss.on("connection", (ws) => socketHandler(wss, ws));
 
-consola.success("Server started at port", PORT);
+consola.success("Signaling server started at port", PORT);

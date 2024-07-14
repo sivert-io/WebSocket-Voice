@@ -67,20 +67,13 @@ func main() {
 		}
 	}()
 
-	// Command-line flag for specifying the server address (default is ":5005")
-    addr := flag.String("addr", "", "http service address")
-    // Check if `addr` is empty; if so, set default value based on environment variable
-    if *addr == "" {
-        port := os.Getenv("PORT")
-        if port == "" {
-            port = "5005" // Default port if `PORT` environment variable is not set
-        }
-        *addr = ":" + port
-    }
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "5005"
+	}
 
 	// Start the HTTP server
-	log.Printf("Server starting on %s", *addr)
-	log.Fatal(http.ListenAndServe(*addr, nil)) // nolint:gosec
+	log.Fatal(http.ListenAndServe(":" + port, nil)) // nolint:gosec
 }
 
 // addTrack adds a new media track to the list of local tracks and triggers a renegotiation
@@ -124,7 +117,6 @@ func removeTrack(t *webrtc.TrackLocalStaticRTP) {
 	delete(trackLocals, t.ID())
 	log.Printf("Removed track: ID=%s", t.ID())
 }
-
 
 // signalPeerConnections updates each peer connection so that it sends/receives the correct media tracks
 // e.g. When a new track is added or removed, update all peer connections to reflect this change
@@ -258,6 +250,8 @@ func dispatchKeyFrame() {
 
 // websocketHandler handles incoming WebSocket connections
 func websocketHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: Validate JWT and check that it has access to the room
+
 	// Upgrade the HTTP request to a WebSocket connection
 	unsafeConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -265,10 +259,10 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := &threadSafeWriter{unsafeConn, sync.Mutex{}}
+	safeConn := &threadSafeWriter{unsafeConn, sync.Mutex{}}
 
 	// When this function exits, close the WebSocket
-	defer c.Close()
+	defer safeConn.Close()
 
 	stunServers := strings.Split(os.Getenv("STUN_SERVERS"), ",")
 
@@ -276,11 +270,6 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	iceServers := []webrtc.ICEServer{
 		{
 			URLs: stunServers,
-		},
-		{
-			URLs:       []string{os.Getenv("TURN_HOST")},
-			Username:   os.Getenv("TURN_USERNAME"),
-			Credential: os.Getenv("TURN_PASSWORD"),
 		},
 	}
 
@@ -311,7 +300,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Add this new client connection to the list of peer connections
 	listLock.Lock()
-	peerConnections = append(peerConnections, peerConnectionState{peerConnection, c})
+	peerConnections = append(peerConnections, peerConnectionState{peerConnection, safeConn})
 	listLock.Unlock()
 
 	// Trickle ICE. Emit server candidate to client

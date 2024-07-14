@@ -1,6 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { singletonHook } from "react-singleton-hook";
 import { useSocket } from "./useSocket";
+import { useMicrophone } from "./useMicrophone";
+import { useSpeakers } from "./useSpeakers";
 
 interface StreamData {
   stream: MediaStream;
@@ -16,24 +18,54 @@ interface SFUInterface {
 function sfuHook(): SFUInterface {
   const [streams, setStreams] = useState<StreamData[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { sfu_host, turn_host, turn_username, turn_password, stun_hosts } =
-    useSocket();
+  const [registeredTracks, setRegisteredTracks] = useState<RTCRtpSender[]>([]);
+  const { sfu_host, stun_hosts } = useSocket();
+  const { microphoneBuffer } = useMicrophone();
+  const [rtcActive, setRtcActive] = useState(false);
+  const { mediaDestination, audioContext } = useSpeakers();
+  const [streamSources, setStreamSources] = useState<{
+    [id: string]: GainNode;
+  }>({});
 
   // Using refs to store the RTCPeerConnection and WebSocket instances
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (sfu_host && turn_host && turn_username && turn_password && stun_hosts) {
-      const init = async () => {
-        try {
-          const localStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              autoGainControl: false,
-              echoCancellation: false,
-              noiseSuppression: false,
-            },
-          });
+    console.log(streams.length, audioContext, mediaDestination);
+
+    if (streams.length > 0 && audioContext && mediaDestination) {
+      streams.forEach((stream) => {
+        if (stream.isLocal) return;
+        if (!stream.stream.getAudioTracks().length) return;
+
+        // Fix for Chrome 😒
+        const audio = (new Audio().srcObject = stream.stream);
+
+        const nStream = audioContext.createMediaStreamSource(audio);
+        const nGain = audioContext.createGain();
+        nStream.connect(nGain);
+        nGain.connect(mediaDestination);
+
+        setStreamSources((old) => ({ ...old, [stream.id]: nGain }));
+      });
+    }
+
+    return () => {};
+  }, [streams, audioContext, mediaDestination]);
+
+  useEffect(() => {
+    if (
+      sfu_host &&
+      stun_hosts &&
+      !pcRef.current &&
+      !wsRef.current &&
+      !rtcActive
+    ) {
+      try {
+        if (microphoneBuffer.output) {
+          setRtcActive(true);
+          const localStream = microphoneBuffer.output.mediaStream;
 
           // Create a reference object to track streams
           const streamData = {
@@ -50,16 +82,20 @@ function sfuHook(): SFUInterface {
               {
                 urls: stun_hosts,
               },
-              {
-                urls: turn_host,
-                username: turn_username,
-                credential: turn_password,
-              },
             ],
           };
 
           const pc = new RTCPeerConnection(configuration);
           pcRef.current = pc;
+
+          const trcks: RTCRtpSender[] = [];
+          localStream.getTracks().forEach((track, index) => {
+            console.log(index, "added track to stream", track.id);
+
+            const trck = pc.addTrack(track, localStream);
+            trcks.push(trck);
+          });
+          setRegisteredTracks(trcks);
 
           pc.ontrack = (event: RTCTrackEvent) => {
             console.log("New incoming stream:", event.streams);
@@ -79,10 +115,6 @@ function sfuHook(): SFUInterface {
               return prevStreams;
             });
           };
-
-          localStream
-            .getTracks()
-            .forEach((track) => pc.addTrack(track, localStream));
 
           const ws = new WebSocket(sfu_host);
           wsRef.current = ws;
@@ -156,20 +188,26 @@ function sfuHook(): SFUInterface {
           ws.onerror = (evt) => {
             console.log("WebSocket error:", evt);
           };
-        } catch (err: any) {
-          setError(err.message);
+        } else {
+          console.log("Couldn't find microphone buffer");
         }
-      };
-
-      init();
+      } catch (err: any) {
+        setError(err.message);
+      }
     }
 
     // Cleanup on unmount or when webSocketUrl changes
     return () => {
+      // registeredTracks.forEach((track) => {
+      //   console.log("removed track from peer", track.track?.id);
+
+      //   pcRef.current?.removeTrack(track);
+      // });
+      setRtcActive(false);
       pcRef.current?.close();
       wsRef.current?.close();
     };
-  }, [sfu_host, turn_host, turn_password, turn_username, stun_hosts]);
+  }, [sfu_host, stun_hosts, microphoneBuffer]);
 
   return { streams, error };
 }
@@ -179,4 +217,10 @@ const init: SFUInterface = {
   streams: [],
 };
 
-export const useSFU = singletonHook(init, sfuHook);
+const SFUHook = singletonHook(init, sfuHook);
+
+export const useSFU = () => {
+  const sfu = SFUHook();
+
+  return sfu;
+};

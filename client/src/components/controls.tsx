@@ -1,11 +1,10 @@
 import { Button, Card, Flex, Text, IconButton } from "@radix-ui/themes";
 import { useEffect, useState } from "react";
 import { Settings as SettingsIcon } from "react-feather";
-import { useMicrophone } from "../hooks/useMicrophone";
 import { useSettings } from "../hooks/useSettings";
 import { Settings } from "./settings";
-import { useStream } from "../hooks/useStream";
 import { useSocket } from "../hooks/useSocket";
+import { getIsBrowserSupported } from "../utils/mediaDevices";
 
 interface Props {
   nickname: string;
@@ -15,9 +14,8 @@ interface Props {
 export function Controls({ color, nickname }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const { socket, sendMessage } = useSocket();
-  const { isBrowserSupported } = useMicrophone();
-  const { isMuted, setIsMuted } = useStream();
-  const { micID } = useSettings();
+  const { micID, setIsMuted, isMuted } = useSettings();
+  const [isBrowserSupported] = useState(getIsBrowserSupported());
 
   function handleMute() {
     if (micID) {
@@ -75,12 +73,6 @@ export function Controls({ color, nickname }: Props) {
       {isBrowserSupported === false && (
         <Text weight="bold" size="4">
           Browser is not supported. Sorry!
-        </Text>
-      )}
-
-      {isBrowserSupported === undefined && (
-        <Text weight="bold" size="4">
-          Checking support...
         </Text>
       )}
     </Card>
