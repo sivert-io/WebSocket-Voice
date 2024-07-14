@@ -1,9 +1,3 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
-// SPDX-License-Identifier: MIT
-
-//go:build !js
-// +build !js
-
 // sfu-ws is a many-to-many websocket based SFU (Selective Forwarding Unit)
 package main
 
@@ -12,10 +6,12 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"os"
 	"sync"
 	"time"
+	"strings"
+	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/gorilla/websocket"
 	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
@@ -24,7 +20,7 @@ import (
 // nolint
 var (
 	// Command-line flag for specifying the server address (default is ":8080")
-	addr     = flag.String("addr", ":8080", "http service address")
+	addr     = flag.String("addr", ":5005", "http service address")
 	upgrader = websocket.Upgrader{
 		// Allow all origins to connect. In a production app, you should limit this to your allowed origins.
 		CheckOrigin: func(r *http.Request) bool { return true },
@@ -36,23 +32,32 @@ var (
 	trackLocals     map[string]*webrtc.TrackLocalStaticRTP
 )
 
+// Structure for WebSocket messages
 type websocketMessage struct {
 	Event string `json:"event"`
 	Data  string `json:"data"`
 }
 
+// Structure to hold peer connection and WebSocket connection
 type peerConnectionState struct {
 	peerConnection *webrtc.PeerConnection
 	websocket      *threadSafeWriter
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+	  log.Fatal("Error loading .env file")
+	}
+
 	// Parse command-line flags
 	flag.Parse()
 
 	// Set logging options
-	log.SetFlags(0)
-	trackLocals = map[string]*webrtc.TrackLocalStaticRTP{}
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// Initialize map for track locals
+	trackLocals = make(map[string]*webrtc.TrackLocalStaticRTP)
 
 	// Handle WebSocket connections at the root URL
 	http.HandleFunc("/", websocketHandler)
@@ -65,6 +70,7 @@ func main() {
 	}()
 
 	// Start the HTTP server
+	log.Printf("Server starting on %s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, nil)) // nolint:gosec
 }
 
@@ -80,10 +86,13 @@ func addTrack(t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
 	// Create a new local track with the same codec as the incoming remote track
 	trackLocal, err := webrtc.NewTrackLocalStaticRTP(t.Codec().RTPCodecCapability, t.ID(), t.StreamID())
 	if err != nil {
-		panic(err)
+		log.Printf("Error creating local track: %v", err)
+		return nil
 	}
 
+	// Store the local track in the map
 	trackLocals[t.ID()] = trackLocal
+	log.Printf("Added track: ID=%s, StreamID=%s", t.ID(), t.StreamID())
 	return trackLocal
 }
 
@@ -96,8 +105,17 @@ func removeTrack(t *webrtc.TrackLocalStaticRTP) {
 		signalPeerConnections()
 	}()
 
+	// Check if the track exists in trackLocals map
+	if t == nil || trackLocals[t.ID()] == nil {
+		log.Printf("Error: track or track ID not found")
+		return
+	}
+
+	// Remove the track from the map
 	delete(trackLocals, t.ID())
+	log.Printf("Removed track: ID=%s", t.ID())
 }
+
 
 // signalPeerConnections updates each peer connection so that it sends/receives the correct media tracks
 // e.g. When a new track is added or removed, update all peer connections to reflect this change
@@ -108,6 +126,7 @@ func signalPeerConnections() {
 		dispatchKeyFrame()
 	}()
 
+	// Attempt to synchronize peer connections
 	attemptSync := func() (tryAgain bool) {
 		for i := range peerConnections {
 			// Remove closed peer connections
@@ -119,6 +138,7 @@ func signalPeerConnections() {
 			// Map of senders we are already using to avoid duplicates
 			existingSenders := map[string]bool{}
 
+			// Check existing senders
 			for _, sender := range peerConnections[i].peerConnection.GetSenders() {
 				if sender.Track() == nil {
 					continue
@@ -129,8 +149,10 @@ func signalPeerConnections() {
 				// If a sender's track is not in our list of local tracks, remove it
 				if _, ok := trackLocals[sender.Track().ID()]; !ok {
 					if err := peerConnections[i].peerConnection.RemoveTrack(sender); err != nil {
+						log.Printf("Error removing sender track: %v", err)
 						return true
 					}
+					// log.Printf("Removed sender track: ID=%s", sender.Track().ID())
 				}
 			}
 
@@ -147,23 +169,28 @@ func signalPeerConnections() {
 			for trackID := range trackLocals {
 				if _, ok := existingSenders[trackID]; !ok {
 					if _, err := peerConnections[i].peerConnection.AddTrack(trackLocals[trackID]); err != nil {
+						log.Printf("Error adding track to peer connection: %v", err)
 						return true
 					}
+					log.Printf("Added track to peer connection: ID=%s", trackID)
 				}
 			}
 
 			// Create and send an offer to the peer to update the connection state
 			offer, err := peerConnections[i].peerConnection.CreateOffer(nil)
 			if err != nil {
+				log.Printf("Error creating offer: %v", err)
 				return true
 			}
 
 			if err = peerConnections[i].peerConnection.SetLocalDescription(offer); err != nil {
+				log.Printf("Error setting local description: %v", err)
 				return true
 			}
 
 			offerString, err := json.Marshal(offer)
 			if err != nil {
+				log.Printf("Error marshalling offer: %v", err)
 				return true
 			}
 
@@ -171,6 +198,7 @@ func signalPeerConnections() {
 				Event: "offer",
 				Data:  string(offerString),
 			}); err != nil {
+				log.Printf("Error sending offer JSON: %v", err)
 				return true
 			}
 		}
@@ -178,6 +206,7 @@ func signalPeerConnections() {
 		return
 	}
 
+	// Attempt synchronization up to 25 times
 	for syncAttempt := 0; ; syncAttempt++ {
 		if syncAttempt == 25 {
 			// If we've tried 25 times, release the lock and try again in 3 seconds
@@ -200,17 +229,20 @@ func dispatchKeyFrame() {
 	listLock.Lock()
 	defer listLock.Unlock()
 
+	// Loop through all peer connections
 	for i := range peerConnections {
 		for _, receiver := range peerConnections[i].peerConnection.GetReceivers() {
 			if receiver.Track() == nil {
 				continue
 			}
 
+			// Send a Picture Loss Indication (PLI) to request a keyframe
 			_ = peerConnections[i].peerConnection.WriteRTCP([]rtcp.Packet{
 				&rtcp.PictureLossIndication{
 					MediaSSRC: uint32(receiver.Track().SSRC()),
 				},
 			})
+			log.Printf("Dispatched keyframe for SSRC=%d", receiver.Track().SSRC())
 		}
 	}
 }
@@ -220,31 +252,50 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	// Upgrade the HTTP request to a WebSocket connection
 	unsafeConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Print("upgrade:", err)
+		log.Printf("WebSocket upgrade error: %v", err)
 		return
 	}
 
 	c := &threadSafeWriter{unsafeConn, sync.Mutex{}}
 
 	// When this function exits, close the WebSocket
-	defer c.Close() // nolint
+	defer c.Close()
+
+	stunServers := strings.Split(os.Getenv("STUN_SERVERS"), ",")
+
+	// Define STUN and TURN servers
+	iceServers := []webrtc.ICEServer{
+		{
+			URLs: stunServers,
+		},
+		{
+			URLs:       []string{os.Getenv("TURN_HOST")},
+			Username:   os.Getenv("TURN_USERNAME"),
+			Credential: os.Getenv("TURN_PASSWORD"),
+		},
+	}
+
+	// Create a new peer connection configuration with the ICE servers
+	config := webrtc.Configuration{
+		ICEServers: iceServers,
+	}
 
 	// Create a new WebRTC peer connection
-	peerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	peerConnection, err := webrtc.NewPeerConnection(config)
 	if err != nil {
-		log.Print(err)
+		log.Printf("Error creating WebRTC peer connection: %v", err)
 		return
 	}
 
 	// When this function exits, close the peer connection
-	defer peerConnection.Close() // nolint
+	defer peerConnection.Close()
 
 	// Prepare to receive both audio and video tracks from clients
 	for _, typ := range []webrtc.RTPCodecType{webrtc.RTPCodecTypeVideo, webrtc.RTPCodecTypeAudio} {
 		if _, err := peerConnection.AddTransceiverFromKind(typ, webrtc.RTPTransceiverInit{
 			Direction: webrtc.RTPTransceiverDirectionRecvonly,
 		}); err != nil {
-			log.Print(err)
+			log.Printf("Error adding transceiver: %v", err)
 			return
 		}
 	}
@@ -262,7 +313,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 
 		candidateString, err := json.Marshal(i.ToJSON())
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error marshalling ICE candidate: %v", err)
 			return
 		}
 
@@ -270,7 +321,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 			Event: "candidate",
 			Data:  string(candidateString),
 		}); writeErr != nil {
-			log.Println(writeErr)
+			log.Printf("Error sending candidate JSON: %v", writeErr)
 		}
 	})
 
@@ -279,7 +330,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 		switch p {
 		case webrtc.PeerConnectionStateFailed:
 			if err := peerConnection.Close(); err != nil {
-				log.Print(err)
+				log.Printf("Peer connection failed to close: %v", err)
 			}
 		case webrtc.PeerConnectionStateClosed:
 			signalPeerConnections()
@@ -311,37 +362,41 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	signalPeerConnections()
 
 	// Handle incoming WebSocket messages from the client
+	message := &websocketMessage{}
 	for {
 		_, raw, err := c.ReadMessage()
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error reading WebSocket message: %v", err)
 			return
 		} else if err := json.Unmarshal(raw, &message); err != nil {
-			log.Println(err)
+			log.Printf("Error unmarshalling WebSocket message: %v", err)
 			return
 		}
+
+		// log.Printf("Event ID: %v", message.Event)
+		// log.Printf("Event Data: %v", message.Data)
 
 		switch message.Event {
 		case "candidate":
 			candidate := webrtc.ICECandidateInit{}
 			if err := json.Unmarshal([]byte(message.Data), &candidate); err != nil {
-				log.Println(err)
+				log.Printf("Error unmarshalling ICE candidate: %v", err)
 				return
 			}
 
 			if err := peerConnection.AddICECandidate(candidate); err != nil {
-				log.Println(err)
+				log.Printf("Error adding ICE candidate: %v", err)
 				return
 			}
 		case "answer":
 			answer := webrtc.SessionDescription{}
 			if err := json.Unmarshal([]byte(message.Data), &answer); err != nil {
-				log.Println(err)
+				log.Printf("Error unmarshalling answer: %v", err)
 				return
 			}
 
 			if err := peerConnection.SetRemoteDescription(answer); err != nil {
-				log.Println(err)
+				log.Printf("Error setting remote description: %v", err)
 				return
 			}
 		}
@@ -358,6 +413,5 @@ type threadSafeWriter struct {
 func (t *threadSafeWriter) WriteJSON(v interface{}) error {
 	t.Lock()
 	defer t.Unlock()
-
 	return t.Conn.WriteJSON(v)
 }

@@ -12,6 +12,12 @@ type MessageEventsType = {
   [key: string]: MessageEventType;
 };
 
+type TurnDetails = {
+  host?: string;
+  username?: string;
+  password?: string;
+};
+
 export interface Clients {
   [id: string]: {
     nickname: string;
@@ -27,13 +33,23 @@ interface SocketInterface {
   clients: Clients;
   id: string;
   addOnMessage: (message: string, newEvent: MessageEventType) => any;
+  stun_hosts?: string[];
+  sfu_host?: string;
+  turn_host?: string;
+  turn_username?: string;
+  turn_password?: string;
 }
 
-function webSocketHook() {
+function webSocketHook(): SocketInterface {
   const [socket, setSocket] = useState<WebSocket | undefined>(undefined);
   const [clients, setClients] = useState<Clients>({});
   const [id, setId] = useState("");
   const [onMessageEvents, setOnMessageEvents] = useState<MessageEventsType>({});
+  const [sfu_host, setSfu_host] = useState<string | undefined>(undefined);
+  const [turnDetails, setTurnDetails] = useState<TurnDetails>({});
+  const [stunHosts, setStunHosts] = useState<string[]>([
+    "stun:stun1.l.google.com:19302",
+  ]);
 
   function addOnMessage(message: string, newEvent: MessageEventType) {
     setOnMessageEvents((old) => ({ ...old, [message]: newEvent }));
@@ -57,15 +73,23 @@ function webSocketHook() {
   useEffect(() => {
     addOnMessage("yourID", setId);
     addOnMessage("peers", setClients);
+    addOnMessage("sfu_host", setSfu_host);
+    addOnMessage("turn_host", (value: TurnDetails) => {
+      setTurnDetails(value);
+    });
+    addOnMessage("stun_hosts", (value: string) => {
+      const urlS = value.split(",");
+      setStunHosts(urlS);
+    });
 
-    const socket = new WebSocket(
+    const _socket = new WebSocket(
       import.meta.env.VITE_WS_HOST || "ws://localhost:5000"
     );
 
-    setSocket(socket);
+    setSocket(_socket);
 
     return () => {
-      socket.close();
+      _socket.close();
     };
   }, []);
 
@@ -96,11 +120,15 @@ function webSocketHook() {
     clients,
     id,
     addOnMessage,
+    sfu_host,
+    stun_hosts: stunHosts,
+    turn_host: turnDetails.host,
+    turn_username: turnDetails.username,
+    turn_password: turnDetails.password,
   };
 }
 
 const init: SocketInterface = {
-  socket: undefined,
   sendMessage: () => {},
   clients: {},
   id: "",

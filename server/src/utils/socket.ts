@@ -4,16 +4,61 @@ import { colors } from "./colors";
 import consola from "consola";
 import WebSocket from "ws";
 import { IncomingMessage } from "http";
+import { config } from "dotenv";
+config();
 
 const clients: Clients = {};
-
-const peerSDPs: { [clientID: string]: string } = {};
 
 export function socketHandler(
   wss: WebSocket.Server<typeof WebSocket, typeof IncomingMessage>,
   ws: WebSocket
 ) {
   const id = getUniqueID();
+
+  if (!process.env.SFU_WS_HOST) {
+    consola.error("Missing SFU WebSocket Host! No streams will be forwarded");
+    ws.send(
+      JSON.stringify({
+        message: "sfu_host",
+        value: null,
+      })
+    );
+  } else {
+    ws.send(
+      JSON.stringify({
+        message: "sfu_host",
+        value: process.env.SFU_WS_HOST,
+      })
+    );
+  }
+
+  if (!process.env.TURN_HOST) {
+    consola.error(
+      "Missing TURN Host! some clients may be unable to connect to SFU"
+    );
+  } else {
+    ws.send(
+      JSON.stringify({
+        message: "turn_host",
+        value: {
+          host: process.env.TURN_HOST,
+          username: process.env.TURN_USERNAME,
+          password: process.env.TURN_PASSWORD,
+        },
+      })
+    );
+  }
+
+  if (!process.env.STUN_SERVERS) {
+    consola.error("Missing STUN servers! SFU may be unable to reach clients");
+  } else {
+    ws.send(
+      JSON.stringify({
+        message: "stun_hosts",
+        value: process.env.STUN_SERVERS,
+      })
+    );
+  }
 
   function sendNewClientInfo() {
     wss.clients.forEach((client) => {
@@ -42,11 +87,6 @@ export function socketHandler(
       };
       sendNewClientInfo();
     }
-
-    // SDP from clients, we need to store this somewhere for later
-    if (json.message === "offer") {
-      peerSDPs[id] = json.value;
-    }
   }
 
   function sendJson(obj: any) {
@@ -56,7 +96,7 @@ export function socketHandler(
   clients[id] = {
     nickname: "Unknown",
     isSpeaking: false,
-    isMuted: true,
+    isMuted: false,
     color: colors[Math.floor(Math.random() * colors.length)],
   };
   consola.info("Peer connected", id);
@@ -70,7 +110,7 @@ export function socketHandler(
   });
 
   ws.on("close", (code, reason) => {
-    consola.fail("Peer disconnected", id);
+    consola.fail("Peer disconnected", id, code, reason);
     delete clients[id];
     sendNewClientInfo();
   });

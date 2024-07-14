@@ -5,6 +5,7 @@ import { useSettings } from "./hooks/useSettings";
 import { Intro } from "./components/intro";
 import { UsersMap } from "./components/usersMap";
 import { useSocket } from "./hooks/useSocket";
+import { TestRTC } from "./components/testRTC";
 
 export function App() {
   const { socket, clients, sendMessage, id } = useSocket();
@@ -48,6 +49,7 @@ export function App() {
             nickname={nickname}
           />
           <UsersMap />
+          <TestRTC />
         </Flex>
       )}
     </Flex>
