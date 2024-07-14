@@ -1,4 +1,4 @@
-module pion-sfu
+module sfu
 
 go 1.20
 

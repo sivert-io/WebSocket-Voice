@@ -19,8 +19,6 @@ import (
 
 // nolint
 var (
-	// Command-line flag for specifying the server address (default is ":8080")
-	addr     = flag.String("addr", ":5005", "http service address")
 	upgrader = websocket.Upgrader{
 		// Allow all origins to connect. In a production app, you should limit this to your allowed origins.
 		CheckOrigin: func(r *http.Request) bool { return true },
@@ -68,6 +66,17 @@ func main() {
 			dispatchKeyFrame()
 		}
 	}()
+
+	// Command-line flag for specifying the server address (default is ":5005")
+    addr := flag.String("addr", "", "http service address")
+    // Check if `addr` is empty; if so, set default value based on environment variable
+    if *addr == "" {
+        port := os.Getenv("PORT")
+        if port == "" {
+            port = "5005" // Default port if `PORT` environment variable is not set
+        }
+        *addr = ":" + port
+    }
 
 	// Start the HTTP server
 	log.Printf("Server starting on %s", *addr)
