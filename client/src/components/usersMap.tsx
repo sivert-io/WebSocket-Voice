@@ -4,27 +4,48 @@ import { isSpeaking } from "../utils/speaking";
 import { useSettings } from "../hooks/useSettings";
 import { User } from "./user";
 import { useSocket } from "../hooks/useSocket";
+import { useSFU } from "../hooks/useSFU";
 
 export function UsersMap() {
+  const [clientsSpeaking, setClientsSpeaking] = useState<{
+    [id: string]: boolean;
+  }>({});
   const [amISpeaking, setAmISpeaking] = useState(false);
   const { clients, id } = useSocket();
   const { microphoneBuffer } = useMicrophone(); // HANDLE OPENED
-  const { noiseGate, isMuted } = useSettings();
+  const { isMuted } = useSettings();
+  const { streamSources } = useSFU();
 
   // Check if I am speaking right now
   useEffect(() => {
-    //Implementing the setInterval method
     const interval = setInterval(() => {
-      if (microphoneBuffer.analyser) {
-        setAmISpeaking(
-          isMuted ? false : isSpeaking(microphoneBuffer.analyser, noiseGate)
-        );
-      }
-    }, 5);
+      Object.keys(clients).forEach((key) => {
+        const client = clients[key];
+
+        // is ourselves
+        if (key === id && microphoneBuffer.analyser) {
+          setAmISpeaking(isSpeaking(microphoneBuffer.analyser, 1));
+        }
+
+        // is not ourselves
+        else {
+          if (!client.streamID || !streamSources[client.streamID]) {
+            console.log("No stream source for client", client.streamID);
+            return;
+          }
+
+          const stream = streamSources[client.streamID];
+          setClientsSpeaking((old) => ({
+            ...old,
+            [key]: isSpeaking(stream.analyser, 1),
+          }));
+        }
+      });
+    }, 100);
 
     //Clearing the interval
     return () => clearInterval(interval);
-  }, [microphoneBuffer.analyser, noiseGate]);
+  }, [microphoneBuffer.analyser, streamSources]);
 
   return (
     <div
@@ -40,7 +61,9 @@ export function UsersMap() {
         return (
           <User
             nickname={client.nickname}
-            isSpeaking={clientID === id ? amISpeaking : false}
+            isSpeaking={
+              clientID === id ? amISpeaking : clientsSpeaking[clientID] || false
+            }
             color={client.color}
             key={clientID}
             isMuted={clientID === id ? isMuted : client.isMuted}

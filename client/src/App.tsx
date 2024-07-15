@@ -44,7 +44,7 @@ export function App() {
       {!submitted && <Intro submit={handleSubmit} />}
 
       {submitted && (
-        <Flex direction="column" gap="2">
+        <Flex direction="column" gap="4" minWidth="482px">
           <Controls
             color={id.length > 0 ? clients[id]?.color : "gray"}
             nickname={nickname}

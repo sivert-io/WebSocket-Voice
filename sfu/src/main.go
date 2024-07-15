@@ -131,7 +131,9 @@ func signalPeerConnections() {
 	attemptSync := func() (tryAgain bool) {
 		for i := range peerConnections {
 			// Remove closed peer connections
+			log.Printf("Peer connection state: %v", peerConnections[i].peerConnection.ConnectionState())
 			if peerConnections[i].peerConnection.ConnectionState() == webrtc.PeerConnectionStateClosed {
+				log.Printf("Removing closed peer connection")
 				peerConnections = append(peerConnections[:i], peerConnections[i+1:]...)
 				return true // Restart the loop since we modified the slice
 			}
@@ -176,6 +178,13 @@ func signalPeerConnections() {
 					log.Printf("Added track to peer connection: ID=%s", trackID)
 				}
 			}
+
+			// Check if the signaling state allows for creating a new offer
+			if peerConnections[i].peerConnection.SignalingState() != webrtc.SignalingStateStable {
+				log.Printf("Cannot create offer, signaling state: %v", peerConnections[i].peerConnection.SignalingState())
+				continue
+			}
+
 
 			// Create and send an offer to the peer to update the connection state
 			offer, err := peerConnections[i].peerConnection.CreateOffer(nil)
@@ -243,7 +252,7 @@ func dispatchKeyFrame() {
 					MediaSSRC: uint32(receiver.Track().SSRC()),
 				},
 			})
-			log.Printf("Dispatched keyframe for SSRC=%d", receiver.Track().SSRC())
+			// log.Printf("Dispatched keyframe for SSRC=%d", receiver.Track().SSRC())
 		}
 	}
 }
@@ -315,7 +324,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if writeErr := c.WriteJSON(&websocketMessage{
+		if writeErr := safeConn.WriteJSON(&websocketMessage{
 			Event: "candidate",
 			Data:  string(candidateString),
 		}); writeErr != nil {
@@ -362,8 +371,13 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	// Handle incoming WebSocket messages from the client
 	message := &websocketMessage{}
 	for {
-		_, raw, err := c.ReadMessage()
+		_, raw, err := safeConn.ReadMessage()
 		if err != nil {
+			if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+				log.Printf("WebSocket closed: %v", err)
+				break
+			}
+
 			log.Printf("Error reading WebSocket message: %v", err)
 			return
 		} else if err := json.Unmarshal(raw, &message); err != nil {

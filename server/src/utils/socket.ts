@@ -70,6 +70,15 @@ export function socketHandler(
       };
       sendNewClientInfo();
     }
+
+    if (json.message === "streamID") {
+      // communicate with SFU and bind user ID to stream ID, then update all users
+      clients[id] = {
+        ...clients[id],
+        streamID: json.value,
+      };
+      sendNewClientInfo();
+    }
   }
 
   function sendJson(obj: any) {
@@ -78,9 +87,9 @@ export function socketHandler(
 
   clients[id] = {
     nickname: "Unknown",
-    isSpeaking: false,
     isMuted: false,
     color: colors[Math.floor(Math.random() * colors.length)],
+    streamID: "",
   };
   consola.info("Peer connected", id);
 

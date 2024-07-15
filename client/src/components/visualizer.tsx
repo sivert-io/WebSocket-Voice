@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 
 type VisualizerProps = {
-  stream: MediaStream;
+  analyser: AnalyserNode;
   visualSetting: "sinewave" | "frequencybars";
   width?: number;
   height?: number;
@@ -9,7 +9,7 @@ type VisualizerProps = {
 };
 
 export const Visualizer: React.FC<VisualizerProps> = ({
-  stream,
+  analyser,
   visualSetting,
   width = 482,
   height = 64,
@@ -17,8 +17,6 @@ export const Visualizer: React.FC<VisualizerProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawVisualRef = useRef<number>();
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
 
   const visualize = () => {
     const canvas = canvasRef.current;
@@ -28,7 +26,6 @@ export const Visualizer: React.FC<VisualizerProps> = ({
     const WIDTH = canvas.width;
     const HEIGHT = canvas.height;
 
-    const analyser = analyserRef.current;
     if (!analyser) return;
     analyser.fftSize = 256;
     const bufferLengthAlt = analyser.frequencyBinCount;
@@ -57,25 +54,15 @@ export const Visualizer: React.FC<VisualizerProps> = ({
     drawAlt();
   };
 
-  useEffect(() => {
-    const audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
-    const analyser = audioContext.createAnalyser();
-    const source = audioContext.createMediaStreamSource(stream);
-
-    source.connect(analyser);
-    audioContextRef.current = audioContext;
-    analyserRef.current = analyser;
-
+  /*useEffect(() => {
     visualize();
 
     return () => {
       if (drawVisualRef.current) {
         cancelAnimationFrame(drawVisualRef.current);
       }
-      audioContext.close();
     };
-  }, [stream]);
+  }, [analyser]);*/
 
   useEffect(() => {
     if (drawVisualRef.current) {

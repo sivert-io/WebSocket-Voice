@@ -28,9 +28,6 @@ function speakersHook() {
         const speakers = devices.filter(
           (device) => device.kind === "audiooutput"
         );
-        speakers.forEach((speaker) => {
-          // console.log(`- ${speaker.label} (${speaker.deviceId})`);
-        });
         setDevices(speakers);
       })
       .catch((err) => {
@@ -43,9 +40,7 @@ function speakersHook() {
     if (handles.length > 0 && !audioContext) {
       const context = new AudioContext();
       const inputBuffer = context.createMediaStreamDestination();
-
       const output = context.createMediaStreamSource(inputBuffer.stream);
-
       output.connect(context.destination);
 
       // Update context

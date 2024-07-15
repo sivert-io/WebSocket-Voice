@@ -3,7 +3,7 @@ import { useSFU } from "../hooks/useSFU";
 import { Visualizer } from "./visualizer";
 
 export const TestRTC = () => {
-  const { streams, error } = useSFU();
+  const { streams, error, streamSources } = useSFU();
 
   if (error) {
     return <div>Error: {error}</div>;
@@ -51,13 +51,15 @@ export const TestRTC = () => {
                 )}
               </Flex>
               <Card>
-                <Visualizer
-                  stream={streamData.stream}
-                  visualSetting="frequencybars"
-                  width={482}
-                  height={64}
-                  barsColor="#6e56cf"
-                />
+                {streamSources[streamData.id] && (
+                  <Visualizer
+                    analyser={streamSources[streamData.id].analyser}
+                    visualSetting="frequencybars"
+                    width={482}
+                    height={64}
+                    barsColor="#6e56cf"
+                  />
+                )}
               </Card>
             </Flex>
           )
