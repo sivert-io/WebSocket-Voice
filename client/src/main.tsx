@@ -10,15 +10,27 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <Theme
       appearance="dark"
       accentColor="violet"
-      grayColor="sand"
+      grayColor="auto"
       radius="full"
       hasBackground={false}
+      panelBackground="translucent"
       style={{
         minHeight: 0,
         height: "100%",
         width: "100%",
       }}
     >
+      <div
+        style={{
+          position: "fixed",
+          zIndex: -10,
+          backgroundImage: "url(/background.png)",
+          opacity: 0.25,
+          inset: 0,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
       <App />
     </Theme>
   </React.StrictMode>

@@ -37,6 +37,8 @@ function speakersHook() {
 
   // Create audioContext and destination only if exists
   useEffect(() => {
+    console.log("handles", handles.length);
+
     if (handles.length > 0 && !audioContext) {
       const context = new AudioContext();
       const inputBuffer = context.createMediaStreamDestination();
@@ -48,7 +50,7 @@ function speakersHook() {
       setMediaDestination(inputBuffer);
     } else {
       // Turn off audio context if no streams to play
-      audioContext?.suspend();
+      audioContext?.close();
       mediaDestination?.stream.getAudioTracks().forEach((track) => {
         track.stop();
       });

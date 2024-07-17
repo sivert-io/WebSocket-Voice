@@ -1,10 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
 
+.radix-themes {
+    --cursor-button: pointer;
+    --cursor-checkbox: pointer;
+    --cursor-disabled: default;
+    --cursor-link: pointer;
+    --cursor-menu-item: pointer;
+    --cursor-radio: pointer;
+    --cursor-slider-thumb: grab;
+    --cursor-slider-thumb-active: grabbing;
+    --cursor-switch: pointer;
+  }
+
 body {
     margin: 0;
     padding: 0;
-    width: 100vw;
-    height: 100vh;
+    width: 100dvw;
+    height: 100dvh;
 }
 
 #root {

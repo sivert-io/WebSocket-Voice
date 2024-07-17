@@ -5,17 +5,19 @@ import { useSettings } from "../hooks/useSettings";
 import { Settings } from "./settings";
 import { useSocket } from "../hooks/useSocket";
 import { getIsBrowserSupported } from "../utils/mediaDevices";
+import { useAccount } from "@/common";
 
 interface Props {
-  nickname: string;
   color: string;
 }
 
-export function Controls({ color, nickname }: Props) {
+export function Controls({ color }: Props) {
   const [showSettings, setShowSettings] = useState(false);
+  const [isBrowserSupported] = useState(getIsBrowserSupported());
+
   const { socket, sendMessage } = useSocket();
   const { micID, setIsMuted, isMuted } = useSettings();
-  const [isBrowserSupported] = useState(getIsBrowserSupported());
+  const { nickname } = useAccount();
 
   function handleMute() {
     if (micID) {

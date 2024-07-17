@@ -3,9 +3,7 @@ import { singletonHook } from "react-singleton-hook";
 
 interface Settings {
   micID?: string;
-  nickname: string;
   setMicID: (id: string) => any;
-  setNickname: (name: string) => any;
   micVolume: number;
   setMicVolume: (num: number) => any;
   noiseGate: number;
@@ -71,9 +69,7 @@ function settingsHook() {
 
 const init: Settings = {
   micID: localStorage.getItem("micID") || undefined,
-  nickname: localStorage.getItem("nickname") || "",
   setMicID: () => {},
-  setNickname: () => {},
   micVolume: Number(localStorage.getItem("micVolume")) || 50,
   setMicVolume: () => {},
   noiseGate: Number(localStorage.getItem("noiseGate") || 10),

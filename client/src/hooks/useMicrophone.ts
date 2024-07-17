@@ -38,7 +38,7 @@ function createMicrophoneHook() {
       setAudioContext(context);
     } else {
       // Turn off audio context if no streams to play
-      audioContext?.suspend();
+      audioContext?.close();
       setAudioContext(undefined);
     }
   }, [handles]);
