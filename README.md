@@ -9,14 +9,14 @@ Welcome to the super early alpha release of our WebRTC SFU project! This reposit
 
 ## 🛠️ Production Requirements 
 
-- **TURN/STUN Server**: Necessary for using the SFU outside of a local network. We recommend [coturn](https://github.com/coturn/coturn).
+- **STUN Server**: Necessary for using the SFU outside of a local network. We recommend [coturn](https://github.com/coturn/coturn). Using public stun servers are fine but performance might vary heavily.
 - **Domain and SSL**: For secure connections in a production environment, set up TSL/SSL with your own domain.
 
 ## 🚀 Getting Started 
 
 1. Clone the repository.
 2. Install dependencies for both the Typescript (client and server) and Go (SFU) components.
-3. (optional) Set up and configure your TURN/STUN server using coturn.
+3. (optional) Set up and configure your STUN server using coturn.
 4. (optional) Configure your domain with TSL/SSL certificates.
 5. Start the signaling server and SFU.
 6. Connect clients and start experimenting with WebRTC!
