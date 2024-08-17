@@ -1,32 +1,39 @@
 import { useSettings } from "../hooks/useSettings";
-import { Flex, Dialog } from "@radix-ui/themes";
+import { Flex, Dialog, IconButton } from "@radix-ui/themes";
 import { MicrophoneSettings } from "./microphoneSettings";
 
-export function Settings({
-  show,
-  setShow,
-}: {
-  show: boolean;
-  setShow: (n: boolean) => any;
-}) {
-  const { micID, setLoopbackEnabled } = useSettings();
+import { FiX } from "react-icons/fi";
+export function Settings() {
+  const { micID, setLoopbackEnabled, setShowSettings, showSettings } =
+    useSettings();
 
   function handleDialogChange(isOpen: boolean) {
     if (micID) {
-      setShow(isOpen);
+      setShowSettings(isOpen);
       setLoopbackEnabled(false);
     }
   }
 
   return (
-    <Dialog.Root open={show} onOpenChange={handleDialogChange}>
+    <Dialog.Root open={showSettings} onOpenChange={handleDialogChange}>
       <Dialog.Content>
+        <Dialog.Close
+          style={{
+            position: "absolute",
+            top: "8px",
+            right: "8px",
+          }}
+        >
+          <IconButton variant="soft" color="gray">
+            <FiX size={16} />
+          </IconButton>
+        </Dialog.Close>
         <Flex direction="column" gap="2">
           <Dialog.Title as="h1" weight="bold" size="6">
             Settings
           </Dialog.Title>
 
-          {show && <MicrophoneSettings />}
+          {showSettings && <MicrophoneSettings />}
         </Flex>
       </Dialog.Content>
     </Dialog.Root>

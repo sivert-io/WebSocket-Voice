@@ -12,6 +12,12 @@ interface Settings {
   loopbackEnabled: boolean;
   isMuted: boolean;
   setIsMuted: (value: boolean) => any;
+
+  isDeafened: boolean;
+  setIsDeafened: (value: boolean) => any;
+
+  showSettings: boolean;
+  setShowSettings: (value: boolean) => any;
 }
 
 function updateStorage(key: string, value: string, useState: (d: any) => any) {
@@ -20,19 +26,21 @@ function updateStorage(key: string, value: string, useState: (d: any) => any) {
 }
 
 function settingsHook() {
+  const [showSettings, setShowSettings] = useState(false);
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isDeafened, setIsDeafened] = useState(false);
   const [micID, setMicID] = useState(
-    localStorage.getItem("micID") || undefined,
+    localStorage.getItem("micID") || undefined
   );
   const [nickname, setNickname] = useState(
-    localStorage.getItem("nickname") || "",
+    localStorage.getItem("nickname") || ""
   );
   const [micVolume, setMicVolume] = useState(
-    Number(localStorage.getItem("micVolume")) || 50,
+    Number(localStorage.getItem("micVolume")) || 50
   );
   const [noiseGate, setNoiseGate] = useState(
-    Number(localStorage.getItem("noiseGate")) || 10,
+    Number(localStorage.getItem("noiseGate")) || 10
   );
 
   function updateMicID(newID: string) {
@@ -64,6 +72,10 @@ function settingsHook() {
     setLoopbackEnabled,
     isMuted,
     setIsMuted,
+    isDeafened,
+    setIsDeafened,
+    showSettings,
+    setShowSettings,
   };
 }
 
@@ -78,6 +90,10 @@ const init: Settings = {
   setLoopbackEnabled: () => {},
   isMuted: false,
   setIsMuted: () => {},
+  isDeafened: false,
+  setIsDeafened: () => {},
+  showSettings: false,
+  setShowSettings: () => {},
 };
 
 export const useSettings = singletonHook(init, settingsHook);

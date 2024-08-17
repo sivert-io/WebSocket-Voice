@@ -4,6 +4,7 @@ import { App } from "./App.tsx";
 import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import "./style.css";
+import { Settings } from "./components/settings.tsx";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       }}
     >
       <App />
+      <Settings />
     </Theme>
   </React.StrictMode>
 );

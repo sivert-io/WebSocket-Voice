@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button, Flex } from "@radix-ui/themes";
 import { Controls } from "./components/controls";
 import { UsersMap } from "./components/usersMap";
-import { useSocket } from "./hooks/useSocket";
 import { TestRTC } from "./components/testRTC";
 import { useAccount } from "@/common";
 import { SignUpModal } from "@/signUp";
@@ -10,7 +9,6 @@ import { SignUpModal } from "@/signUp";
 export function App() {
   const [joined, setJoined] = useState(false);
 
-  const { clients, id } = useSocket();
   const { isSignedIn, logout } = useAccount();
 
   return (
@@ -28,26 +26,17 @@ export function App() {
       {!isSignedIn && <SignUpModal />}
 
       {isSignedIn && (
-        <Flex direction="column" gap="4" minWidth="482px" align="center">
-          <Button onClick={logout}>Logout</Button>
-          <Controls color={id.length > 0 ? clients[id]?.color : "gray"} />
-          {joined ? (
+        <Flex direction="column" gap="4" align="center">
+          <Controls />
+          <Flex align="center" justify="center" gap="2">
             <Button
               onClick={() => {
-                setJoined(false);
+                setJoined(!joined);
               }}
             >
-              Leave
+              {joined ? "Disconnect" : "Connect"}
             </Button>
-          ) : (
-            <Button
-              onClick={() => {
-                setJoined(true);
-              }}
-            >
-              Connect
-            </Button>
-          )}
+          </Flex>
           {joined && (
             <>
               <UsersMap />

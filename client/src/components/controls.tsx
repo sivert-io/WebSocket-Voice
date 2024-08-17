@@ -1,29 +1,38 @@
-import { Button, Card, Flex, Text, IconButton } from "@radix-ui/themes";
+import { Card, Flex, Text, IconButton } from "@radix-ui/themes";
 import { useEffect, useState } from "react";
-import { Settings as SettingsIcon } from "react-feather";
 import { useSettings } from "../hooks/useSettings";
-import { Settings } from "./settings";
 import { useSocket } from "../hooks/useSocket";
 import { getIsBrowserSupported } from "../utils/mediaDevices";
-import { useAccount } from "@/common";
+import { FiMic, FiMicOff, FiSettings, FiWifi, FiWifiOff } from "react-icons/fi";
+import { TbHeadphones, TbHeadphonesOff } from "react-icons/tb";
+import { GiSpeaker, GiSpeakerOff } from "react-icons/gi";
+import { MdHeadset, MdHeadsetOff, MdMic, MdMicOff } from "react-icons/md";
+import { BsVolumeOffFill, BsVolumeUpFill } from "react-icons/bs";
 
-interface Props {
-  color: string;
-}
-
-export function Controls({ color }: Props) {
-  const [showSettings, setShowSettings] = useState(false);
+export function Controls() {
   const [isBrowserSupported] = useState(getIsBrowserSupported());
 
-  const { socket, sendMessage } = useSocket();
-  const { micID, setIsMuted, isMuted } = useSettings();
-  const { nickname } = useAccount();
+  const { sendMessage } = useSocket();
+  const {
+    micID,
+    setIsMuted,
+    isMuted,
+    setShowSettings,
+    isDeafened,
+    setIsDeafened,
+  } = useSettings();
 
   function handleMute() {
     if (micID) {
       sendMessage("updateMuted", !isMuted);
-
       setIsMuted(!isMuted);
+    }
+  }
+
+  function handleDeafen() {
+    if (micID) {
+      sendMessage("updateDeafened", !isDeafened);
+      setIsDeafened(!isDeafened);
     }
   }
 
@@ -42,33 +51,22 @@ export function Controls({ color }: Props) {
       }}
     >
       {isBrowserSupported && (
-        <Flex direction="column" gap="2" align="center" position="relative">
-          <IconButton
-            style={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-            }}
-            onClick={() => setShowSettings(true)}
-          >
-            <SettingsIcon size={16} />
+        <Flex gap="4" align="center" justify="center">
+          <IconButton onClick={handleMute} disabled={!micID}>
+            {isMuted ? <MdMicOff size={16} /> : <MdMic size={16} />}
           </IconButton>
 
-          <Settings show={showSettings} setShow={setShowSettings} />
+          <IconButton onClick={handleDeafen}>
+            {isDeafened ? (
+              <BsVolumeOffFill size={16} />
+            ) : (
+              <BsVolumeUpFill size={16} />
+            )}
+          </IconButton>
 
-          {socket?.readyState === WebSocket.OPEN ? (
-            <Flex gap="1" align="center">
-              <Text>Connected as</Text>
-              <Text weight="bold" highContrast color={color as any}>
-                {nickname}
-              </Text>
-            </Flex>
-          ) : (
-            <Text>Disconnected</Text>
-          )}
-          <Button onClick={handleMute} disabled={!micID}>
-            {isMuted ? <Text>Unmute</Text> : <Text>Mute</Text>}
-          </Button>
+          <IconButton onClick={() => setShowSettings(true)}>
+            <FiSettings size={16} />
+          </IconButton>
         </Flex>
       )}
 
