@@ -83,7 +83,7 @@ function webSocketHook(): SocketInterface {
     });
 
     const _socket = new WebSocket(
-      import.meta.env.VITE_WS_HOST || "ws://localhost:5000"
+      import.meta.env.VITE_WS_HOST || "ws://localhost:5000",
     );
 
     setSocket(_socket);

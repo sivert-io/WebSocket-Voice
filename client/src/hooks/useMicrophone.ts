@@ -24,7 +24,7 @@ function createMicrophoneHook() {
   const { handles, addHandle, removeHandle, isLoaded } = useHandles();
   const { loopbackEnabled } = useSettings();
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
-    undefined
+    undefined,
   );
 
   const [isBrowserSupported] = useState(getIsBrowserSupported());
@@ -51,7 +51,7 @@ function createMicrophoneHook() {
       const inputDestination = audioContext.createMediaStreamDestination(); // Buffer
       const streamSource = audioContext.createMediaStreamSource(
         // useMicrophone Output
-        inputDestination.stream
+        inputDestination.stream,
       );
 
       input.connect(analyser);

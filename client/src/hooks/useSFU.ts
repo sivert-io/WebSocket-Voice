@@ -159,7 +159,7 @@ function sfuHook(): SFUInterface {
                 JSON.stringify({
                   event: "candidate",
                   data: JSON.stringify(e.candidate),
-                })
+                }),
               );
             }
           };
@@ -191,7 +191,7 @@ function sfuHook(): SFUInterface {
                     JSON.stringify({
                       event: "answer",
                       data: JSON.stringify(answer),
-                    })
+                    }),
                   );
                 });
                 break;
@@ -208,8 +208,8 @@ function sfuHook(): SFUInterface {
                 const disconnectedStreamId = msg.streamId;
                 setStreams((prevStreams) =>
                   prevStreams.filter(
-                    (streamData) => streamData.id !== disconnectedStreamId
-                  )
+                    (streamData) => streamData.id !== disconnectedStreamId,
+                  ),
                 );
                 break;
 

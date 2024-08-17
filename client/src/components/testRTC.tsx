@@ -62,7 +62,7 @@ export const TestRTC = () => {
                 )}
               </Card>
             </Flex>
-          )
+          ),
       )}
     </Flex>
   );

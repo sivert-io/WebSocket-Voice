@@ -12,7 +12,7 @@ else consola.warn("Missing Environment Variable PORT!");
 
 if (!process.env.SFU_WS_HOST)
   consola.error(
-    "No SFU host defined! Server will not send or retrieve streams."
+    "No SFU host defined! Server will not send or retrieve streams.",
   );
 else {
   consola.success("SFU host set to " + process.env.SFU_WS_HOST);

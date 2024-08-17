@@ -45,7 +45,7 @@ export function App() {
                 setJoined(true);
               }}
             >
-              Join
+              Connect
             </Button>
           )}
           {joined && (

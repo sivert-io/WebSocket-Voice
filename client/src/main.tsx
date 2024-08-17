@@ -20,17 +20,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         width: "100%",
       }}
     >
-      <div
-        style={{
-          position: "fixed",
-          zIndex: -10,
-          backgroundImage: "url(/background.png)",
-          opacity: 0.25,
-          inset: 0,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      />
       <App />
     </Theme>
   </React.StrictMode>

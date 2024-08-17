@@ -11,7 +11,7 @@ const clients: Clients = {};
 
 export function socketHandler(
   wss: WebSocket.Server<typeof WebSocket, typeof IncomingMessage>,
-  ws: WebSocket
+  ws: WebSocket,
 ) {
   const id = getUniqueID();
 
@@ -21,14 +21,14 @@ export function socketHandler(
       JSON.stringify({
         message: "sfu_host",
         value: null,
-      })
+      }),
     );
   } else {
     ws.send(
       JSON.stringify({
         message: "sfu_host",
         value: process.env.SFU_WS_HOST,
-      })
+      }),
     );
   }
 
@@ -39,7 +39,7 @@ export function socketHandler(
       JSON.stringify({
         message: "stun_hosts",
         value: process.env.STUN_SERVERS,
-      })
+      }),
     );
   }
 
@@ -49,7 +49,7 @@ export function socketHandler(
         JSON.stringify({
           message: "peers",
           value: clients,
-        })
+        }),
       );
     });
   }

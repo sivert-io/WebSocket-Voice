@@ -1,4 +1,4 @@
-import { Button, Card, Flex, Heading, Text, TextField } from "@radix-ui/themes";
+import { Button, Flex, Heading, Text, TextField } from "@radix-ui/themes";
 import { RegisterData, useAccount } from "@/common";
 import { FormEvent, useState } from "react";
 import { useReward } from "react-rewards";
@@ -70,20 +70,23 @@ export function SignUpModal() {
           position: "absolute",
         }}
       />
-      <Card>
+      <div>
         {showVerifyEmail ? (
           <VerifyEmailContent />
         ) : (
           <Flex direction="column" gap="6" width="280px">
+            <Flex justify="center" align="center" gap="3">
+              <Heading size="8">Gryt.chat</Heading>
+              <img src="/logo.svg" alt="Gryt Logo" width={48} height={48} />
+            </Flex>
             <Flex direction="column" gap="3">
-              <Heading style={{ textAlign: "center" }}>
-                {showSignUp ? "Registration" : "Welcome home"}
-              </Heading>
+              <Heading>{showSignUp ? "Register" : "Login"}</Heading>
               <form onSubmit={handleSubmit}>
                 <Flex direction="column" gap="3">
                   <TextField.Root
                     id="email"
                     placeholder="Email"
+                    autoComplete="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -92,6 +95,9 @@ export function SignUpModal() {
                     id="password"
                     placeholder="Password"
                     type="password"
+                    autoComplete={
+                      showSignUp ? "new-password" : "current-password"
+                    }
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -100,6 +106,7 @@ export function SignUpModal() {
                       id="repeatPassword"
                       placeholder="Repeat password"
                       type="password"
+                      autoComplete="new-password"
                       value={repeatPassword}
                       onChange={(e) => setRepeatPassword(e.target.value)}
                     />
@@ -129,7 +136,7 @@ export function SignUpModal() {
             </Button>
           </Flex>
         )}
-      </Card>
+      </div>
     </Flex>
   );
 }

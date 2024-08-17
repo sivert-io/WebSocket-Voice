@@ -7,7 +7,7 @@ import { jwtDecode } from "jwt-decode";
 function accountHook(): Account {
   const [isSignedIn, setIsSignedIn] = useState<boolean | undefined>(undefined);
   const [token, setToken] = useState<undefined | string | null>(
-    localStorage.getItem("token")
+    localStorage.getItem("token"),
   );
 
   const api = new AuthApi();

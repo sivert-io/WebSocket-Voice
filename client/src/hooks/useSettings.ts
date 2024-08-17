@@ -23,16 +23,16 @@ function settingsHook() {
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [micID, setMicID] = useState(
-    localStorage.getItem("micID") || undefined
+    localStorage.getItem("micID") || undefined,
   );
   const [nickname, setNickname] = useState(
-    localStorage.getItem("nickname") || ""
+    localStorage.getItem("nickname") || "",
   );
   const [micVolume, setMicVolume] = useState(
-    Number(localStorage.getItem("micVolume")) || 50
+    Number(localStorage.getItem("micVolume")) || 50,
   );
   const [noiseGate, setNoiseGate] = useState(
-    Number(localStorage.getItem("noiseGate")) || 10
+    Number(localStorage.getItem("noiseGate")) || 10,
   );
 
   function updateMicID(newID: string) {
