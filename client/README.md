@@ -1,30 +1,27 @@
-# React + TypeScript + Vite
+# 🌐 WebRTC Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the client part of our WebRTC SFU project. It is written in Typescript and is responsible for interacting with the signaling server and establishing a WebRTC connection with the SFU.
 
-Currently, two official plugins are available:
+## ✨ Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **WebRTC Connection**: Establishes a WebRTC connection with the SFU through the signaling server.
+- **WebSocket Communication**: Communicates with the signaling server using WebSockets.
 
-## Expanding the ESLint configuration
+## 🚀 Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+1. Navigate to the client directory.
+2. Install the dependencies with `npm install`.
+3. Start the client with `npm run dev`.
+4. The client will now try to establish a connection with the signaling server.
 
-- Configure the top-level `parserOptions` property like this:
+## 🛠️ Configuration
 
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: "latest",
-    sourceType: "module",
-    project: ["./tsconfig.json", "./tsconfig.node.json"],
-    tsconfigRootDir: __dirname,
-  },
-};
-```
+You can configure the client by editing the `.env` file in the client directory. Here you can set the address of the signaling server and other options.
 
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+## 🤝 Contributing
+
+We welcome contributions and feedback! If you encounter any issues or have suggestions, please open an issue on GitHub. We're excited to improve this project together!
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
