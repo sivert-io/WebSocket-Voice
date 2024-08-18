@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
-import { useSettings } from "./useSettings";
+import { useSettings } from "@/settings";
 import { useHandles } from "./useHandles";
-import { getIsBrowserSupported } from "../utils/mediaDevices";
+import { getIsBrowserSupported } from "@/audio";
 
 type MicrophoneBufferType = {
   input?: GainNode;
@@ -24,7 +24,7 @@ function createMicrophoneHook() {
   const { handles, addHandle, removeHandle, isLoaded } = useHandles();
   const { loopbackEnabled } = useSettings();
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
-    undefined,
+    undefined
   );
 
   const [isBrowserSupported] = useState(getIsBrowserSupported());
@@ -51,7 +51,7 @@ function createMicrophoneHook() {
       const inputDestination = audioContext.createMediaStreamDestination(); // Buffer
       const streamSource = audioContext.createMediaStreamSource(
         // useMicrophone Output
-        inputDestination.stream,
+        inputDestination.stream
       );
 
       input.connect(analyser);

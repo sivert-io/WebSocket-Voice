@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Button, Flex } from "@radix-ui/themes";
 import { Controls } from "./components/controls";
 import { UsersMap } from "./components/usersMap";
-import { TestRTC } from "./components/testRTC";
-import { useAccount } from "@/common";
+import { TestRTC } from "./packages/webRTC/src/components/testRTC";
+import { Logo, useAccount } from "@/common";
 import { SignUpModal } from "@/signUp";
 
 export function App() {
   const [joined, setJoined] = useState(false);
 
-  const { isSignedIn, logout } = useAccount();
+  const { isSignedIn } = useAccount();
 
   return (
     <Flex
@@ -27,6 +27,17 @@ export function App() {
 
       {isSignedIn && (
         <Flex direction="column" gap="4" align="center">
+          <Flex
+            justify="center"
+            style={{
+              position: "fixed",
+              bottom: "0",
+              width: "100%",
+            }}
+            p="6"
+          >
+            <Logo />
+          </Flex>
           <Controls />
           <Flex align="center" justify="center" gap="2">
             <Button

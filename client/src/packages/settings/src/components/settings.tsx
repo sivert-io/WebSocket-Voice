@@ -1,4 +1,4 @@
-import { useSettings } from "../hooks/useSettings";
+import { useSettings } from "@/settings";
 import { Flex, Dialog, IconButton } from "@radix-ui/themes";
 import { MicrophoneSettings } from "./microphoneSettings";
 

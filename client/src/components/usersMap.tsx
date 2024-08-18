@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { useMicrophone } from "../hooks/useMicrophone";
-import { isSpeaking } from "../utils/speaking";
-import { useSettings } from "../hooks/useSettings";
+import { useSettings } from "@/settings";
 import { User } from "./user";
-import { useSocket } from "../hooks/useSocket";
-import { useSFU } from "../hooks/useSFU";
+import { isSpeaking, useMicrophone } from "@/audio";
+import { useSocket } from "@/socket";
+import { useSFU } from "@/webRTC";
 
 export function UsersMap() {
   const [clientsSpeaking, setClientsSpeaking] = useState<{

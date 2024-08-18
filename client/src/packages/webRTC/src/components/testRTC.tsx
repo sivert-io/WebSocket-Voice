@@ -1,6 +1,6 @@
 import { Badge, Card, Flex, Text } from "@radix-ui/themes";
 import { useSFU } from "../hooks/useSFU";
-import { Visualizer } from "./visualizer";
+import { Visualizer } from "@/audio";
 
 export const TestRTC = () => {
   const { streams, error, streamSources } = useSFU();
@@ -62,7 +62,7 @@ export const TestRTC = () => {
                 )}
               </Card>
             </Flex>
-          ),
+          )
       )}
     </Flex>
   );

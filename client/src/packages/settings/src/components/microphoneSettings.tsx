@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMicrophone } from "../hooks/useMicrophone";
-import { useSettings } from "../hooks/useSettings";
-import { getCurrentVolume, isSpeaking } from "../utils/speaking";
+import { useSettings } from "@/settings";
 import {
   Button,
   Callout,
@@ -13,6 +11,7 @@ import {
   Text,
 } from "@radix-ui/themes";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
+import { getCurrentVolume, isSpeaking, useMicrophone } from "@/audio";
 
 export function MicrophoneSettings() {
   const { devices, microphoneBuffer } = useMicrophone();
@@ -119,7 +118,10 @@ export function MicrophoneSettings() {
                 max={200}
                 value={[micVolume]}
                 onValueChange={(value) => {
-                  setMicVolume(value[0]);
+                  if (Number.isNaN(value[0])) return;
+
+                  // Clamp number between 0 and 200
+                  setMicVolume(Math.min(200, Math.max(0, value[0])));
                 }}
               />
               <Text
@@ -144,7 +146,10 @@ export function MicrophoneSettings() {
                 max={100}
                 value={[noiseGate]}
                 onValueChange={(value) => {
-                  setNoiseGate(value[0]);
+                  if (Number.isNaN(value[0])) return;
+
+                  // Clamp number between 0 and 100
+                  setNoiseGate(Math.min(100, Math.max(0, value[0])));
                 }}
               />
               <Text

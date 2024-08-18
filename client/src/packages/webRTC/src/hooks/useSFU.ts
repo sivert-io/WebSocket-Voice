@@ -1,8 +1,7 @@
+import { useMicrophone, useSpeakers } from "@/audio";
+import { useSocket } from "@/socket";
 import { useEffect, useState, useRef } from "react";
 import { singletonHook } from "react-singleton-hook";
-import { useSocket } from "./useSocket";
-import { useMicrophone } from "./useMicrophone";
-import { useSpeakers } from "./useSpeakers";
 
 interface StreamData {
   stream: MediaStream;
@@ -159,7 +158,7 @@ function sfuHook(): SFUInterface {
                 JSON.stringify({
                   event: "candidate",
                   data: JSON.stringify(e.candidate),
-                }),
+                })
               );
             }
           };
@@ -191,7 +190,7 @@ function sfuHook(): SFUInterface {
                     JSON.stringify({
                       event: "answer",
                       data: JSON.stringify(answer),
-                    }),
+                    })
                   );
                 });
                 break;
@@ -208,8 +207,8 @@ function sfuHook(): SFUInterface {
                 const disconnectedStreamId = msg.streamId;
                 setStreams((prevStreams) =>
                   prevStreams.filter(
-                    (streamData) => streamData.id !== disconnectedStreamId,
-                  ),
+                    (streamData) => streamData.id !== disconnectedStreamId
+                  )
                 );
                 break;
 

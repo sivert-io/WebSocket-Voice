@@ -1,5 +1,5 @@
 import { Button, Flex, Heading, Text, TextField } from "@radix-ui/themes";
-import { RegisterData, useAccount } from "@/common";
+import { RegisterData, useAccount, Logo } from "@/common";
 import { FormEvent, useState } from "react";
 import { useReward } from "react-rewards";
 import { VerifyEmailContent } from "./verifyEmailContent";
@@ -75,10 +75,7 @@ export function SignUpModal() {
           <VerifyEmailContent />
         ) : (
           <Flex direction="column" gap="6" width="280px">
-            <Flex justify="center" align="center" gap="3">
-              <Heading size="8">Gryt.chat</Heading>
-              <img src="/logo.svg" alt="Gryt Logo" width={48} height={48} />
-            </Flex>
+            <Logo />
             <Flex direction="column" gap="3">
               <Heading>{showSignUp ? "Register" : "Login"}</Heading>
               <form onSubmit={handleSubmit}>

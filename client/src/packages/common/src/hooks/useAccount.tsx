@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
-import { Account, LoginData, RegisterData } from "../types/account";
+import { Account, LoginData, RegisterData } from "@/common";
 import { AuthApi } from "../api/auth";
 import { jwtDecode } from "jwt-decode";
 
 function accountHook(): Account {
   const [isSignedIn, setIsSignedIn] = useState<boolean | undefined>(undefined);
   const [token, setToken] = useState<undefined | string | null>(
-    localStorage.getItem("token"),
+    localStorage.getItem("token")
   );
 
   const api = new AuthApi();

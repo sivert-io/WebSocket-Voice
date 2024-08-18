@@ -14,7 +14,7 @@ interface Speakers {
 function speakersHook() {
   const { handles, addHandle, removeHandle, isLoaded } = useHandles();
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
-    undefined,
+    undefined
   );
   const [mediaDestination, setMediaDestination] = useState<
     MediaStreamAudioDestinationNode | undefined
@@ -26,7 +26,7 @@ function speakersHook() {
       .enumerateDevices()
       .then((devices) => {
         const speakers = devices.filter(
-          (device) => device.kind === "audiooutput",
+          (device) => device.kind === "audiooutput"
         );
         setDevices(speakers);
       })
