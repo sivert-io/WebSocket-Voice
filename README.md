@@ -18,7 +18,7 @@ Welcome to the super early alpha release of our WebRTC SFU project! This reposit
 1. Clone the repository.
 2. Install dependencies for both the Typescript (client and server) and Go (SFU) components.
 3. (optional) Set up and configure your STUN server using coturn.
-4. (optional) Configure your domain with TSL/SSL certificates.
+4. Configure your domain with TSL/SSL certificates (required for WebRTC).
 5. Start the signaling server and SFU.
 6. Connect clients and start experimenting with WebRTC!
 
