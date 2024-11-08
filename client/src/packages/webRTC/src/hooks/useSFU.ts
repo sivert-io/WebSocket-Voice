@@ -35,8 +35,8 @@ function sfuHook(): SFUInterface {
   const { mediaDestination, audioContext } = useSpeakers();
 
   // Using refs to store the RTCPeerConnection and WebSocket instances
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const SFUref = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     Object.keys(streamSources).forEach((id) => {
@@ -53,10 +53,12 @@ function sfuHook(): SFUInterface {
   useEffect(() => {
     console.log(streams.length, audioContext, mediaDestination);
 
-    if (streams.length > 0 && audioContext && mediaDestination) {
+    if (audioContext && mediaDestination) {
       const newSources: StreamSources = {};
 
       streams.forEach((stream) => {
+        console.log("checking stream", stream);
+
         if (stream.isLocal) return;
         if (!stream.stream.getAudioTracks().length) return;
         if (streamSources[stream.id]) return;
@@ -87,9 +89,9 @@ function sfuHook(): SFUInterface {
   useEffect(() => {
     if (
       sfu_host &&
+      !peerConnectionRef.current &&
       stun_hosts &&
-      !pcRef.current &&
-      !wsRef.current &&
+      !SFUref.current &&
       !rtcActive
     ) {
       try {
@@ -118,10 +120,8 @@ function sfuHook(): SFUInterface {
           };
 
           const pc = new RTCPeerConnection(configuration);
-          pcRef.current = pc;
 
-          const ws = new WebSocket(sfu_host);
-          wsRef.current = ws;
+          const sfu_ws = new WebSocket(sfu_host);
 
           const trcks: RTCRtpSender[] = [];
           localStream.getTracks().forEach((track, index) => {
@@ -154,7 +154,7 @@ function sfuHook(): SFUInterface {
 
           pc.onicecandidate = (e) => {
             if (e.candidate) {
-              ws.send(
+              sfu_ws.send(
                 JSON.stringify({
                   event: "candidate",
                   data: JSON.stringify(e.candidate),
@@ -163,16 +163,21 @@ function sfuHook(): SFUInterface {
             }
           };
 
-          ws.onopen = () => {
-            console.log("WebSocket opened");
+          sfu_ws.onopen = () => {
+            console.log("SFU connection opened");
           };
 
-          ws.onclose = (event) => {
-            console.log("WebSocket closed", event);
+          sfu_ws.onclose = (event) => {
+            console.log("SFU connection closed", event);
           };
 
-          ws.onmessage = (evt) => {
+          sfu_ws.onerror = (evt) => {
+            console.log("WebSocket error:", evt);
+          };
+
+          sfu_ws.onmessage = (evt) => {
             const msg = JSON.parse(evt.data);
+
             if (!msg) {
               return console.log("Failed to parse message");
             }
@@ -180,13 +185,15 @@ function sfuHook(): SFUInterface {
             switch (msg.event) {
               case "offer":
                 const offer = JSON.parse(msg.data);
+                // console.log("Received offer:", offer);
                 if (!offer) {
                   return console.log("Failed to parse offer");
                 }
                 pc.setRemoteDescription(new RTCSessionDescription(offer));
                 pc.createAnswer().then((answer) => {
+                  // console.log("Created answer:", answer);
                   pc.setLocalDescription(answer);
-                  ws.send(
+                  sfu_ws.send(
                     JSON.stringify({
                       event: "answer",
                       data: JSON.stringify(answer),
@@ -218,9 +225,10 @@ function sfuHook(): SFUInterface {
             }
           };
 
-          ws.onerror = (evt) => {
-            console.log("WebSocket error:", evt);
-          };
+          peerConnectionRef.current = pc;
+          SFUref.current = sfu_ws;
+
+          console.log("Peer connection and WebSocket initialized");
         } else {
           console.log("Couldn't find microphone buffer");
         }
@@ -233,18 +241,18 @@ function sfuHook(): SFUInterface {
     return () => {
       setRtcActive(false);
 
-      if (pcRef.current) {
+      if (peerConnectionRef.current) {
         registeredTracks.forEach((track) => {
           console.log("removed track from peer", track.track?.id);
 
-          pcRef.current?.removeTrack(track);
+          peerConnectionRef.current?.removeTrack(track);
         });
         console.log("cleaning up");
 
         //wsRef.current?.send(JSON.stringify({ event: "disconnect" }));
 
-        pcRef.current?.close();
-        wsRef.current?.close();
+        peerConnectionRef.current?.close();
+        SFUref.current?.close();
       }
     };
   }, [sfu_host, stun_hosts, microphoneBuffer]);

@@ -11,7 +11,7 @@ const clients: Clients = {};
 
 export function socketHandler(
   wss: WebSocket.Server<typeof WebSocket, typeof IncomingMessage>,
-  ws: WebSocket,
+  ws: WebSocket
 ) {
   const id = getUniqueID();
 
@@ -21,14 +21,14 @@ export function socketHandler(
       JSON.stringify({
         message: "sfu_host",
         value: null,
-      }),
+      })
     );
   } else {
     ws.send(
       JSON.stringify({
         message: "sfu_host",
         value: process.env.SFU_WS_HOST,
-      }),
+      })
     );
   }
 
@@ -39,7 +39,7 @@ export function socketHandler(
       JSON.stringify({
         message: "stun_hosts",
         value: process.env.STUN_SERVERS,
-      }),
+      })
     );
   }
 
@@ -49,12 +49,14 @@ export function socketHandler(
         JSON.stringify({
           message: "peers",
           value: clients,
-        }),
+        })
       );
     });
   }
 
   function messageHandler(json: { message: string; value: any }) {
+    console.log("User attempted to send message: ", json);
+
     if (json.message === "updateNickname") {
       clients[id] = {
         ...clients[id],
@@ -91,6 +93,7 @@ export function socketHandler(
     color: colors[Math.floor(Math.random() * colors.length)],
     streamID: "",
   };
+
   consola.info("Peer connected", id);
 
   ws.on("error", consola.error);

@@ -22,7 +22,6 @@ function accountHook(): Account {
   async function login(data: LoginData) {
     // send login request to API
     const answer = await api.login(data);
-    console.log(answer.data);
     setToken(answer.data.token);
     localStorage.setItem("token", answer.data.token);
   }
@@ -36,8 +35,6 @@ function accountHook(): Account {
   // Read localstorage/cookie and check if any token exist. Then check if token is valid
   useEffect(() => {
     if (token) {
-      console.log(token);
-
       // check token now
       const decodedJwt = jwtDecode(token);
       console.log(decodedJwt);

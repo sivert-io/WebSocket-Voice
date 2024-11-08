@@ -1,15 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Flex } from "@radix-ui/themes";
 import { Controls } from "./components/controls";
 import { UsersMap } from "./components/usersMap";
 import { TestRTC } from "./packages/webRTC/src/components/testRTC";
 import { Logo, useAccount } from "@/common";
 import { SignUpModal } from "@/signUp";
+import { useSocket } from "@/socket";
+import { useSettings } from "@/settings";
 
 export function App() {
   const [joined, setJoined] = useState(false);
+  const { sendMessage } = useSocket();
 
   const { isSignedIn } = useAccount();
+
+  const { nickname } = useSettings();
+
+  useEffect(() => {
+    sendMessage("updateNickname", nickname);
+  }, [joined, nickname]);
 
   return (
     <Flex

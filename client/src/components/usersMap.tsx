@@ -29,7 +29,6 @@ export function UsersMap() {
         // is not ourselves
         else {
           if (!client.streamID || !streamSources[client.streamID]) {
-            console.log("No stream source for client", client.streamID);
             return;
           }
 

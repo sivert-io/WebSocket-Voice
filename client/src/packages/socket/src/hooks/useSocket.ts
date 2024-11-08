@@ -12,12 +12,6 @@ type MessageEventsType = {
   [key: string]: MessageEventType;
 };
 
-type TurnDetails = {
-  host?: string;
-  username?: string;
-  password?: string;
-};
-
 export interface Clients {
   [id: string]: {
     nickname: string;
@@ -46,7 +40,6 @@ function webSocketHook(): SocketInterface {
   const [id, setId] = useState("");
   const [onMessageEvents, setOnMessageEvents] = useState<MessageEventsType>({});
   const [sfu_host, setSfu_host] = useState<string | undefined>(undefined);
-  const [turnDetails, setTurnDetails] = useState<TurnDetails>({});
   const [stunHosts, setStunHosts] = useState<string[]>([
     "stun:stun1.l.google.com:19302",
   ]);
@@ -56,7 +49,7 @@ function webSocketHook(): SocketInterface {
   }
 
   function sendMessage(message: string, value: any) {
-    if (socket) {
+    if (socket?.OPEN) {
       try {
         const msg: Message = {
           message,
@@ -74,16 +67,13 @@ function webSocketHook(): SocketInterface {
     addOnMessage("yourID", setId);
     addOnMessage("peers", setClients);
     addOnMessage("sfu_host", setSfu_host);
-    addOnMessage("turn_host", (value: TurnDetails) => {
-      setTurnDetails(value);
-    });
     addOnMessage("stun_hosts", (value: string) => {
       const urlS = value.split(",");
       setStunHosts(urlS);
     });
 
     const _socket = new WebSocket(
-      import.meta.env.VITE_WS_HOST || "ws://localhost:5000",
+      import.meta.env.VITE_WS_HOST || "ws://localhost:5000"
     );
 
     setSocket(_socket);
@@ -122,9 +112,6 @@ function webSocketHook(): SocketInterface {
     addOnMessage,
     sfu_host,
     stun_hosts: stunHosts,
-    turn_host: turnDetails.host,
-    turn_username: turnDetails.username,
-    turn_password: turnDetails.password,
   };
 }
 

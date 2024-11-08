@@ -10,6 +10,9 @@ interface Settings {
   setNoiseGate: (num: number) => any;
   setLoopbackEnabled: (value: boolean) => any;
   loopbackEnabled: boolean;
+
+  nickname: string;
+
   isMuted: boolean;
   setIsMuted: (value: boolean) => any;
 
@@ -34,7 +37,7 @@ function settingsHook() {
     localStorage.getItem("micID") || undefined
   );
   const [nickname, setNickname] = useState(
-    localStorage.getItem("nickname") || ""
+    localStorage.getItem("nickname") || "Unknown"
   );
   const [micVolume, setMicVolume] = useState(
     Number(localStorage.getItem("micVolume")) || 50
@@ -94,6 +97,7 @@ const init: Settings = {
   setIsDeafened: () => {},
   showSettings: false,
   setShowSettings: () => {},
+  nickname: localStorage.getItem("nickname") || "Unknown",
 };
 
 export const useSettings = singletonHook(init, settingsHook);
