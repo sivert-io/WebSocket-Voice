@@ -13,7 +13,7 @@ export const Visualizer: React.FC<VisualizerProps> = ({
   visualSetting,
   width = 482,
   height = 64,
-  barsColor = "#323232",
+  barsColor = "#ffb4ab",
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawVisualRef = useRef<number>();

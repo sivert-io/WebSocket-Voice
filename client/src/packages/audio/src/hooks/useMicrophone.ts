@@ -3,72 +3,64 @@ import { singletonHook } from "react-singleton-hook";
 import { useSettings } from "@/settings";
 import { useHandles } from "./useHandles";
 import { getIsBrowserSupported } from "@/audio";
-
-type MicrophoneBufferType = {
-  input?: GainNode;
-  output?: MediaStreamAudioSourceNode;
-  analyser?: AnalyserNode;
-};
-
-interface MicrophoneInterface {
-  addHandle: (id: string) => void;
-  removeHandle: (id: string) => void;
-  microphoneBuffer: MicrophoneBufferType;
-  isBrowserSupported: boolean | undefined;
-  devices: InputDeviceInfo[];
-  audioContext?: AudioContext;
-  isLoaded: boolean;
-}
+import { MicrophoneBufferType, MicrophoneInterface } from "../types/Microphone";
 
 function createMicrophoneHook() {
-  const { handles, addHandle, removeHandle, isLoaded } = useHandles();
-  const { loopbackEnabled } = useSettings();
+  const { handles, addHandle, removeHandle, isLoaded } = useHandles(); // Custom hook for managing handles
+  const { loopbackEnabled } = useSettings(); // Settings for audio loopback (live feedback)
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
     undefined
   );
 
-  const [isBrowserSupported] = useState(getIsBrowserSupported());
-  const [devices, setDevices] = useState<InputDeviceInfo[]>([]);
-  const [micStream, setStream] = useState<MediaStream | undefined>(undefined);
-  const { micID, micVolume } = useSettings();
+  const isBrowserSupported = useMemo(() => getIsBrowserSupported(), []); // Check browser compatibility
+  const [devices, setDevices] = useState<InputDeviceInfo[]>([]); // Stores available input devices
+  const [micStream, setStream] = useState<MediaStream | undefined>(undefined); // Stores microphone stream
+  const { micID, micVolume } = useSettings(); // Fetch microphone ID and volume settings
 
+  // Manage audio context based on handle count
   useEffect(() => {
-    if (handles.length > 0) {
-      const context = audioContext || new AudioContext();
-      setAudioContext(context);
-    } else {
-      // Turn off audio context if no streams to play
-      audioContext?.close();
-      setAudioContext(undefined);
-    }
-  }, [handles]);
+    // console.log("useEffect: handles length = ", handles.length);
 
-  // Create microphonebuffer based on audioContext
+    if (handles.length > 0 && !audioContext) {
+      const context = new AudioContext();
+      setAudioContext(context);
+      // console.log("New AudioContext created.");
+    } else if (handles.length === 0 && audioContext) {
+      // Close audio context when no handles are active
+      audioContext.close();
+      setAudioContext(undefined);
+      // console.log("AudioContext closed.");
+    }
+  }, [handles, audioContext]);
+
+  // Create and return a microphone buffer using the current audio context
   const microphoneBuffer = useMemo<MicrophoneBufferType>(() => {
+    // console.log(
+    //   "useMemo: Creating microphone buffer with audioContext",
+    //   audioContext
+    // );
+
     if (audioContext) {
-      const input = audioContext.createGain(); // Microphone Input
-      const analyser = audioContext.createAnalyser(); // Analyser Node (Passthrough)
-      const inputDestination = audioContext.createMediaStreamDestination(); // Buffer
+      const input = audioContext.createGain(); // Gain node for adjusting volume
+      const analyser = audioContext.createAnalyser(); // Analyser for audio data
+      const inputDestination = audioContext.createMediaStreamDestination(); // Creates an output stream
       const streamSource = audioContext.createMediaStreamSource(
-        // useMicrophone Output
         inputDestination.stream
       );
 
-      input.connect(analyser);
-      analyser.connect(inputDestination);
+      input.connect(analyser); // Connects gain to analyser
+      analyser.connect(inputDestination); // Pass-through to destination
 
-      return {
-        input: input,
-        output: streamSource,
-        analyser,
-      };
+      return { input, output: streamSource, analyser };
     }
 
     return {};
   }, [audioContext]);
 
-  // Get available devices
+  // Retrieve available audio input devices
   useEffect(() => {
+    // console.log("useEffect: Checking browser support and fetching devices");
+
     if (isBrowserSupported) {
       navigator.mediaDevices
         .getUserMedia({
@@ -78,20 +70,23 @@ function createMicrophoneHook() {
             noiseSuppression: false,
           },
         })
-        .then((_stream) => {
+        .then(() => {
           navigator.mediaDevices.enumerateDevices().then((devices) => {
-            devices = devices.filter((d) => d.kind === "audioinput");
-            setDevices(devices as InputDeviceInfo[]);
+            const audioDevices = devices.filter((d) => d.kind === "audioinput");
+            setDevices(audioDevices as InputDeviceInfo[]);
+            // console.log("Audio input devices fetched: ", audioDevices);
           });
         });
     }
   }, [isBrowserSupported]);
 
-  // When mic changes, update stream
+  // Update microphone stream when mic ID or handles change
   useEffect(() => {
+    // console.log("useEffect: micID or handles changed. micID:", micID);
+
     async function changeDevice(id: string | undefined) {
       if (!id) {
-        console.log("missing capture device id");
+        console.log("Missing capture device ID.");
         return;
       }
 
@@ -105,16 +100,25 @@ function createMicrophoneHook() {
           },
         });
 
+        // console.log("New media stream created for device ID:", id);
+
+        // Stop any previous stream before applying the new one
+        if (micStream) {
+          micStream.getTracks().forEach((track) => track.stop());
+          // console.log("Previous stream tracks stopped.");
+        }
+
         if (audioContext && microphoneBuffer.input) {
           const mediaStream = audioContext.createMediaStreamSource(_stream);
-          const splitter = audioContext.createChannelSplitter(2);
-          const merger = audioContext.createChannelMerger(1);
+          const splitter = audioContext.createChannelSplitter(2); // Splits audio into separate channels
+          const merger = audioContext.createChannelMerger(1); // Merges channels back into one output
 
           mediaStream.connect(splitter);
-          splitter.connect(merger, 0, 0);
-          splitter.connect(merger, 1, 0);
+          splitter.connect(merger, 0, 0); // Connect left channel to merged output
+          splitter.connect(merger, 1, 0); // Connect right channel to merged output
 
-          merger.connect(microphoneBuffer.input);
+          merger.connect(microphoneBuffer.input); // Connect merged audio to input
+          // console.log("Media stream connected to microphone buffer.");
         }
         setStream(_stream);
       } catch (error) {
@@ -126,30 +130,46 @@ function createMicrophoneHook() {
       changeDevice(micID);
     } else {
       if (micStream) {
-        micStream.getTracks().forEach((track) => track.stop());
+        micStream.getTracks().forEach((track) => track.stop()); // Stop microphone stream if no handles
         setStream(undefined);
+        console.log("No handles, stopping microphone stream.");
       }
     }
   }, [micID, audioContext, handles]);
 
+  // Adjust input gain based on volume setting
   useEffect(() => {
-    if (microphoneBuffer.input)
-      microphoneBuffer.input.gain.value = micVolume / 50;
-  }, [micVolume]);
+    console.log(
+      "useEffect: Adjusting gain value based on micVolume:",
+      micVolume
+    );
 
-  // If loopback changed, lets enable live feedback
-  useEffect(() => {
-    try {
-      if (microphoneBuffer.output && audioContext)
-        if (loopbackEnabled) {
-          microphoneBuffer.output.connect(audioContext.destination);
-        } else if (!loopbackEnabled) {
-          microphoneBuffer.output.disconnect(audioContext.destination);
-        }
-    } catch (e) {
-      // do nothing
+    if (microphoneBuffer.input) {
+      microphoneBuffer.input.gain.value = micVolume / 50;
     }
-  }, [loopbackEnabled, audioContext]);
+  }, [micVolume, microphoneBuffer]);
+
+  // Toggle audio loopback based on settings
+  useEffect(() => {
+    console.log(
+      "useEffect: Loopback setting changed. Loopback enabled:",
+      loopbackEnabled
+    );
+
+    try {
+      if (microphoneBuffer.output && audioContext) {
+        if (loopbackEnabled) {
+          microphoneBuffer.output.connect(audioContext.destination); // Connect output for playback
+          console.log("Loopback enabled, connected to audio context.");
+        } else if (audioContext.destination.numberOfOutputs > 0) {
+          microphoneBuffer.output.disconnect(audioContext.destination); // Disconnect playback output
+          console.log("Loopback disabled, disconnected from audio context.");
+        }
+      }
+    } catch (e) {
+      console.error("Error toggling loopback:", e);
+    }
+  }, [loopbackEnabled, audioContext, microphoneBuffer.output]);
 
   return {
     addHandle,
@@ -162,6 +182,7 @@ function createMicrophoneHook() {
   };
 }
 
+// Default initialization for the microphone hook singleton
 const init: MicrophoneInterface = {
   devices: [],
   isBrowserSupported: undefined,
@@ -176,17 +197,21 @@ const init: MicrophoneInterface = {
   isLoaded: false,
 };
 
+// Singleton hook instance for microphone access
 const singletonMicrophone = singletonHook(init, createMicrophoneHook);
 
+// Hook for managing microphone access and ensuring it follows component lifecycle
 export const useMicrophone = () => {
   const mic = singletonMicrophone();
 
   useEffect(() => {
     const id = self.crypto.randomUUID();
+    // console.log("useMicrophone: Adding handle with ID:", id);
     mic.addHandle(id);
 
     return () => {
-      mic.removeHandle(id);
+      // console.log("useMicrophone: Removing handle with ID:", id);
+      mic.removeHandle(id); // Cleanup on component unmount
     };
   }, [mic.isLoaded]);
 

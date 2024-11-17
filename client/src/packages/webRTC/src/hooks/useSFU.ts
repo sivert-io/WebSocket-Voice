@@ -2,34 +2,14 @@ import { useMicrophone, useSpeakers } from "@/audio";
 import { useSocket } from "@/socket";
 import { useEffect, useState, useRef } from "react";
 import { singletonHook } from "react-singleton-hook";
-
-interface StreamData {
-  stream: MediaStream;
-  id: string; // Unique identifier for the stream
-  isLocal: boolean; // Flag indicating if it's a local stream
-}
-
-type StreamSources = {
-  [id: string]: {
-    gain: GainNode;
-    analyser: AnalyserNode;
-    stream: MediaStreamAudioSourceNode;
-  };
-};
-
-interface SFUInterface {
-  streams: StreamData[];
-  error: string | null;
-  streamSources: StreamSources;
-}
+import { SFUInterface, StreamData, StreamSources, Streams } from "../types/SFU";
 
 function sfuHook(): SFUInterface {
-  const [streams, setStreams] = useState<StreamData[]>([]);
+  const [streams, setStreams] = useState<Streams>({});
   const [error, setError] = useState<string | null>(null);
   const [registeredTracks, setRegisteredTracks] = useState<RTCRtpSender[]>([]);
   const [rtcActive, setRtcActive] = useState(false);
   const [streamSources, setStreamSources] = useState<StreamSources>({});
-
   const { sfu_host, stun_hosts, sendMessage } = useSocket();
   const { microphoneBuffer } = useMicrophone();
   const { mediaDestination, audioContext } = useSpeakers();
@@ -39,54 +19,85 @@ function sfuHook(): SFUInterface {
   const SFUref = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    // Iterate over all keys (IDs) in the streamSources object
     Object.keys(streamSources).forEach((id) => {
-      if (!streams.find((streamData) => streamData.id === id)) {
+      // Check if the current ID exists in the streams array
+      // If no stream in the streams array matches the current ID, it means it's no longer in use
+      if (streams[id] === undefined) {
+        // Destructure relevant objects for cleanup
         const { gain, analyser, stream } = streamSources[id];
+
+        // Disconnect the stream, analyser, and gain nodes
         stream.disconnect();
         analyser.disconnect();
         gain.disconnect();
-        delete streamSources[id];
+
+        // Make a copy of the streams object
+        const newStreamSources = { ...streamSources };
+
+        // Remove the stream
+        delete newStreamSources[id];
+
+        // Update the state
+        setStreamSources(newStreamSources);
+
+        console.log("Stream disconnected and removed:", id);
       }
     });
+    // The effect runs whenever the `streams` or `streamSources` dependencies change
   }, [streams, streamSources]);
 
   useEffect(() => {
-    console.log(streams.length, audioContext, mediaDestination);
+    // Check if audioContext and mediaDestination are initialized before proceeding
+    if (!!audioContext && !!mediaDestination) {
+      // Create a copy of the current streamSources to avoid directly mutating state
+      const newStreamSources: StreamSources = { ...streamSources };
 
-    if (audioContext && mediaDestination) {
-      const newSources: StreamSources = {};
-
-      streams.forEach((stream) => {
+      // Iterate through each stream in the streams object
+      Object.keys(streams).forEach((streamID) => {
+        const stream = streams[streamID];
         console.log("checking stream", stream);
 
+        // Skip processing if the stream is local
         if (stream.isLocal) return;
-        if (!stream.stream.getAudioTracks().length) return;
-        if (streamSources[stream.id]) return;
 
-        // Fix for Chrome 😒
+        // Skip if the stream is already in streamSources (already being processed)
+        if (streamSources[streamID]) return;
+
+        // Skip if the stream has no audio tracks (no audio to process)
+        if (!stream.stream.getAudioTracks().length) return;
+
+        // Chrome-specific fix: Ensure audio.srcObject is set to the stream
         const audio = (new Audio().srcObject = stream.stream);
 
+        // Create an audio node for the stream
         const nStream = audioContext.createMediaStreamSource(audio);
+
+        // Create an analyser node to visualize or process the audio frequencies
         const nAnalyser = audioContext.createAnalyser();
+
+        // Create a gain node to control the audio volume
         const nGain = audioContext.createGain();
+
+        // Connect the audio nodes: stream → analyser → gain → mediaDestination
         nStream.connect(nAnalyser);
         nAnalyser.connect(nGain);
         nGain.connect(mediaDestination);
 
-        newSources[stream.id] = {
+        // Add the stream with its audio nodes to the newStreamSources object
+        newStreamSources[streamID] = {
           gain: nGain,
           analyser: nAnalyser,
           stream: nStream,
         };
       });
 
-      setStreamSources(newSources);
+      // Update the state with the new stream sources
+      setStreamSources(newStreamSources);
     }
+  }, [streams, audioContext, mediaDestination]); // Re-run effect when streams, audioContext, or mediaDestination change
 
-    return () => {};
-  }, [streams, audioContext, mediaDestination]);
-
-  useEffect(() => {
+  function connect() {
     if (
       sfu_host &&
       !peerConnectionRef.current &&
@@ -95,21 +106,24 @@ function sfuHook(): SFUInterface {
       !rtcActive
     ) {
       try {
+        console.log("Connecting to SFU");
         if (microphoneBuffer.output) {
           setRtcActive(true);
           const localStream = microphoneBuffer.output.mediaStream;
 
           // Create a reference object to track streams
-          const streamData = {
+          const streamData: StreamData = {
             stream: localStream,
-            id: localStream.id,
             isLocal: true,
           };
 
-          sendMessage("streamID", streamData.id);
+          sendMessage("streamID", localStream.id);
 
-          // Add the reference object to your streams state or array
-          setStreams([...streams, streamData]);
+          // Create a new copy of the streams object
+          const newStreams = { ...streams, [localStream.id]: streamData };
+
+          // Update the streams state with the new object
+          setStreams(newStreams);
 
           const configuration: RTCConfiguration = {
             iceServers: [
@@ -133,23 +147,22 @@ function sfuHook(): SFUInterface {
           setRegisteredTracks(trcks);
 
           pc.ontrack = (event: RTCTrackEvent) => {
+            // Log the incoming media stream(s) for debugging purposes
             console.log("New incoming stream:", event.streams);
 
+            // Access the first media stream from the event
             const remoteStream = event.streams[0];
 
-            const streamId = remoteStream.id;
+            const newStream = {
+              stream: remoteStream,
+              isLocal: false,
+            };
 
-            setStreams((prevStreams) => {
-              if (
-                !prevStreams.some((_streamData) => _streamData.id === streamId)
-              ) {
-                return [
-                  ...prevStreams,
-                  { stream: remoteStream, id: streamId, isLocal: false },
-                ];
-              }
-              return prevStreams;
-            });
+            // Create a new copy of the streams object
+            const newStreams = { ...streams, [remoteStream.id]: newStream };
+
+            // Update the streams state with the new object
+            setStreams(newStreams);
           };
 
           pc.onicecandidate = (e) => {
@@ -185,13 +198,11 @@ function sfuHook(): SFUInterface {
             switch (msg.event) {
               case "offer":
                 const offer = JSON.parse(msg.data);
-                // console.log("Received offer:", offer);
                 if (!offer) {
                   return console.log("Failed to parse offer");
                 }
                 pc.setRemoteDescription(new RTCSessionDescription(offer));
                 pc.createAnswer().then((answer) => {
-                  // console.log("Created answer:", answer);
                   pc.setLocalDescription(answer);
                   sfu_ws.send(
                     JSON.stringify({
@@ -212,11 +223,22 @@ function sfuHook(): SFUInterface {
 
               case "disconnect":
                 const disconnectedStreamId = msg.streamId;
-                setStreams((prevStreams) =>
-                  prevStreams.filter(
-                    (streamData) => streamData.id !== disconnectedStreamId
-                  )
-                );
+
+                // Close the stream and remove it from the streams object
+                streams[disconnectedStreamId].stream
+                  .getTracks()
+                  .forEach((track) => {
+                    track.stop();
+                  });
+
+                // Make a copy of the streams object
+                const newStreams = { ...streams };
+
+                // Remove the stream
+                delete newStreams[disconnectedStreamId];
+
+                // Update the state
+                setStreams(newStreams);
                 break;
 
               default:
@@ -234,36 +256,46 @@ function sfuHook(): SFUInterface {
         }
       } catch (err: any) {
         setError(err.message);
+        setRtcActive(false);
       }
     }
+  }
 
-    // Cleanup on unmount or when webSocketUrl changes
-    return () => {
+  function disconnect() {
+    if (peerConnectionRef.current && SFUref.current) {
+      registeredTracks.forEach((track) => {
+        console.log("removed track from peer", track.track?.id);
+
+        peerConnectionRef.current?.removeTrack(track);
+      });
+      console.log("cleaning up");
+
+      peerConnectionRef.current.close();
+      SFUref.current.close();
+
+      SFUref.current = null;
+      peerConnectionRef.current = null;
+
+      sendMessage("streamID", "");
       setRtcActive(false);
+    }
+  }
 
-      if (peerConnectionRef.current) {
-        registeredTracks.forEach((track) => {
-          console.log("removed track from peer", track.track?.id);
-
-          peerConnectionRef.current?.removeTrack(track);
-        });
-        console.log("cleaning up");
-
-        //wsRef.current?.send(JSON.stringify({ event: "disconnect" }));
-
-        peerConnectionRef.current?.close();
-        SFUref.current?.close();
-      }
-    };
-  }, [sfu_host, stun_hosts, microphoneBuffer]);
-
-  return { streams, error, streamSources };
+  return {
+    streams,
+    error,
+    streamSources,
+    connect,
+    disconnect,
+  };
 }
 
 const init: SFUInterface = {
   error: null,
-  streams: [],
+  streams: {},
   streamSources: {},
+  connect: () => {},
+  disconnect: () => {},
 };
 
 const SFUHook = singletonHook(init, sfuHook);

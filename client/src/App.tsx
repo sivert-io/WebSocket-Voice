@@ -7,8 +7,10 @@ import { Logo, useAccount } from "@/common";
 import { SignUpModal } from "@/signUp";
 import { useSocket } from "@/socket";
 import { useSettings } from "@/settings";
+import { useSFU } from "@/webRTC";
 
 export function App() {
+  const { connect, disconnect } = useSFU();
   const [joined, setJoined] = useState(false);
   const { sendMessage } = useSocket();
 
@@ -51,6 +53,12 @@ export function App() {
           <Flex align="center" justify="center" gap="2">
             <Button
               onClick={() => {
+                if (joined) {
+                  disconnect();
+                } else {
+                  connect();
+                }
+
                 setJoined(!joined);
               }}
             >

@@ -6,13 +6,13 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
-	"strings"
-	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
 )
@@ -45,7 +45,7 @@ type peerConnectionState struct {
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-	  log.Fatal("Error loading .env file")
+		log.Fatal("Error loading .env file")
 	}
 
 	// Parse command-line flags
@@ -73,7 +73,7 @@ func main() {
 	}
 
 	// Start the HTTP server
-	log.Fatal(http.ListenAndServe(":" + port, nil)) // nolint:gosec
+	log.Fatal(http.ListenAndServe(":"+port, nil)) // nolint:gosec
 }
 
 // addTrack adds a new media track to the list of local tracks and triggers a renegotiation
@@ -184,7 +184,6 @@ func signalPeerConnections() {
 				log.Printf("Cannot create offer, signaling state: %v", peerConnections[i].peerConnection.SignalingState())
 				continue
 			}
-
 
 			// Create and send an offer to the peer to update the connection state
 			offer, err := peerConnections[i].peerConnection.CreateOffer(nil)

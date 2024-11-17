@@ -11,8 +11,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Theme
       appearance="dark"
-      accentColor="violet"
-      grayColor="auto"
+      accentColor="red"
+      grayColor="gray"
       radius="full"
       hasBackground={false}
       panelBackground="translucent"

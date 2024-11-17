@@ -1,9 +1,10 @@
 import { Badge, Card, Flex, Text } from "@radix-ui/themes";
 import { useSFU } from "../hooks/useSFU";
-import { Visualizer } from "@/audio";
+import { Visualizer, useMicrophone } from "@/audio";
 
 export const TestRTC = () => {
   const { streams, error, streamSources } = useSFU();
+  const { microphoneBuffer } = useMicrophone();
 
   if (error) {
     return <div>Error: {error}</div>;
@@ -14,24 +15,37 @@ export const TestRTC = () => {
       <Text size="4" weight="bold">
         Media Streams
       </Text>
-      {streams.map(
-        (streamData, index) =>
-          streamData.stream.active && (
+
+      <Card>
+        {microphoneBuffer.analyser && (
+          <Visualizer
+            analyser={microphoneBuffer.analyser}
+            visualSetting="frequencybars"
+            width={482}
+            height={64}
+            barsColor="var(--accent-a11)"
+          />
+        )}
+      </Card>
+
+      {Object.keys(streams).map(
+        (streamID, index) =>
+          streams[streamID].stream.active && (
             <Flex
               direction="column"
               gap="2"
               justify="start"
               align="center"
-              key={streamData.id}
+              key={streamID + index}
             >
               <Text size="2" weight="medium">
-                {streamData.id}
+                {streamID}
               </Text>
               <Flex gap="2" justify="center" align="center">
                 <Badge highContrast color="orange">
                   Position: {index}
                 </Badge>
-                {streamData.isLocal ? (
+                {streams[streamID].isLocal ? (
                   <Badge highContrast color="green">
                     local
                   </Badge>
@@ -40,7 +54,7 @@ export const TestRTC = () => {
                     remote
                   </Badge>
                 )}
-                {streamData.stream.active ? (
+                {streams[streamID].stream.active ? (
                   <Badge highContrast color="green">
                     active
                   </Badge>
@@ -51,13 +65,13 @@ export const TestRTC = () => {
                 )}
               </Flex>
               <Card>
-                {streamSources[streamData.id] && (
+                {streamSources[streamID] && (
                   <Visualizer
-                    analyser={streamSources[streamData.id].analyser}
+                    analyser={streamSources[streamID].analyser}
                     visualSetting="frequencybars"
                     width={482}
                     height={64}
-                    barsColor="#6e56cf"
+                    barsColor="var(--accent-a11)"
                   />
                 )}
               </Card>

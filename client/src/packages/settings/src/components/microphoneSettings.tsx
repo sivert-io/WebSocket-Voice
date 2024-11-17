@@ -31,7 +31,6 @@ export function MicrophoneSettings() {
 
   // Get microphone volume and return if over noise gate
   useEffect(() => {
-    //Implementing the setInterval method
     const interval = setInterval(() => {
       if (microphoneBuffer.analyser) {
         setMicLiveVolume(getCurrentVolume(microphoneBuffer.analyser));
@@ -39,9 +38,18 @@ export function MicrophoneSettings() {
       }
     }, 1);
 
-    //Clearing the interval
     return () => clearInterval(interval);
   }, [microphoneBuffer.analyser, noiseGate]);
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      if (loopbackEnabled) {
+        setLoopbackEnabled(false);
+        console.log("Loopback stream cleaned up on component unmount");
+      }
+    };
+  }, [loopbackEnabled, setLoopbackEnabled]);
 
   return (
     <>
@@ -101,7 +109,17 @@ export function MicrophoneSettings() {
                   )}
                 </Select.Content>
               </Select.Root>
-              <Button onClick={() => setLoopbackEnabled(!loopbackEnabled)}>
+              <Button
+                onClick={() => {
+                  if (!loopbackEnabled) {
+                    setLoopbackEnabled(true);
+                    console.log("Starting a new loopback stream");
+                  } else {
+                    setLoopbackEnabled(false);
+                    console.log("Stopping loopback stream");
+                  }
+                }}
+              >
                 {loopbackEnabled ? "Stop testing" : "Start testing"}
               </Button>
             </Flex>
@@ -167,13 +185,6 @@ export function MicrophoneSettings() {
                 color={isMicLive ? "green" : "gray"}
               />
               <div style={{ minWidth: "36px" }} />
-              {/* <Text
-              style={{
-                minWidth: "36px",
-              }}
-            >
-              {Math.floor(micLiveVolume)}
-            </Text> */}
             </Flex>
           </Flex>
         </Flex>
