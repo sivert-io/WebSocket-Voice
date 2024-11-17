@@ -60,8 +60,8 @@ export function Sidebar({ servers }: SidebarProps) {
       <Flex direction="column" gap="2" pb="3">
         <DropdownMenu.Root>
           <DropdownMenu.Trigger>
-            <IconButton color="gray">
-              <PersonIcon />
+            <IconButton>
+              <Avatar fallback={nickname[0]} />
             </IconButton>
           </DropdownMenu.Trigger>
           <DropdownMenu.Content>
