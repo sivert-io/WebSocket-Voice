@@ -5,7 +5,7 @@ export const colors = [
   "tomato",
   "red",
   "ruby",
-  "crimson",
+  "red",
   "pink",
   "plum",
   "purple",

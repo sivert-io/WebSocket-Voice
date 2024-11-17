@@ -13,6 +13,8 @@ export function Nickname() {
 
     if (!isOpen && newNick.length > 0) {
       setNickname(newNick.substring(0, 20));
+    } else {
+      setNewNick(nickname);
     }
   }
 
