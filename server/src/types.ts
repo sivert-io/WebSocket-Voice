@@ -4,5 +4,6 @@ export interface Clients {
     color: string;
     isMuted: boolean;
     streamID: string;
+    hasJoinedChannel: boolean;
   };
 }
