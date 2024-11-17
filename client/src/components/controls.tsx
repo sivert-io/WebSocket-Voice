@@ -53,11 +53,20 @@ export function Controls() {
     >
       {isBrowserSupported && (
         <Flex gap="4" align="center" justify="center">
-          <IconButton variant="soft" onClick={handleMute} disabled={!micID}>
+          <IconButton
+            color={isMuted ? "red" : "gray"}
+            variant="soft"
+            onClick={handleMute}
+            disabled={!micID}
+          >
             {isMuted ? <MdMicOff size={16} /> : <MdMic size={16} />}
           </IconButton>
 
-          <IconButton variant="soft" onClick={handleDeafen}>
+          <IconButton
+            color={isDeafened ? "red" : "gray"}
+            variant="soft"
+            onClick={handleDeafen}
+          >
             {isDeafened ? (
               <BsVolumeOffFill size={16} />
             ) : (
@@ -65,12 +74,16 @@ export function Controls() {
             )}
           </IconButton>
 
-          <IconButton variant="soft" onClick={() => setShowSettings(true)}>
+          <IconButton
+            color="gray"
+            variant="soft"
+            onClick={() => setShowSettings(true)}
+          >
             <FiSettings size={16} />
           </IconButton>
 
           {isConnected && (
-            <IconButton variant="soft" color="crimson" onClick={disconnect}>
+            <IconButton variant="soft" color="red" onClick={disconnect}>
               <ImPhoneHangUp />
             </IconButton>
           )}

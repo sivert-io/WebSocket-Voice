@@ -149,7 +149,7 @@ export function MainApp() {
                   <Text>Gryta Krutt</Text>
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger>
-                      <Button variant="soft" size="1">
+                      <Button variant="soft" size="1" color="gray">
                         <DropdownMenu.TriggerIcon />
                       </Button>
                     </DropdownMenu.Trigger>
@@ -157,10 +157,10 @@ export function MainApp() {
                       <DropdownMenu.Item>Edit server</DropdownMenu.Item>
 
                       <DropdownMenu.Separator />
-                      <DropdownMenu.Item>Share</DropdownMenu.Item>
                       <DropdownMenu.Item>Add to favorites</DropdownMenu.Item>
+                      <DropdownMenu.Item>Share</DropdownMenu.Item>
                       <DropdownMenu.Separator />
-                      <DropdownMenu.Item color="crimson">
+                      <DropdownMenu.Item color="red">
                         Leave server
                       </DropdownMenu.Item>
                     </DropdownMenu.Content>
@@ -168,25 +168,26 @@ export function MainApp() {
                 </Flex>
               </Card>
 
-              <Flex direction="column" gap="2" align="center" width="100%">
-                <Box
-                  style={{
-                    background: "var(--color-panel-translucent)",
-                    borderRadius: "12px",
-                  }}
-                  width="100%"
-                >
-                  <Flex direction="column" gap="1" align="start" width="100%">
-                    <Button
-                      variant={isConnected ? "solid" : "soft"}
-                      radius="small"
-                      style={{
-                        width: "100%",
-                      }}
-                      onClick={connect}
-                    >
-                      Channel #1
-                    </Button>
+              <Flex direction="column" gap="3" align="center" width="100%">
+                <Flex direction="column" align="start" width="100%">
+                  <Button
+                    variant={isConnected ? "solid" : "soft"}
+                    radius="small"
+                    style={{
+                      width: "100%",
+                    }}
+                    onClick={connect}
+                  >
+                    Channel #1
+                  </Button>
+
+                  <Box
+                    style={{
+                      background: "var(--color-panel-translucent)",
+                      borderRadius: "0 0 12px 12px",
+                    }}
+                    width="100%"
+                  >
                     {Object.keys(clients).map(
                       (id) =>
                         clients[id].hasJoinedChannel && (
@@ -198,8 +199,8 @@ export function MainApp() {
                           />
                         )
                     )}
-                  </Flex>
-                </Box>
+                  </Box>
+                </Flex>
               </Flex>
             </Flex>
             <Controls />

@@ -120,7 +120,7 @@ export function SignUpModal() {
                     {showSignUp ? "Continue" : "Sign in"}
                   </Button>
                   {error && (
-                    <Text color="crimson" size="1" weight="medium">
+                    <Text color="red" size="1" weight="medium">
                       {error}
                     </Text>
                   )}
