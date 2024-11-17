@@ -2,6 +2,10 @@
 
 Welcome to the super early alpha release of our WebRTC SFU project! This repository contains a WebSocket client, signaling server, and SFU (Selective Forwarding Unit), leveraging Typescript for the client and signaling server, and Go for the SFU. This project is primarily a learning platform for exploring WebRTC and related services.
 
+## 📸 Preview
+
+<img src='./.github/preview_client.png'>
+
 ## ✨ Features
 
 - **WebSocket Client**: Typescript-based client for interacting with the signaling server.
@@ -10,7 +14,7 @@ Welcome to the super early alpha release of our WebRTC SFU project! This reposit
 
 ## 🛠️ Production Requirements
 
-- **STUN Server**: Necessary for using the SFU outside of a local network. We recommend [coturn](https://github.com/coturn/coturn). Using public stun servers are fine but performance might vary heavily.
+- **STUN Server**: Necessary for using the SFU outside of a local network. Using public stun servers are fine but performance might vary heavily. We recommend [coturn](https://github.com/coturn/coturn).
 - **Domain and SSL**: For secure connections in a production environment, set up TSL/SSL with your own domain.
 
 ## 🚀 Getting Started
