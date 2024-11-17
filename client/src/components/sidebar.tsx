@@ -15,6 +15,7 @@ import { useState } from "react";
 import { Server } from "./mainApp";
 import { useAccount } from "@/common";
 import { useSettings } from "@/settings";
+import { MdAdd } from "react-icons/md";
 
 type SidebarProps = {
   servers?: Server[];
@@ -34,7 +35,7 @@ export function Sidebar({ servers }: SidebarProps) {
     >
       <Flex direction="column" gap="4" pt="3">
         {servers?.map((server) => (
-          <HoverCard.Root openDelay={0} closeDelay={0}>
+          <HoverCard.Root openDelay={100} closeDelay={0}>
             <HoverCard.Trigger>
               <Button
                 style={{
@@ -48,13 +49,32 @@ export function Sidebar({ servers }: SidebarProps) {
                 onClick={() => setSelectedServer(server.id)}
               ></Button>
             </HoverCard.Trigger>
-            <HoverCard.Content maxWidth="300px" side="right" size="1">
+            <HoverCard.Content
+              maxWidth="300px"
+              side="right"
+              size="1"
+              align="center"
+            >
               <Box>
-                <Heading size="1">Gryta Krutt</Heading>
+                <Heading size="1">Server name</Heading>
               </Box>
             </HoverCard.Content>
           </HoverCard.Root>
         ))}
+        <Tooltip content="Add new server" delayDuration={100} side="right">
+          <Button
+            style={{
+              height: "32px",
+              width: "32px",
+              padding: "0",
+            }}
+            variant="soft"
+            color="gray"
+            onClick={() => {}}
+          >
+            <MdAdd />
+          </Button>
+        </Tooltip>
       </Flex>
 
       <Flex direction="column" gap="2" pb="3">
