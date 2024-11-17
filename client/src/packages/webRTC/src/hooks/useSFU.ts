@@ -1,10 +1,14 @@
 import { useMicrophone, useSpeakers } from "@/audio";
 import { useSocket } from "@/socket";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { singletonHook } from "react-singleton-hook";
 import { SFUInterface, StreamData, StreamSources, Streams } from "../types/SFU";
 
 function sfuHook(): SFUInterface {
+  // Using refs to store the RTCPeerConnection and WebSocket instances
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const SFUref = useRef<WebSocket | null>(null);
+
   const [streams, setStreams] = useState<Streams>({});
   const [error, setError] = useState<string | null>(null);
   const [registeredTracks, setRegisteredTracks] = useState<RTCRtpSender[]>([]);
@@ -13,10 +17,10 @@ function sfuHook(): SFUInterface {
   const { sfu_host, stun_hosts, sendMessage } = useSocket();
   const { microphoneBuffer } = useMicrophone();
   const { mediaDestination, audioContext } = useSpeakers();
-
-  // Using refs to store the RTCPeerConnection and WebSocket instances
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const SFUref = useRef<WebSocket | null>(null);
+  const isConnected = useMemo(
+    () => !!SFUref.current && !!peerConnectionRef.current,
+    [SFUref.current, peerConnectionRef.current]
+  );
 
   useEffect(() => {
     // Iterate over all keys (IDs) in the streamSources object
@@ -103,7 +107,8 @@ function sfuHook(): SFUInterface {
       !peerConnectionRef.current &&
       stun_hosts &&
       !SFUref.current &&
-      !rtcActive
+      !rtcActive &&
+      !isConnected
     ) {
       try {
         console.log("Connecting to SFU");
@@ -251,6 +256,8 @@ function sfuHook(): SFUInterface {
           SFUref.current = sfu_ws;
 
           console.log("Peer connection and WebSocket initialized");
+
+          sendMessage("joinedChannel", true);
         } else {
           console.log("Couldn't find microphone buffer");
         }
@@ -278,6 +285,7 @@ function sfuHook(): SFUInterface {
 
       sendMessage("streamID", "");
       setRtcActive(false);
+      sendMessage("joinedChannel", false);
     }
   }
 
@@ -287,6 +295,7 @@ function sfuHook(): SFUInterface {
     streamSources,
     connect,
     disconnect,
+    isConnected,
   };
 }
 
@@ -296,6 +305,7 @@ const init: SFUInterface = {
   streamSources: {},
   connect: () => {},
   disconnect: () => {},
+  isConnected: false,
 };
 
 const SFUHook = singletonHook(init, sfuHook);

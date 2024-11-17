@@ -63,7 +63,15 @@ export function SignUpModal() {
   }
 
   return (
-    <Flex align="center" justify="center">
+    <Flex
+      align="center"
+      justify="center"
+      style={{
+        padding: "64px",
+      }}
+      width="100%"
+      height="100%"
+    >
       <div
         id="registerModal"
         style={{
@@ -109,7 +117,7 @@ export function SignUpModal() {
                     />
                   )}
                   <Button type="submit">
-                    {showSignUp ? "Continue" : "Log in"}
+                    {showSignUp ? "Continue" : "Sign in"}
                   </Button>
                   {error && (
                     <Text color="crimson" size="1" weight="medium">

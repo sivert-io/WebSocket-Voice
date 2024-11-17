@@ -11,6 +11,8 @@ interface Settings {
   setLoopbackEnabled: (value: boolean) => any;
   loopbackEnabled: boolean;
 
+  setNickname: (name: string) => any;
+
   nickname: string;
 
   isMuted: boolean;
@@ -21,6 +23,9 @@ interface Settings {
 
   showSettings: boolean;
   setShowSettings: (value: boolean) => any;
+
+  showNickname: boolean;
+  setShowNickname: (value: boolean) => any;
 }
 
 function updateStorage(key: string, value: string, useState: (d: any) => any) {
@@ -30,6 +35,7 @@ function updateStorage(key: string, value: string, useState: (d: any) => any) {
 
 function settingsHook() {
   const [showSettings, setShowSettings] = useState(false);
+  const [showNickname, setShowNickname] = useState(false);
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
@@ -79,6 +85,8 @@ function settingsHook() {
     setIsDeafened,
     showSettings,
     setShowSettings,
+    showNickname,
+    setShowNickname,
   };
 }
 
@@ -97,7 +105,10 @@ const init: Settings = {
   setIsDeafened: () => {},
   showSettings: false,
   setShowSettings: () => {},
+  showNickname: false,
+  setShowNickname: () => {},
   nickname: localStorage.getItem("nickname") || "Unknown",
+  setNickname: () => {},
 };
 
 export const useSettings = singletonHook(init, settingsHook);

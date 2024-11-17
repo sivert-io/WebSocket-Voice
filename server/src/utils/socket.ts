@@ -81,6 +81,14 @@ export function socketHandler(
       };
       sendNewClientInfo();
     }
+
+    if (json.message === "joinedChannel") {
+      clients[id] = {
+        ...clients[id],
+        hasJoinedChannel: json.value,
+      };
+      sendNewClientInfo();
+    }
   }
 
   function sendJson(obj: any) {
@@ -92,6 +100,7 @@ export function socketHandler(
     isMuted: false,
     color: colors[Math.floor(Math.random() * colors.length)],
     streamID: "",
+    hasJoinedChannel: false,
   };
 
   consola.info("Peer connected", id);

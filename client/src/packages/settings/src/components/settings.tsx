@@ -16,7 +16,7 @@ export function Settings() {
 
   return (
     <Dialog.Root open={showSettings} onOpenChange={handleDialogChange}>
-      <Dialog.Content>
+      <Dialog.Content maxWidth="650px">
         <Dialog.Close
           style={{
             position: "absolute",

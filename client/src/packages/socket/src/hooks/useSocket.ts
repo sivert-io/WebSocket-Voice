@@ -1,3 +1,4 @@
+import { useSettings } from "@/settings";
 import { useState, useEffect } from "react";
 import { singletonHook } from "react-singleton-hook";
 
@@ -18,6 +19,7 @@ export interface Clients {
     color: string;
     isMuted: boolean;
     streamID: string;
+    hasJoinedChannel: boolean;
   };
 }
 
@@ -43,6 +45,15 @@ function webSocketHook(): SocketInterface {
   const [stunHosts, setStunHosts] = useState<string[]>([
     "stun:stun1.l.google.com:19302",
   ]);
+
+  const { nickname } = useSettings();
+
+  // Update nickname on server when it changes
+  useEffect(() => {
+    if (socket?.OPEN && nickname) {
+      sendMessage("updateNickname", nickname);
+    }
+  }, [id, nickname]);
 
   function addOnMessage(message: string, newEvent: MessageEventType) {
     setOnMessageEvents((old) => ({ ...old, [message]: newEvent }));
