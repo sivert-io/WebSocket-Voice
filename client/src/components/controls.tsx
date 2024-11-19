@@ -57,7 +57,7 @@ export function Controls() {
             color={isMuted ? "red" : "gray"}
             variant="soft"
             onClick={handleMute}
-            disabled={!micID}
+            disabled={!micID || !isConnected}
           >
             {isMuted ? <MdMicOff size={16} /> : <MdMic size={16} />}
           </IconButton>
@@ -66,6 +66,7 @@ export function Controls() {
             color={isDeafened ? "red" : "gray"}
             variant="soft"
             onClick={handleDeafen}
+            disabled={!isConnected}
           >
             {isDeafened ? (
               <BsVolumeOffFill size={16} />
@@ -74,19 +75,18 @@ export function Controls() {
             )}
           </IconButton>
 
-          <IconButton
-            color="gray"
-            variant="soft"
-            onClick={() => setShowSettings(true)}
-          >
+          <IconButton variant="soft" onClick={() => setShowSettings(true)}>
             <FiSettings size={16} />
           </IconButton>
 
-          {isConnected && (
-            <IconButton variant="soft" color="red" onClick={disconnect}>
-              <ImPhoneHangUp />
-            </IconButton>
-          )}
+          <IconButton
+            variant="soft"
+            color="red"
+            onClick={disconnect}
+            disabled={!isConnected}
+          >
+            <ImPhoneHangUp />
+          </IconButton>
         </Flex>
       )}
 

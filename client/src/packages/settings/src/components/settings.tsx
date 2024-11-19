@@ -4,14 +4,11 @@ import { MicrophoneSettings } from "./microphoneSettings";
 
 import { FiX } from "react-icons/fi";
 export function Settings() {
-  const { micID, setLoopbackEnabled, setShowSettings, showSettings } =
-    useSettings();
+  const { setLoopbackEnabled, setShowSettings, showSettings } = useSettings();
 
   function handleDialogChange(isOpen: boolean) {
-    if (micID) {
-      setShowSettings(isOpen);
-      setLoopbackEnabled(false);
-    }
+    setShowSettings(isOpen);
+    setLoopbackEnabled(false);
   }
 
   return (

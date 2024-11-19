@@ -1,4 +1,4 @@
-import { Pencil2Icon, PersonIcon } from "@radix-ui/react-icons";
+import { Pencil2Icon } from "@radix-ui/react-icons";
 import {
   Avatar,
   Box,
@@ -8,7 +8,6 @@ import {
   Heading,
   HoverCard,
   IconButton,
-  Text,
   Tooltip,
 } from "@radix-ui/themes";
 import { useState } from "react";
@@ -35,7 +34,7 @@ export function Sidebar({ servers }: SidebarProps) {
     >
       <Flex direction="column" gap="4" pt="3">
         {servers?.map((server) => (
-          <HoverCard.Root openDelay={100} closeDelay={0}>
+          <HoverCard.Root openDelay={100} closeDelay={0} key={server.host}>
             <HoverCard.Trigger>
               <Button
                 style={{
@@ -44,9 +43,8 @@ export function Sidebar({ servers }: SidebarProps) {
                   padding: "0",
                 }}
                 color="gray"
-                variant={selectedServer === server.id ? "solid" : "soft"}
-                key={server.id}
-                onClick={() => setSelectedServer(server.id)}
+                variant={selectedServer === server.host ? "solid" : "soft"}
+                onClick={() => setSelectedServer(server.host)}
               ></Button>
             </HoverCard.Trigger>
             <HoverCard.Content

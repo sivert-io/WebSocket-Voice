@@ -18,29 +18,29 @@ import { MdMicOff } from "react-icons/md";
 import { useIsMobile } from "@/mobile";
 
 export type Server = {
-  id: string;
+  host: string;
   name: string;
   image: string;
 };
 
 export const servers: Server[] = [
   {
-    id: "1",
+    host: "1",
     name: "S1",
     image: "",
   },
   {
-    id: "2",
+    host: "2",
     name: "S2",
     image: "",
   },
   {
-    id: "3",
+    host: "3",
     name: "S3",
     image: "",
   },
   {
-    id: "4",
+    host: "4",
     name: "S4",
     image: "",
   },
