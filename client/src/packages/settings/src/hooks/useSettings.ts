@@ -35,7 +35,9 @@ function updateStorage(key: string, value: string, useState: (d: any) => any) {
 
 function settingsHook() {
   const [showSettings, setShowSettings] = useState(false);
-  const [showNickname, setShowNickname] = useState(false);
+  const [showNickname, setShowNickname] = useState(
+    !!!localStorage.getItem("nickname")
+  );
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);

@@ -18,6 +18,13 @@ export function Nickname() {
     }
   }
 
+  const handleEnterKey = (event: { key: string }) => {
+    if (event.key === "Enter") {
+      setShowNickname(false);
+      setNickname(newNick.substring(0, 20));
+    }
+  };
+
   return (
     <Dialog.Root open={showNickname} onOpenChange={handleDialogChange}>
       <Dialog.Content maxWidth="650px">
@@ -38,6 +45,7 @@ export function Nickname() {
           </Dialog.Title>
 
           <TextField.Root
+            onKeyDown={handleEnterKey}
             radius="full"
             placeholder="Unknown"
             max={20}
