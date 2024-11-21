@@ -6,6 +6,16 @@ Welcome to the super early alpha release of our WebRTC SFU project! This reposit
 
 <img src='./.github/preview_client.png'>
 
+## ✍️ Authors
+
+<div align="center">
+  
+| <img src='https://avatars.githubusercontent.com/u/6785315?s=64&v=4'>  | <img src='https://avatars.githubusercontent.com/u/74724224?s=64&v=4'>  |
+| ------------- | ------------- |
+| [Sivert Gullberg Hansen](https://github.com/sivert-io)  | [Ola Hulleberg](https://github.com/OlaHulleberg)  |
+
+</div>
+
 ## ✨ Features
 
 - **WebSocket Client**: Typescript-based client for interacting with the signaling server.
