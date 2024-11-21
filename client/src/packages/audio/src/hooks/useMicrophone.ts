@@ -139,11 +139,6 @@ function createMicrophoneHook() {
 
   // Adjust input gain based on volume setting
   useEffect(() => {
-    console.log(
-      "useEffect: Adjusting gain value based on micVolume:",
-      micVolume
-    );
-
     if (microphoneBuffer.input) {
       microphoneBuffer.input.gain.value = micVolume / 50;
     }
@@ -151,11 +146,6 @@ function createMicrophoneHook() {
 
   // Toggle audio loopback based on settings
   useEffect(() => {
-    console.log(
-      "useEffect: Loopback setting changed. Loopback enabled:",
-      loopbackEnabled
-    );
-
     try {
       if (microphoneBuffer.output && audioContext) {
         if (loopbackEnabled) {

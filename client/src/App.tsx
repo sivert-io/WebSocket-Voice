@@ -1,7 +1,8 @@
 import { useAccount } from "@/common";
 import { SignUpModal } from "@/signUp";
 import { MainApp } from "./components/mainApp";
-import { Nickname, Settings } from "@/settings";
+import { AddNewServer, Nickname, Settings } from "@/settings";
+import { Welcome } from "./components/welcome";
 
 export function App() {
   const { isSignedIn } = useAccount();
@@ -12,6 +13,8 @@ export function App() {
         <MainApp />
         <Settings />
         <Nickname />
+        <Welcome />
+        <AddNewServer />
       </>
     );
   else return <SignUpModal />;

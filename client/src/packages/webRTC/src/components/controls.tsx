@@ -1,21 +1,21 @@
 import { Card, Flex, Text, IconButton } from "@radix-ui/themes";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSettings } from "@/settings";
-import { useSocket } from "@/socket";
 import { getIsBrowserSupported } from "@/audio";
 import { FiSettings } from "react-icons/fi";
 import { MdMic, MdMicOff } from "react-icons/md";
 import { BsVolumeOffFill, BsVolumeUpFill } from "react-icons/bs";
 import { useSFU } from "@/webRTC";
 import { ImPhoneHangUp } from "react-icons/im";
+import { useConnections } from "@/socket/src/context/connectionsProvider";
 
 export function Controls() {
   const [isBrowserSupported] = useState(getIsBrowserSupported());
   const { isConnected, disconnect } = useSFU();
 
-  const { sendMessage } = useSocket();
   const {
     micID,
+    currentServer,
     setIsMuted,
     isMuted,
     setShowSettings,
@@ -23,26 +23,23 @@ export function Controls() {
     setIsDeafened,
   } = useSettings();
 
+  const { connections } = useConnections();
+
   function handleMute() {
-    if (micID) {
+    if (micID && currentServer) {
+      const { sendMessage } = connections[currentServer.host];
       sendMessage("updateMuted", !isMuted);
       setIsMuted(!isMuted);
     }
   }
 
   function handleDeafen() {
-    if (micID) {
+    if (micID && currentServer) {
+      const { sendMessage } = connections[currentServer.host];
       sendMessage("updateDeafened", !isDeafened);
       setIsDeafened(!isDeafened);
     }
   }
-
-  // show settings if no mic is set
-  useEffect(() => {
-    if (!micID) {
-      setShowSettings(true);
-    }
-  }, [micID]);
 
   return (
     <Card
@@ -75,10 +72,6 @@ export function Controls() {
             )}
           </IconButton>
 
-          <IconButton variant="soft" onClick={() => setShowSettings(true)}>
-            <FiSettings size={16} />
-          </IconButton>
-
           <IconButton
             variant="soft"
             color="red"
@@ -86,6 +79,10 @@ export function Controls() {
             disabled={!isConnected}
           >
             <ImPhoneHangUp />
+          </IconButton>
+
+          <IconButton variant="soft" onClick={() => setShowSettings(true)}>
+            <FiSettings size={16} />
           </IconButton>
         </Flex>
       )}

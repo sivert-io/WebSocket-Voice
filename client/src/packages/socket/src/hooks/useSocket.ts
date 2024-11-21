@@ -34,6 +34,7 @@ interface SocketInterface {
   turn_host?: string;
   turn_username?: string;
   turn_password?: string;
+  host: string;
 }
 
 function webSocketHook(): SocketInterface {
@@ -41,10 +42,6 @@ function webSocketHook(): SocketInterface {
   const [clients, setClients] = useState<Clients>({});
   const [id, setId] = useState("");
   const [onMessageEvents, setOnMessageEvents] = useState<MessageEventsType>({});
-  const [sfu_host, setSfu_host] = useState<string | undefined>(undefined);
-  const [stunHosts, setStunHosts] = useState<string[]>([
-    "stun:stun1.l.google.com:19302",
-  ]);
 
   const { nickname } = useSettings();
 
@@ -83,9 +80,7 @@ function webSocketHook(): SocketInterface {
       setStunHosts(urlS);
     });
 
-    const _socket = new WebSocket(
-      import.meta.env.VITE_WS_HOST || "ws://localhost:5000"
-    );
+    const _socket = new WebSocket(`wss://${host}`);
 
     setSocket(_socket);
 

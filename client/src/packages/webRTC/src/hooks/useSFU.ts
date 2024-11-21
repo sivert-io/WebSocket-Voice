@@ -1,20 +1,20 @@
 import { useMicrophone, useSpeakers } from "@/audio";
-import { useSocket } from "@/socket";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { singletonHook } from "react-singleton-hook";
 import { SFUInterface, StreamData, StreamSources, Streams } from "../types/SFU";
+import { useSettings } from "@/settings";
+import { useConnections } from "@/socket/src/context/connectionsProvider";
 
 function sfuHook(): SFUInterface {
   // Using refs to store the RTCPeerConnection and WebSocket instances
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const SFUref = useRef<WebSocket | null>(null);
-
   const [streams, setStreams] = useState<Streams>({});
   const [error, setError] = useState<string | null>(null);
   const [registeredTracks, setRegisteredTracks] = useState<RTCRtpSender[]>([]);
   const [rtcActive, setRtcActive] = useState(false);
   const [streamSources, setStreamSources] = useState<StreamSources>({});
-  const { sfu_host, stun_hosts, sendMessage } = useSocket();
+  const { currentServer } = useSettings();
   const { microphoneBuffer } = useMicrophone();
   const { mediaDestination, audioContext } = useSpeakers();
   const isConnected = useMemo(
@@ -102,6 +102,11 @@ function sfuHook(): SFUInterface {
   }, [streams, audioContext, mediaDestination]); // Re-run effect when streams, audioContext, or mediaDestination change
 
   function connect() {
+    if (!currentServer) return;
+    const { connections } = useConnections();
+    const stun_hosts = connections[currentServer.host].getStunHosts();
+    const sfu_host = connections[currentServer.host].getSfuHost();
+    const { sendMessage } = connections[currentServer.host];
     if (
       sfu_host &&
       !peerConnectionRef.current &&
@@ -269,6 +274,9 @@ function sfuHook(): SFUInterface {
   }
 
   function disconnect() {
+    if (!currentServer) return;
+    const { connections } = useConnections();
+    const { sendMessage } = connections[currentServer.host];
     if (peerConnectionRef.current && SFUref.current) {
       registeredTracks.forEach((track) => {
         console.log("removed track from peer", track.track?.id);
