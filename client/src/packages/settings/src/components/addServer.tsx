@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { Socket, io } from "socket.io-client";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 
-type FetchInfo = {
+export type FetchInfo = {
   name: string;
   members: string;
   icon: string;
@@ -44,7 +44,7 @@ export function AddNewServer() {
 
   function joinServer() {
     if (serverInfo) {
-      addServer({
+      addServer(servers, {
         name: serverInfo.name,
         host: serverHost,
         icon: serverInfo.icon,
@@ -74,7 +74,6 @@ export function AddNewServer() {
     });
 
     new_socket.on("connect", () => {
-      new_socket.emit("info");
       setSocket(new_socket);
     });
 

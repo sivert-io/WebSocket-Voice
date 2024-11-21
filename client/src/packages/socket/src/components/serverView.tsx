@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useConnections } from "../context/connectionsProvider";
 import {
   Box,
   Button,
@@ -14,6 +13,7 @@ import { isSpeaking, useMicrophone } from "@/audio";
 import { useIsMobile } from "@/mobile";
 import { ConnectedUser } from "./connectedUser";
 import { useSettings } from "@/settings";
+import { useSockets } from "../hooks/useSockets";
 
 export const ServerView = () => {
   const { connect, isConnected, streamSources } = useSFU();
@@ -58,13 +58,14 @@ export const ServerView = () => {
   //     return () => clearInterval(interval);
   //   }, [microphoneBuffer.analyser, streamSources]);
 
-  const { connections } = useConnections();
   const { currentServer, removeServer, servers, setCurrentServer } =
     useSettings();
 
+  const sockets = useSockets();
+
   const currentConnection = useMemo(
-    () => (currentServer ? connections[currentServer.host] : null),
-    [currentServer, connections]
+    () => (currentServer ? sockets[currentServer.host] : null),
+    [currentServer, sockets]
   );
 
   useEffect(() => {

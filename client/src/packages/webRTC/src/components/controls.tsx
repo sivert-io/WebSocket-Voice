@@ -7,7 +7,6 @@ import { MdMic, MdMicOff } from "react-icons/md";
 import { BsVolumeOffFill, BsVolumeUpFill } from "react-icons/bs";
 import { useSFU } from "@/webRTC";
 import { ImPhoneHangUp } from "react-icons/im";
-import { useConnections } from "@/socket/src/context/connectionsProvider";
 
 export function Controls() {
   const [isBrowserSupported] = useState(getIsBrowserSupported());
@@ -23,20 +22,14 @@ export function Controls() {
     setIsDeafened,
   } = useSettings();
 
-  const { connections } = useConnections();
-
   function handleMute() {
     if (micID && currentServer) {
-      const { sendMessage } = connections[currentServer.host];
-      sendMessage("updateMuted", !isMuted);
       setIsMuted(!isMuted);
     }
   }
 
   function handleDeafen() {
     if (micID && currentServer) {
-      const { sendMessage } = connections[currentServer.host];
-      sendMessage("updateDeafened", !isDeafened);
       setIsDeafened(!isDeafened);
     }
   }
