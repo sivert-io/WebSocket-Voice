@@ -66,7 +66,8 @@ export function Sidebar() {
                 <ContextMenu.Separator />
                 <ContextMenu.Item>Edit</ContextMenu.Item>
                 <ContextMenu.Item>Share</ContextMenu.Item>
-                <ContextMenu.Item>Add to favorites</ContextMenu.Item>
+                <ContextMenu.Item>Pin server</ContextMenu.Item>
+                <ContextMenu.Item>Add to new group</ContextMenu.Item>
                 <ContextMenu.Separator />
                 <ContextMenu.Item
                   color="red"
