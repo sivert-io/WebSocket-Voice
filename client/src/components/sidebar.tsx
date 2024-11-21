@@ -3,6 +3,7 @@ import {
   Avatar,
   Box,
   Button,
+  ContextMenu,
   DropdownMenu,
   Flex,
   Heading,
@@ -17,8 +18,13 @@ import { MdAdd } from "react-icons/md";
 
 export function Sidebar() {
   const { logout } = useAccount();
-  const { nickname, setShowNickname, servers, setShowAddServer } =
-    useSettings();
+  const {
+    nickname,
+    setShowNickname,
+    servers,
+    setShowAddServer,
+    setShowRemoveServer,
+  } = useSettings();
   const [selectedServer, setSelectedServer] = useState("1");
 
   return (
@@ -32,24 +38,44 @@ export function Sidebar() {
       <Flex direction="column" gap="4" pt="2">
         {Object.keys(servers).map((host) => (
           <HoverCard.Root openDelay={100} closeDelay={0} key={host}>
-            <HoverCard.Trigger>
-              <Avatar
-                asChild
-                fallback={servers[host].name[0]}
-                src={servers[host].icon}
-              >
-                <Button
-                  style={{
-                    height: "32px",
-                    width: "32px",
-                    padding: "0",
-                  }}
-                  color="gray"
-                  variant={selectedServer === host ? "solid" : "soft"}
-                  onClick={() => setSelectedServer(host)}
-                ></Button>
-              </Avatar>
-            </HoverCard.Trigger>
+            <ContextMenu.Root>
+              <ContextMenu.Trigger>
+                <HoverCard.Trigger>
+                  <Avatar
+                    asChild
+                    fallback={servers[host].name[0]}
+                    src={servers[host].icon}
+                  >
+                    <Button
+                      style={{
+                        height: "32px",
+                        width: "32px",
+                        padding: "0",
+                      }}
+                      color="gray"
+                      variant={selectedServer === host ? "solid" : "soft"}
+                      onClick={() => setSelectedServer(host)}
+                    ></Button>
+                  </Avatar>
+                </HoverCard.Trigger>
+              </ContextMenu.Trigger>
+              <ContextMenu.Content>
+                <ContextMenu.Label style={{ fontWeight: "bold" }}>
+                  {servers[host].name}
+                </ContextMenu.Label>
+                <ContextMenu.Separator />
+                <ContextMenu.Item>Edit</ContextMenu.Item>
+                <ContextMenu.Item>Share</ContextMenu.Item>
+                <ContextMenu.Item>Add to favorites</ContextMenu.Item>
+                <ContextMenu.Separator />
+                <ContextMenu.Item
+                  color="red"
+                  onClick={() => setShowRemoveServer(host)}
+                >
+                  Leave
+                </ContextMenu.Item>
+              </ContextMenu.Content>
+            </ContextMenu.Root>
             <HoverCard.Content
               maxWidth="300px"
               side="right"

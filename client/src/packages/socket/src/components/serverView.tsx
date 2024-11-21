@@ -58,7 +58,7 @@ export const ServerView = () => {
   //     return () => clearInterval(interval);
   //   }, [microphoneBuffer.analyser, streamSources]);
 
-  const { currentServer, removeServer, servers, setCurrentServer } =
+  const { currentServer, setShowRemoveServer, servers, setCurrentServer } =
     useSettings();
 
   const sockets = useSockets();
@@ -102,19 +102,17 @@ export const ServerView = () => {
                     </Button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Content>
-                    <DropdownMenu.Item>Edit server</DropdownMenu.Item>
-
-                    <DropdownMenu.Separator />
-                    <DropdownMenu.Item>Add to favorites</DropdownMenu.Item>
+                    <DropdownMenu.Item>Edit</DropdownMenu.Item>
                     <DropdownMenu.Item>Share</DropdownMenu.Item>
+                    <DropdownMenu.Item>Add to favorites</DropdownMenu.Item>
                     <DropdownMenu.Separator />
                     <DropdownMenu.Item
                       color="red"
                       onClick={() =>
-                        currentServer && removeServer(currentServer)
+                        currentServer && setShowRemoveServer(currentServer.host)
                       }
                     >
-                      Leave server
+                      Leave
                     </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
