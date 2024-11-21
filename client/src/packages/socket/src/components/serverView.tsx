@@ -179,30 +179,64 @@ export const ServerView = () => {
         </Flex>
       </Box>
       {!isMobile && (
-        <Box
-          overflow="hidden"
-          flexGrow="1"
-          style={{
-            background: "var(--color-panel-translucent)",
-            borderRadius: "12px",
-          }}
-        >
-          <Flex height="100%" width="100%" direction="column" p="3">
-            <Flex
-              direction="column"
-              justify="center"
-              align="center"
+        <Flex flexGrow="1" gap="4">
+          {/* Voice view */}
+          {isConnected === currentServer.host && (
+            <Box
+              overflow="hidden"
               flexGrow="1"
+              style={{
+                background: "var(--color-panel-translucent)",
+                borderRadius: "12px",
+              }}
             >
-              Chat
-            </Flex>
+              <Flex height="100%" width="100%" direction="column" p="3">
+                <Flex justify="center" align="center" flexGrow="1">
+                  {Object.keys(clients[currentServer.host])?.map(
+                    (id) =>
+                      clients[currentServer.host][id].hasJoinedChannel && (
+                        <Box key={id}>
+                          <Card>
+                            <Flex align="center" justify="center">
+                              <Text>
+                                {clients[currentServer.host][id].nickname}
+                              </Text>
+                            </Flex>
+                          </Card>
+                        </Box>
+                      )
+                  )}
+                </Flex>
+              </Flex>
+            </Box>
+          )}
 
-            <TextField.Root
-              radius="full"
-              placeholder="Chat with your friends!"
-            />
-          </Flex>
-        </Box>
+          {/* Chat view */}
+          <Box
+            overflow="hidden"
+            minWidth={isConnected === currentServer.host ? "400px" : "100%"}
+            style={{
+              background: "var(--color-panel-translucent)",
+              borderRadius: "12px",
+            }}
+          >
+            <Flex height="100%" width="100%" direction="column" p="3">
+              <Flex
+                direction="column"
+                justify="center"
+                align="center"
+                flexGrow="1"
+              >
+                Chat
+              </Flex>
+
+              <TextField.Root
+                radius="full"
+                placeholder="Chat with your friends!"
+              />
+            </Flex>
+          </Box>
+        </Flex>
       )}
     </Flex>
   );

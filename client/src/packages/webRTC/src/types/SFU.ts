@@ -21,5 +21,5 @@ export interface SFUInterface {
   streamSources: StreamSources;
   connect: () => void;
   disconnect: () => void;
-  isConnected: boolean;
+  isConnected: string;
 }
