@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
+import { Server, Servers } from "../types/server";
 
 interface Settings {
   micID?: string;
@@ -26,6 +27,19 @@ interface Settings {
 
   showNickname: boolean;
   setShowNickname: (value: boolean) => any;
+
+  showAddServer: boolean;
+  setShowAddServer: (value: boolean) => any;
+
+  servers: Servers;
+  addServer: (server: Server) => any;
+  removeServer: (server: Server) => any;
+
+  hasSeenWelcome: boolean;
+  updateHasSeenWelcome: () => any;
+
+  currentServer: Server | null;
+  setCurrentServer: (value: string) => any;
 }
 
 function updateStorage(key: string, value: string, useState: (d: any) => any) {
@@ -33,11 +47,16 @@ function updateStorage(key: string, value: string, useState: (d: any) => any) {
   localStorage.setItem(key, value);
 }
 
+function updateStorageJson(key: string, value: any, useState: (d: any) => any) {
+  useState(value);
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
 function settingsHook() {
   const [showSettings, setShowSettings] = useState(false);
-  const [showNickname, setShowNickname] = useState(
-    !!!localStorage.getItem("nickname")
-  );
+  const [showNickname, setShowNickname] = useState(false);
+  const [showAddServer, setShowAddServer] = useState(false);
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(true);
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
@@ -54,6 +73,12 @@ function settingsHook() {
     Number(localStorage.getItem("noiseGate")) || 10
   );
 
+  const [servers, setServers] = useState<Servers>(
+    JSON.parse(localStorage.getItem("servers") || "{}")
+  );
+
+  const [currentServer, setCurrentServer] = useState<Server | null>(null);
+
   function updateMicID(newID: string) {
     updateStorage("micID", newID, setMicID);
   }
@@ -69,6 +94,45 @@ function settingsHook() {
   function updateNoiseGate(newGate: number) {
     updateStorage("noiseGate", newGate.toString(), setNoiseGate);
   }
+
+  function updateServers(newServers: Servers) {
+    updateStorageJson("servers", newServers, setServers);
+  }
+
+  function addServer(server: Server) {
+    const newServers = { ...servers, [server.host]: server };
+    updateServers(newServers);
+  }
+
+  function removeServer(server: Server) {
+    const newServers = { ...servers };
+    delete newServers[server.host];
+    updateServers(newServers);
+  }
+
+  function updateHasSeenWelcome() {
+    updateStorage("hasSeenWelcome", "true", setHasSeenWelcome);
+
+    if (!!!localStorage.getItem("nickname")) {
+      setShowNickname(true);
+    }
+  }
+
+  function updateCurrentServer(host: string) {
+    setCurrentServer(servers[host]);
+  }
+
+  useEffect(() => {
+    // If the user has seen the welcome screen, show the nickname prompt
+    if (!!localStorage.getItem("hasSeenWelcome")) {
+      setHasSeenWelcome(true);
+      setShowNickname(!!!localStorage.getItem("nickname"));
+    }
+    // If the user has not seen the welcome screen, show the welcome screen
+    else {
+      setHasSeenWelcome(false);
+    }
+  }, []);
 
   return {
     micID,
@@ -89,6 +153,15 @@ function settingsHook() {
     setShowSettings,
     showNickname,
     setShowNickname,
+    servers,
+    hasSeenWelcome,
+    updateHasSeenWelcome,
+    showAddServer,
+    setShowAddServer,
+    currentServer,
+    setCurrentServer: updateCurrentServer,
+    addServer,
+    removeServer,
   };
 }
 
@@ -111,6 +184,19 @@ const init: Settings = {
   setShowNickname: () => {},
   nickname: localStorage.getItem("nickname") || "Unknown",
   setNickname: () => {},
+
+  servers: JSON.parse(localStorage.getItem("servers") || "{}"),
+
+  hasSeenWelcome: !!localStorage.getItem("hasSeenWelcome"),
+  updateHasSeenWelcome: () => {},
+
+  showAddServer: false,
+  setShowAddServer: () => {},
+  addServer: () => {},
+  removeServer: () => {},
+
+  currentServer: null,
+  setCurrentServer: () => {},
 };
 
 export const useSettings = singletonHook(init, settingsHook);

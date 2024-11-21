@@ -2,100 +2,83 @@ import { getUniqueID } from "./clientUtils";
 import { Clients } from "../types";
 import { colors } from "./colors";
 import consola from "consola";
-import WebSocket from "ws";
-import { IncomingMessage } from "http";
 import { config } from "dotenv";
+import { DefaultEventsMap, Server, Socket } from "socket.io";
 config();
 
-const clients: Clients = {};
+const clientsInfo: Clients = {};
 
-export function socketHandler(
-  wss: WebSocket.Server<typeof WebSocket, typeof IncomingMessage>,
-  ws: WebSocket
-) {
+const sfu_host = process.env.SFU_WS_HOST;
+const stun_hosts = process.env.STUN_SERVERS?.split(",") || [];
+
+if (!sfu_host) {
+  consola.error("Missing SFU WebSocket Host! No voice activity will work.");
+}
+
+if (stun_hosts.length === 0) {
+  consola.error("Missing STUN servers! SFU can't reach all clients.");
+}
+
+export function socketHandler(io: Server, socket: Socket) {
   const id = getUniqueID();
 
-  if (!process.env.SFU_WS_HOST) {
-    consola.error("Missing SFU WebSocket Host! No streams will be forwarded");
-    ws.send(
-      JSON.stringify({
-        message: "sfu_host",
-        value: null,
-      })
-    );
-  } else {
-    ws.send(
-      JSON.stringify({
-        message: "sfu_host",
-        value: process.env.SFU_WS_HOST,
-      })
-    );
-  }
-
-  if (!process.env.STUN_SERVERS) {
-    consola.error("Missing STUN servers! SFU may be unable to reach clients");
-  } else {
-    ws.send(
-      JSON.stringify({
-        message: "stun_hosts",
-        value: process.env.STUN_SERVERS,
-      })
-    );
-  }
-
-  function sendNewClientInfo() {
-    wss.clients.forEach((client) => {
-      client.send(
-        JSON.stringify({
-          message: "peers",
-          value: clients,
-        })
-      );
+  function syncAllClients() {
+    io.to("verifiedClients").emit("message", {
+      message: "clients",
+      value: clientsInfo,
     });
+  }
+
+  function verifyClient() {
+    socket.join("verifiedClients");
+  }
+
+  function unverifyClient() {
+    socket.leave("verifiedClients");
   }
 
   function messageHandler(json: { message: string; value: any }) {
     console.log("User attempted to send message: ", json);
 
     if (json.message === "updateNickname") {
-      clients[id] = {
-        ...clients[id],
+      clientsInfo[id] = {
+        ...clientsInfo[id],
         nickname: json.value,
       };
-      sendNewClientInfo();
+      syncAllClients();
     }
 
     if (json.message === "updateMuted") {
-      clients[id] = {
-        ...clients[id],
+      clientsInfo[id] = {
+        ...clientsInfo[id],
         isMuted: json.value,
       };
-      sendNewClientInfo();
+      syncAllClients();
     }
 
     if (json.message === "streamID") {
       // communicate with SFU and bind user ID to stream ID, then update all users
-      clients[id] = {
-        ...clients[id],
+      clientsInfo[id] = {
+        ...clientsInfo[id],
         streamID: json.value,
       };
-      sendNewClientInfo();
+      syncAllClients();
     }
 
     if (json.message === "joinedChannel") {
-      clients[id] = {
-        ...clients[id],
+      clientsInfo[id] = {
+        ...clientsInfo[id],
         hasJoinedChannel: json.value,
       };
-      sendNewClientInfo();
+      syncAllClients();
     }
   }
 
   function sendJson(obj: any) {
-    ws.send(JSON.stringify(obj));
+    socket.send(JSON.stringify(obj));
   }
 
-  clients[id] = {
+  clientsInfo[id] = {
     nickname: "Unknown",
     isMuted: false,
     color: colors[Math.floor(Math.random() * colors.length)],
@@ -105,18 +88,20 @@ export function socketHandler(
 
   consola.info("Peer connected", id);
 
-  ws.on("error", consola.error);
+  socket.on("error", consola.error);
 
-  ws.on("message", (data: string) => {
-    consola.info("received: %s", data);
-    const json: { message: string; value: any } = JSON.parse(data);
-    messageHandler(json);
+  socket.on("info", () => {
+    socket.emit("info", {
+      name: process.env.SERVER_NAME || "Unknown",
+      members: "23",
+      icon: process.env.SERVER_ICON || "",
+    });
   });
 
-  ws.on("close", (code, reason) => {
+  socket.on("close", (code, reason) => {
     consola.fail("Peer disconnected", id, code, reason);
-    delete clients[id];
-    sendNewClientInfo();
+    delete clientsInfo[id];
+    syncAllClients();
   });
 
   sendJson({
@@ -124,5 +109,5 @@ export function socketHandler(
     value: id,
   });
 
-  sendNewClientInfo();
+  syncAllClients();
 }

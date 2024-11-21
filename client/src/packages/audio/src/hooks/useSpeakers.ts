@@ -37,8 +37,6 @@ function speakersHook() {
 
   // Create audioContext and destination only if exists
   useEffect(() => {
-    console.log("handles", handles.length);
-
     if (handles.length > 0 && !audioContext) {
       const context = new AudioContext();
       const inputBuffer = context.createMediaStreamDestination();

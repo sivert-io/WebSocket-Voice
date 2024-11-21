@@ -37,8 +37,6 @@ function accountHook(): Account {
     if (token) {
       // check token now
       const decodedJwt = jwtDecode(token);
-      console.log(decodedJwt);
-
       if (decodedJwt.exp && decodedJwt.exp > Date.now() / 1000) {
         setIsSignedIn(true);
       } else {

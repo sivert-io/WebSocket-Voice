@@ -27,7 +27,7 @@ export function Nickname() {
 
   return (
     <Dialog.Root open={showNickname} onOpenChange={handleDialogChange}>
-      <Dialog.Content maxWidth="650px">
+      <Dialog.Content maxWidth="600px">
         <Dialog.Close
           style={{
             position: "absolute",

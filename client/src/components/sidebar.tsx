@@ -11,19 +11,16 @@ import {
   Tooltip,
 } from "@radix-ui/themes";
 import { useState } from "react";
-import { Server } from "./mainApp";
 import { useAccount } from "@/common";
 import { useSettings } from "@/settings";
 import { MdAdd } from "react-icons/md";
 
-type SidebarProps = {
-  servers?: Server[];
-};
-
-export function Sidebar({ servers }: SidebarProps) {
+export function Sidebar() {
   const { logout } = useAccount();
-  const { nickname, setShowNickname } = useSettings();
+  const { nickname, setShowNickname, servers, setShowAddServer } =
+    useSettings();
   const [selectedServer, setSelectedServer] = useState("1");
+
   return (
     <Flex
       direction="column"
@@ -33,19 +30,25 @@ export function Sidebar({ servers }: SidebarProps) {
       justify="between"
     >
       <Flex direction="column" gap="4" pt="3">
-        {servers?.map((server) => (
-          <HoverCard.Root openDelay={100} closeDelay={0} key={server.host}>
+        {Object.keys(servers).map((host) => (
+          <HoverCard.Root openDelay={100} closeDelay={0} key={host}>
             <HoverCard.Trigger>
-              <Button
-                style={{
-                  height: "32px",
-                  width: "32px",
-                  padding: "0",
-                }}
-                color="gray"
-                variant={selectedServer === server.host ? "solid" : "soft"}
-                onClick={() => setSelectedServer(server.host)}
-              ></Button>
+              <Avatar
+                asChild
+                fallback={servers[host].name[0]}
+                src={servers[host].icon}
+              >
+                <Button
+                  style={{
+                    height: "32px",
+                    width: "32px",
+                    padding: "0",
+                  }}
+                  color="gray"
+                  variant={selectedServer === host ? "solid" : "soft"}
+                  onClick={() => setSelectedServer(host)}
+                ></Button>
+              </Avatar>
             </HoverCard.Trigger>
             <HoverCard.Content
               maxWidth="300px"
@@ -54,7 +57,7 @@ export function Sidebar({ servers }: SidebarProps) {
               align="center"
             >
               <Box>
-                <Heading size="1">Server name</Heading>
+                <Heading size="1">{servers[host].name}</Heading>
               </Box>
             </HoverCard.Content>
           </HoverCard.Root>
@@ -68,7 +71,7 @@ export function Sidebar({ servers }: SidebarProps) {
             }}
             variant="soft"
             color="gray"
-            onClick={() => {}}
+            onClick={() => setShowAddServer(true)}
           >
             <MdAdd />
           </Button>
