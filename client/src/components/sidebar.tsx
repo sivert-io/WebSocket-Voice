@@ -29,7 +29,7 @@ export function Sidebar() {
       align="center"
       justify="between"
     >
-      <Flex direction="column" gap="4" pt="3">
+      <Flex direction="column" gap="4" pt="2">
         {Object.keys(servers).map((host) => (
           <HoverCard.Root openDelay={100} closeDelay={0} key={host}>
             <HoverCard.Trigger>
