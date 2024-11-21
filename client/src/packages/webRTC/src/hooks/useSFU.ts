@@ -21,10 +21,7 @@ function sfuHook(): SFUInterface {
   const { currentServer } = useSettings();
   const { microphoneBuffer } = useMicrophone();
   const { mediaDestination, audioContext } = useSpeakers();
-  const isConnected = useMemo(
-    () => !!SFUref.current && !!peerConnectionRef.current,
-    [SFUref.current, peerConnectionRef.current]
-  );
+  const [isConnected, setIsConnected] = useState("");
   const [currentSocket, setCurrentSocket] = useState<Socket | null>(null);
   const { sockets, serverDetailsList } = useSockets();
 
@@ -125,7 +122,7 @@ function sfuHook(): SFUInterface {
         !!stun_hosts &&
         !SFUref.current &&
         !rtcActive &&
-        !isConnected
+        isConnected.length === 0
     );
 
     if (!currentServer || currentSocket) return;
@@ -137,7 +134,7 @@ function sfuHook(): SFUInterface {
       !!stun_hosts &&
       !SFUref.current &&
       !rtcActive &&
-      !isConnected
+      isConnected.length === 0
     ) {
       try {
         console.log("Connecting to SFU");
@@ -290,6 +287,8 @@ function sfuHook(): SFUInterface {
 
           console.log("Peer connection and WebSocket initialized");
 
+          setIsConnected(currentServer.host);
+
           _currentsocket.emit("joinedChannel", true);
         } else {
           console.log("Couldn't find microphone buffer");
@@ -323,6 +322,7 @@ function sfuHook(): SFUInterface {
       currentSocket.emit("joinedChannel", false);
       setCurrentSocket(null);
       disconnectSound();
+      setIsConnected("");
     }
   }
 
@@ -342,7 +342,7 @@ const init: SFUInterface = {
   streamSources: {},
   connect: () => {},
   disconnect: () => {},
-  isConnected: false,
+  isConnected: "",
 };
 
 const SFUHook = singletonHook(init, sfuHook);
