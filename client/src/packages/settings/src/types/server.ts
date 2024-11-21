@@ -1,7 +1,26 @@
+import { Clients } from "@/socket";
+
+export type Channel = {
+  name: string;
+  type: "text" | "voice";
+  id: string;
+  clients?: string[];
+};
+
+export type serverDetails = {
+  channels: Channel[];
+  clients: Clients;
+};
+
+export type serverDetailsList = {
+  [host: string]: serverDetails;
+};
+
 export type Server = {
   host: string;
   name: string;
   icon: string;
+  token: string;
 };
 
 export type Servers = {

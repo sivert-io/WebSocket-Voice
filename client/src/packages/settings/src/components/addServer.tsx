@@ -48,6 +48,8 @@ export function AddNewServer() {
         name: serverInfo.name,
         host: serverHost,
         icon: serverInfo.icon,
+        channels: {},
+        token: "123",
       });
 
       closeDialog();
