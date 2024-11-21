@@ -104,7 +104,7 @@ export const ServerView = () => {
                   <DropdownMenu.Content>
                     <DropdownMenu.Item>Edit</DropdownMenu.Item>
                     <DropdownMenu.Item>Share</DropdownMenu.Item>
-                    <DropdownMenu.Item>Add to favorites</DropdownMenu.Item>
+                    <DropdownMenu.Item>Pin server</DropdownMenu.Item>
                     <DropdownMenu.Separator />
                     <DropdownMenu.Item
                       color="red"
