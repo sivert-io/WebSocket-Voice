@@ -1,5 +1,3 @@
-import { Clients } from "@/socket";
-
 export type Channel = {
   name: string;
   type: "text" | "voice";
@@ -9,7 +7,6 @@ export type Channel = {
 
 export type serverDetails = {
   channels: Channel[];
-  clients: Clients;
   sfu_host: string;
   stun_hosts: string[];
 };

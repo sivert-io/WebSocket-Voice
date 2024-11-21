@@ -14,7 +14,6 @@ import { useIsMobile } from "@/mobile";
 import { ConnectedUser } from "./connectedUser";
 import { useSettings } from "@/settings";
 import { useSockets } from "../hooks/useSockets";
-import { FiSpeaker } from "react-icons/fi";
 import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 
 export const ServerView = () => {
@@ -23,52 +22,50 @@ export const ServerView = () => {
   const [clientsSpeaking, setClientsSpeaking] = useState<{
     [id: string]: boolean;
   }>({});
-
   const isMobile = useIsMobile();
-
-  // Check if I am speaking right now
-  //   useEffect(() => {
-  //     const interval = setInterval(() => {
-  //       if (!isConnected) return;
-  //       Object.keys(clients).forEach((key) => {
-  //         const client = clients[key];
-
-  //         // is ourselves
-  //         if (key === id && microphoneBuffer.analyser) {
-  //           setClientsSpeaking((old) => ({
-  //             ...old,
-  //             [key]: isSpeaking(microphoneBuffer.analyser!, 1),
-  //           }));
-  //         }
-
-  //         // is not ourselves
-  //         else {
-  //           if (!client.streamID || !streamSources[client.streamID]) {
-  //             return;
-  //           }
-
-  //           const stream = streamSources[client.streamID];
-  //           setClientsSpeaking((old) => ({
-  //             ...old,
-  //             [key]: isSpeaking(stream.analyser, 1),
-  //           }));
-  //         }
-  //       });
-  //     }, 100);
-
-  //     //Clearing the interval
-  //     return () => clearInterval(interval);
-  //   }, [microphoneBuffer.analyser, streamSources]);
-
   const { currentServer, setShowRemoveServer, servers, setCurrentServer } =
     useSettings();
 
-  const { sockets, serverDetailsList } = useSockets();
+  const { sockets, serverDetailsList, clients } = useSockets();
 
   const currentConnection = useMemo(
     () => (currentServer ? sockets[currentServer.host] : null),
     [currentServer, sockets]
   );
+
+  //  Check if I am speaking right now
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isConnected || !currentServer || !currentConnection) return;
+      Object.keys(clients[currentServer.host]).forEach((clientID) => {
+        const client = clients[currentServer.host][clientID];
+
+        // is ourselves
+        if (clientID === currentConnection.id && microphoneBuffer.analyser) {
+          setClientsSpeaking((old) => ({
+            ...old,
+            [clientID]: isSpeaking(microphoneBuffer.analyser!, 1),
+          }));
+        }
+
+        // is not ourselves
+        else {
+          if (!client.streamID || !streamSources[client.streamID]) {
+            return;
+          }
+
+          const stream = streamSources[client.streamID];
+          setClientsSpeaking((old) => ({
+            ...old,
+            [clientID]: isSpeaking(stream.analyser, 1),
+          }));
+        }
+      });
+    }, 100);
+
+    //Clearing the interval
+    return () => clearInterval(interval);
+  }, [microphoneBuffer.analyser, streamSources]);
 
   useEffect(() => {
     if (!currentServer && Object.keys(servers).length > 0) {
@@ -129,12 +126,14 @@ export const ServerView = () => {
                     align="start"
                     width="100%"
                     key={channel.id}
+                    position="relative"
                   >
                     <Button
                       variant={isConnected ? "solid" : "soft"}
                       radius="large"
                       style={{
                         width: "100%",
+                        justifyContent: "start",
                       }}
                       onClick={connect}
                     >
@@ -147,26 +146,29 @@ export const ServerView = () => {
                     </Button>
 
                     <Box
+                      position="absolute"
+                      top="0"
+                      pt="6"
                       style={{
                         background: "var(--color-panel-translucent)",
                         borderRadius: "0 0 12px 12px",
+                        zIndex: -1,
                       }}
                       width="100%"
                     >
-                      {channel.clients?.map((id) => (
-                        <ConnectedUser
-                          isSpeaking={clientsSpeaking[id] || false}
-                          isMuted={
-                            serverDetailsList[currentServer.host].clients[id]
-                              .isMuted
-                          }
-                          nickname={
-                            serverDetailsList[currentServer.host].clients[id]
-                              .nickname
-                          }
-                          key={id}
-                        />
-                      ))}
+                      {Object.keys(clients[currentServer.host])?.map(
+                        (id) =>
+                          clients[currentServer.host][id].hasJoinedChannel && (
+                            <ConnectedUser
+                              isSpeaking={clientsSpeaking[id] || false}
+                              isMuted={clients[currentServer.host][id].isMuted}
+                              nickname={
+                                clients[currentServer.host][id].nickname
+                              }
+                              key={id}
+                            />
+                          )
+                      )}
                     </Box>
                   </Flex>
                 )

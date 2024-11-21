@@ -1,9 +1,9 @@
 export type Channel = {
-  id: string;
   name: string;
-  description: string;
+  type: "voice" | "text";
   permissions?: {
-    canStream: boolean;
-    canJoinRole: "*";
+    canStreamRole: string;
+    canSpeakRole: string;
+    canJoinRole: string;
   };
 };

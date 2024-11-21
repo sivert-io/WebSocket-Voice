@@ -7,16 +7,26 @@ import {
   serverDetails,
   serverDetailsList,
 } from "@/settings/src/types/server";
+import { Clients } from "../types/clients";
 
 type Sockets = { [host: string]: Socket };
 
 function sockets() {
   const [sockets, setSockets] = useState<Sockets>({});
-  const { servers, addServer } = useSettings();
+  const { servers, addServer, nickname } = useSettings();
   const [newServerInfo, setNewServerInfo] = useState<Server[]>([]);
   const [serverDetailsList, setServerDetailsList] = useState<serverDetailsList>(
     {}
   );
+  const [clients, setClients] = useState<{ [host: string]: Clients }>({});
+
+  useEffect(() => {
+    Object.keys(servers).forEach((host) => {
+      console.log("Sending nickname");
+
+      sockets[host]?.emit("updateNickname", nickname);
+    });
+  }, [nickname, servers]);
 
   useEffect(() => {
     const info = [...newServerInfo];
@@ -55,18 +65,30 @@ function sockets() {
             [host]: data,
           }));
         });
+
+        socket.on("disconnect", () => {
+          delete newSockets[host];
+        });
+
+        socket.on("clients", (data: any) => {
+          setClients((old) => ({
+            ...old,
+            [host]: data,
+          }));
+        });
       }
     });
     setSockets(newSockets);
   }, [servers]);
 
-  return { sockets, serverDetailsList };
+  return { sockets, serverDetailsList, clients };
 }
 
 export const useSockets = singletonHook(
   {
     sockets: {},
     serverDetailsList: {},
+    clients: {},
   },
   sockets
 );
