@@ -51,6 +51,8 @@ export function AddNewServer() {
       });
 
       closeDialog();
+
+      setServerHost("");
     }
   }
 

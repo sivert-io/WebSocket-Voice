@@ -33,7 +33,10 @@ interface Settings {
 
   servers: Servers;
   addServer: (oldServers: Servers, server: Server) => any;
-  removeServer: (server: Server) => any;
+
+  showRemoveServer: string | null;
+  setShowRemoveServer: (value: string | null) => any;
+  removeServer: (host: string) => any;
 
   hasSeenWelcome: boolean;
   updateHasSeenWelcome: () => any;
@@ -77,6 +80,8 @@ function settingsHook() {
     JSON.parse(localStorage.getItem("servers") || "{}")
   );
 
+  const [showRemoveServer, setShowRemoveServer] = useState<string | null>(null);
+
   const [currentServer, setCurrentServer] = useState<Server | null>(null);
 
   function updateMicID(newID: string) {
@@ -104,9 +109,9 @@ function settingsHook() {
     updateServers(newServers);
   }
 
-  function removeServer(server: Server) {
+  function removeServer(host: string) {
     const newServers = { ...servers };
-    delete newServers[server.host];
+    delete newServers[host];
     updateServers(newServers);
   }
 
@@ -162,6 +167,8 @@ function settingsHook() {
     setCurrentServer: updateCurrentServer,
     addServer,
     removeServer,
+    showRemoveServer,
+    setShowRemoveServer,
   };
 }
 
@@ -193,6 +200,9 @@ const init: Settings = {
   showAddServer: false,
   setShowAddServer: () => {},
   addServer: () => {},
+
+  showRemoveServer: null,
+  setShowRemoveServer: () => {},
   removeServer: () => {},
 
   currentServer: null,
