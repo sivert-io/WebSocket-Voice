@@ -11,6 +11,7 @@
   --cursor-slider-thumb-active: grabbing;
   --cursor-switch: pointer;
   --default-font-family: "Mulish", sans-serif;
+  --scaling: 1.15;
 }
 
 body {

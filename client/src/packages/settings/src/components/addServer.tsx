@@ -117,6 +117,7 @@ export function AddNewServer() {
           <Flex direction="column" gap="4">
             <Flex gap="2" align="center">
               <TextField.Root
+                type="url"
                 disabled={isSearching}
                 onKeyDown={handleEnterKey}
                 radius="full"
