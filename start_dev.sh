@@ -4,7 +4,7 @@
 SESSION_NAME="websocket_dev_session"
 
 # Create a new tmux session and run the start.sh command in the first pane
-tmux new-session -d -s "$SESSION_NAME" 'cd stfu_go && ./start.sh'
+tmux new-session -d -s "$SESSION_NAME" 'cd sfu && ./start.sh'
 
 # Split the window into two vertical panes and run the second command in the second pane
 tmux split-window -v "cd client && bun dev"
