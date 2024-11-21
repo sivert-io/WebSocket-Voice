@@ -178,7 +178,6 @@ export const ServerView = () => {
             </Flex>
 
             <TextField.Root
-              size="3"
               radius="full"
               placeholder="Chat with your friends!"
             />
