@@ -14,6 +14,8 @@ import { useIsMobile } from "@/mobile";
 import { ConnectedUser } from "./connectedUser";
 import { useSettings } from "@/settings";
 import { useSockets } from "../hooks/useSockets";
+import { FiSpeaker } from "react-icons/fi";
+import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 
 export const ServerView = () => {
   const { connect, isConnected, streamSources } = useSFU();
@@ -61,7 +63,7 @@ export const ServerView = () => {
   const { currentServer, setShowRemoveServer, servers, setCurrentServer } =
     useSettings();
 
-  const sockets = useSockets();
+  const { sockets, serverDetailsList } = useSockets();
 
   const currentConnection = useMemo(
     () => (currentServer ? sockets[currentServer.host] : null),
@@ -120,38 +122,55 @@ export const ServerView = () => {
             </Card>
 
             <Flex direction="column" gap="3" align="center" width="100%">
-              <Flex direction="column" align="start" width="100%">
-                <Button
-                  variant={isConnected ? "solid" : "soft"}
-                  radius="small"
-                  style={{
-                    width: "100%",
-                  }}
-                  onClick={connect}
-                >
-                  Channel #1
-                </Button>
+              {serverDetailsList[currentServer.host]?.channels.map(
+                (channel) => (
+                  <Flex
+                    direction="column"
+                    align="start"
+                    width="100%"
+                    key={channel.id}
+                  >
+                    <Button
+                      variant={isConnected ? "solid" : "soft"}
+                      radius="small"
+                      style={{
+                        width: "100%",
+                      }}
+                      onClick={connect}
+                    >
+                      {channel.type === "voice" ? (
+                        <SpeakerLoudIcon />
+                      ) : (
+                        <ChatBubbleIcon />
+                      )}
+                      {channel.name}
+                    </Button>
 
-                <Box
-                  style={{
-                    background: "var(--color-panel-translucent)",
-                    borderRadius: "0 0 12px 12px",
-                  }}
-                  width="100%"
-                >
-                  {/* {Object.keys(clients).map(
-                    (id) =>
-                      clients[id].hasJoinedChannel && (
+                    <Box
+                      style={{
+                        background: "var(--color-panel-translucent)",
+                        borderRadius: "0 0 12px 12px",
+                      }}
+                      width="100%"
+                    >
+                      {channel.clients?.map((id) => (
                         <ConnectedUser
                           isSpeaking={clientsSpeaking[id] || false}
-                          isMuted={clients[id].isMuted}
-                          nickname={clients[id].nickname}
+                          isMuted={
+                            serverDetailsList[currentServer.host].clients[id]
+                              .isMuted
+                          }
+                          nickname={
+                            serverDetailsList[currentServer.host].clients[id]
+                              .nickname
+                          }
                           key={id}
                         />
-                      )
-                  )} */}
-                </Box>
-              </Flex>
+                      ))}
+                    </Box>
+                  </Flex>
+                )
+              )}
             </Flex>
           </Flex>
           <Controls />

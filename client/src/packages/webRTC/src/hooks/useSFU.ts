@@ -24,7 +24,7 @@ function sfuHook(): SFUInterface {
   );
   const [currentSocket, setCurrentSocket] = useState<Socket | null>(null);
 
-  const sockets = useSockets();
+  const {sockets} = useSockets();
 
   useEffect(() => {
     // Iterate over all keys (IDs) in the streamSources object
