@@ -23,8 +23,15 @@ function sfuHook(): SFUInterface {
     [SFUref.current, peerConnectionRef.current]
   );
   const [currentSocket, setCurrentSocket] = useState<Socket | null>(null);
+  const { sockets, serverDetailsList } = useSockets();
 
-  const {sockets} = useSockets();
+  const sfu_host = useMemo(() => {
+    return currentServer && serverDetailsList[currentServer.host]?.sfu_host;
+  }, [serverDetailsList, currentServer]);
+
+  const stun_hosts = useMemo(() => {
+    return currentServer && serverDetailsList[currentServer.host]?.stun_hosts;
+  }, [serverDetailsList, currentServer]);
 
   useEffect(() => {
     // Iterate over all keys (IDs) in the streamSources object
@@ -109,8 +116,6 @@ function sfuHook(): SFUInterface {
     if (!currentServer || currentSocket) return;
     // Get the current server's socket connection
     const _currentsocket = sockets[currentServer.host];
-    const stun_hosts = _currentsocket.getStunHosts();
-    const sfu_host = _currentsocket.getSfuHost();
     if (
       sfu_host &&
       !peerConnectionRef.current &&

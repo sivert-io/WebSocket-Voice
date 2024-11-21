@@ -86,6 +86,8 @@ export function socketHandler(io: Server, socket: Socket) {
 
   function sendServerDetails() {
     socket.emit("details", {
+      sfu_host,
+      stun_hosts,
       clients: clientsInfo,
       channels: [
         {
