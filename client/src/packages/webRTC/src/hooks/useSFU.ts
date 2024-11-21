@@ -5,6 +5,9 @@ import { SFUInterface, StreamData, StreamSources, Streams } from "../types/SFU";
 import { useSettings } from "@/settings";
 import { useSockets } from "@/socket";
 import { Socket } from "socket.io-client";
+import useSound from "use-sound";
+import connectMp3 from "@/audio/src/assets/connect.mp3";
+import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 
 function sfuHook(): SFUInterface {
   // Using refs to store the RTCPeerConnection and WebSocket instances
@@ -32,6 +35,9 @@ function sfuHook(): SFUInterface {
   const stun_hosts = useMemo(() => {
     return currentServer && serverDetailsList[currentServer.host]?.stun_hosts;
   }, [serverDetailsList, currentServer]);
+
+  const [connectSound] = useSound(connectMp3, { volume: 0.5 });
+  const [disconnectSound] = useSound(disconnectMp3, { volume: 0.5 });
 
   useEffect(() => {
     // Iterate over all keys (IDs) in the streamSources object
@@ -113,20 +119,29 @@ function sfuHook(): SFUInterface {
   }, [streams, audioContext, mediaDestination]); // Re-run effect when streams, audioContext, or mediaDestination change
 
   function connect() {
+    console.log(
+      !!sfu_host &&
+        !peerConnectionRef.current &&
+        !!stun_hosts &&
+        !SFUref.current &&
+        !rtcActive &&
+        !isConnected
+    );
+
     if (!currentServer || currentSocket) return;
     // Get the current server's socket connection
     const _currentsocket = sockets[currentServer.host];
     if (
-      sfu_host &&
+      !!sfu_host &&
       !peerConnectionRef.current &&
-      stun_hosts &&
+      !!stun_hosts &&
       !SFUref.current &&
       !rtcActive &&
       !isConnected
     ) {
       try {
         console.log("Connecting to SFU");
-        if (microphoneBuffer.output) {
+        if (!!microphoneBuffer.output) {
           setRtcActive(true);
           const localStream = microphoneBuffer.output.mediaStream;
 
@@ -153,6 +168,8 @@ function sfuHook(): SFUInterface {
               },
             ],
           };
+
+          connectSound();
 
           const pc = new RTCPeerConnection(configuration);
 
@@ -278,6 +295,7 @@ function sfuHook(): SFUInterface {
           console.log("Couldn't find microphone buffer");
         }
       } catch (err: any) {
+        console.error(err);
         setError(err.message);
         setRtcActive(false);
       }
@@ -303,6 +321,8 @@ function sfuHook(): SFUInterface {
       currentSocket.emit("streamID", "");
       setRtcActive(false);
       currentSocket.emit("joinedChannel", false);
+      setCurrentSocket(null);
+      disconnectSound();
     }
   }
 
