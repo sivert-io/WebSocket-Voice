@@ -124,7 +124,9 @@ export function AddNewServer() {
                 radius="full"
                 placeholder="gryt.chat"
                 value={serverHost}
-                onChange={(e) => setServerHost(e.target.value)}
+                onChange={(e) =>
+                  setServerHost(e.target.value.replace(/ /g, ""))
+                }
                 style={{ width: "100%" }}
               >
                 <TextField.Slot>wss://</TextField.Slot>
