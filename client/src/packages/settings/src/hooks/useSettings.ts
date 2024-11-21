@@ -32,7 +32,7 @@ interface Settings {
   setShowAddServer: (value: boolean) => any;
 
   servers: Servers;
-  addServer: (server: Server) => any;
+  addServer: (oldServers: Servers, server: Server) => any;
   removeServer: (server: Server) => any;
 
   hasSeenWelcome: boolean;
@@ -99,8 +99,8 @@ function settingsHook() {
     updateStorageJson("servers", newServers, setServers);
   }
 
-  function addServer(server: Server) {
-    const newServers = { ...servers, [server.host]: server };
+  function addServer(oldServers: Servers, server: Server) {
+    const newServers = { ...oldServers, [server.host]: server };
     updateServers(newServers);
   }
 

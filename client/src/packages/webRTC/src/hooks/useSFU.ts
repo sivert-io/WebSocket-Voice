@@ -3,7 +3,8 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { singletonHook } from "react-singleton-hook";
 import { SFUInterface, StreamData, StreamSources, Streams } from "../types/SFU";
 import { useSettings } from "@/settings";
-import { useConnections } from "@/socket/src/context/connectionsProvider";
+import { useSockets } from "@/socket";
+import { Socket } from "socket.io-client";
 
 function sfuHook(): SFUInterface {
   // Using refs to store the RTCPeerConnection and WebSocket instances
@@ -21,6 +22,9 @@ function sfuHook(): SFUInterface {
     () => !!SFUref.current && !!peerConnectionRef.current,
     [SFUref.current, peerConnectionRef.current]
   );
+  const [currentSocket, setCurrentSocket] = useState<Socket | null>(null);
+
+  const sockets = useSockets();
 
   useEffect(() => {
     // Iterate over all keys (IDs) in the streamSources object
@@ -102,11 +106,11 @@ function sfuHook(): SFUInterface {
   }, [streams, audioContext, mediaDestination]); // Re-run effect when streams, audioContext, or mediaDestination change
 
   function connect() {
-    if (!currentServer) return;
-    const { connections } = useConnections();
-    const stun_hosts = connections[currentServer.host].getStunHosts();
-    const sfu_host = connections[currentServer.host].getSfuHost();
-    const { sendMessage } = connections[currentServer.host];
+    if (!currentServer || currentSocket) return;
+    // Get the current server's socket connection
+    const _currentsocket = sockets[currentServer.host];
+    const stun_hosts = _currentsocket.getStunHosts();
+    const sfu_host = _currentsocket.getSfuHost();
     if (
       sfu_host &&
       !peerConnectionRef.current &&
@@ -127,7 +131,9 @@ function sfuHook(): SFUInterface {
             isLocal: true,
           };
 
-          sendMessage("streamID", localStream.id);
+          setCurrentSocket(_currentsocket);
+
+          _currentsocket.emit("streamID", localStream.id);
 
           // Create a new copy of the streams object
           const newStreams = { ...streams, [localStream.id]: streamData };
@@ -262,7 +268,7 @@ function sfuHook(): SFUInterface {
 
           console.log("Peer connection and WebSocket initialized");
 
-          sendMessage("joinedChannel", true);
+          _currentsocket.emit("joinedChannel", true);
         } else {
           console.log("Couldn't find microphone buffer");
         }
@@ -274,9 +280,7 @@ function sfuHook(): SFUInterface {
   }
 
   function disconnect() {
-    if (!currentServer) return;
-    const { connections } = useConnections();
-    const { sendMessage } = connections[currentServer.host];
+    if (!currentServer || !currentSocket) return;
     if (peerConnectionRef.current && SFUref.current) {
       registeredTracks.forEach((track) => {
         console.log("removed track from peer", track.track?.id);
@@ -291,9 +295,9 @@ function sfuHook(): SFUInterface {
       SFUref.current = null;
       peerConnectionRef.current = null;
 
-      sendMessage("streamID", "");
+      currentSocket.emit("streamID", "");
       setRtcActive(false);
-      sendMessage("joinedChannel", false);
+      currentSocket.emit("joinedChannel", false);
     }
   }
 

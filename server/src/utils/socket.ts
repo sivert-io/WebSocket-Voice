@@ -37,42 +37,42 @@ export function socketHandler(io: Server, socket: Socket) {
     socket.leave("verifiedClients");
   }
 
-  function messageHandler(json: { message: string; value: any }) {
-    console.log("User attempted to send message: ", json);
+  // function messageHandler(json: { message: string; value: any }) {
+  //   console.log("User attempted to send message: ", json);
 
-    if (json.message === "updateNickname") {
-      clientsInfo[id] = {
-        ...clientsInfo[id],
-        nickname: json.value,
-      };
-      syncAllClients();
-    }
+  //   if (json.message === "updateNickname") {
+  //     clientsInfo[id] = {
+  //       ...clientsInfo[id],
+  //       nickname: json.value,
+  //     };
+  //     syncAllClients();
+  //   }
 
-    if (json.message === "updateMuted") {
-      clientsInfo[id] = {
-        ...clientsInfo[id],
-        isMuted: json.value,
-      };
-      syncAllClients();
-    }
+  //   if (json.message === "updateMuted") {
+  //     clientsInfo[id] = {
+  //       ...clientsInfo[id],
+  //       isMuted: json.value,
+  //     };
+  //     syncAllClients();
+  //   }
 
-    if (json.message === "streamID") {
-      // communicate with SFU and bind user ID to stream ID, then update all users
-      clientsInfo[id] = {
-        ...clientsInfo[id],
-        streamID: json.value,
-      };
-      syncAllClients();
-    }
+  //   if (json.message === "streamID") {
+  //     // communicate with SFU and bind user ID to stream ID, then update all users
+  //     clientsInfo[id] = {
+  //       ...clientsInfo[id],
+  //       streamID: json.value,
+  //     };
+  //     syncAllClients();
+  //   }
 
-    if (json.message === "joinedChannel") {
-      clientsInfo[id] = {
-        ...clientsInfo[id],
-        hasJoinedChannel: json.value,
-      };
-      syncAllClients();
-    }
-  }
+  //   if (json.message === "joinedChannel") {
+  //     clientsInfo[id] = {
+  //       ...clientsInfo[id],
+  //       hasJoinedChannel: json.value,
+  //     };
+  //     syncAllClients();
+  //   }
+  // }
 
   function sendJson(obj: any) {
     socket.send(JSON.stringify(obj));
@@ -90,13 +90,17 @@ export function socketHandler(io: Server, socket: Socket) {
 
   socket.on("error", consola.error);
 
-  socket.on("info", () => {
+  function sendInfo() {
+    console.log("Sending info");
+
     socket.emit("info", {
       name: process.env.SERVER_NAME || "Unknown",
       members: "23",
       icon: process.env.SERVER_ICON || "",
     });
-  });
+  }
+  sendInfo();
+  socket.on("info", sendInfo);
 
   socket.on("close", (code, reason) => {
     consola.fail("Peer disconnected", id, code, reason);
