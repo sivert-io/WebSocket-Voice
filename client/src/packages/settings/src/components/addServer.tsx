@@ -16,6 +16,7 @@ import { FiWifi, FiX } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { Socket, io } from "socket.io-client";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
+import { AnimatePresence, motion } from "motion/react";
 
 export type FetchInfo = {
   name: string;
@@ -94,7 +95,7 @@ export function AddNewServer() {
 
   return (
     <Dialog.Root open={showAddServer} onOpenChange={closeDialog}>
-      <Dialog.Content maxWidth="600px">
+      <Dialog.Content maxWidth="600px" style={{ overflow: "hidden" }}>
         <Dialog.Close
           style={{
             position: "absolute",
@@ -144,54 +145,74 @@ export function AddNewServer() {
               </Button>
             </Flex>
 
-            {hasError.length > 0 && (
-              <Callout.Root color="red" role="alert">
-                <Callout.Icon>
-                  <ExclamationTriangleIcon />
-                </Callout.Icon>
-                <Callout.Text>
-                  Could not connect to the server. Please check the address and
-                  try again. <br />(
-                  {hasError === "xhr poll error"
-                    ? "Server is not responding"
-                    : hasError}
-                  )
-                </Callout.Text>
-              </Callout.Root>
-            )}
+            <AnimatePresence>
+              {hasError.length > 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                >
+                  <Callout.Root color="red" role="alert">
+                    <Callout.Icon>
+                      <ExclamationTriangleIcon />
+                    </Callout.Icon>
+                    <Callout.Text>
+                      Could not connect to the server. Please check the address
+                      and try again. <br />(
+                      {hasError === "xhr poll error"
+                        ? "Server is not responding"
+                        : hasError}
+                      )
+                    </Callout.Text>
+                  </Callout.Root>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {serverInfo && (
-              <>
-                <Box maxWidth="100%">
-                  <Card>
-                    <Flex direction="column" gap="3" align="center">
-                      <Avatar
-                        size="8"
-                        src={serverInfo.icon}
-                        radius="full"
-                        fallback={serverInfo.name[0]}
-                      />
-                      <Flex gap="1" direction="column" align="center">
-                        <Text size="4" weight="bold">
-                          {serverInfo.name}
-                        </Text>
-                        <Text size="2" color="gray">
-                          Members: {serverInfo.members}
-                        </Text>
+            <AnimatePresence>
+              {serverInfo && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  style={{
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                  }}
+                >
+                  <Box maxWidth="100%">
+                    <Card>
+                      <Flex direction="column" gap="3" align="center">
+                        <Avatar
+                          size="8"
+                          src={serverInfo.icon}
+                          radius="full"
+                          fallback={serverInfo.name[0]}
+                        />
+                        <Flex gap="1" direction="column" align="center">
+                          <Text size="4" weight="bold">
+                            {serverInfo.name}
+                          </Text>
+                          <Text size="2" color="gray">
+                            Members: {serverInfo.members}
+                          </Text>
+                        </Flex>
                       </Flex>
-                    </Flex>
-                  </Card>
-                </Box>
+                    </Card>
+                  </Box>
 
-                <Button disabled={!!servers[serverHost]} onClick={joinServer}>
-                  {!!servers[serverHost] ? (
-                    "You are already a member"
-                  ) : (
-                    <>Join {serverInfo.name}</>
-                  )}
-                </Button>
-              </>
-            )}
+                  <Button disabled={!!servers[serverHost]} onClick={joinServer}>
+                    {!!servers[serverHost] ? (
+                      "You are already a member"
+                    ) : (
+                      <>Join {serverInfo.name}</>
+                    )}
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </Flex>
         </Flex>
       </Dialog.Content>
