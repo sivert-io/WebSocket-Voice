@@ -36,6 +36,8 @@ export function socketHandler(io: Server, socket: Socket) {
     syncAllClients(io, clientsInfo);
   });
 
+  sendInfo(socket);
+
   if (socket.handshake.auth.token === process.env.SERVER_TOKEN) {
     consola.success("Client verified", id);
     clientsInfo[id] = {

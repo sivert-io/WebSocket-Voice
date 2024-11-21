@@ -33,8 +33,8 @@ function sfuHook(): SFUInterface {
     return currentServer && serverDetailsList[currentServer.host]?.stun_hosts;
   }, [serverDetailsList, currentServer]);
 
-  const [connectSound] = useSound(connectMp3, { volume: 0.5 });
-  const [disconnectSound] = useSound(disconnectMp3, { volume: 0.5 });
+  const [connectSound] = useSound(connectMp3, { volume: 0.1 });
+  const [disconnectSound] = useSound(disconnectMp3, { volume: 0.1 });
 
   useEffect(() => {
     // Iterate over all keys (IDs) in the streamSources object
