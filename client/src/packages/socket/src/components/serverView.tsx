@@ -132,7 +132,7 @@ export const ServerView = () => {
                   >
                     <Button
                       variant={isConnected ? "solid" : "soft"}
-                      radius="small"
+                      radius="large"
                       style={{
                         width: "100%",
                       }}
