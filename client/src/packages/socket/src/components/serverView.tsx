@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Avatar,
   Box,
   Button,
   Card,
@@ -15,6 +16,7 @@ import { ConnectedUser } from "./connectedUser";
 import { useSettings } from "@/settings";
 import { useSockets } from "../hooks/useSockets";
 import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
+import { AnimatePresence, motion } from "motion/react";
 
 export const ServerView = () => {
   const { connect, isConnected, streamSources } = useSFU();
@@ -32,6 +34,12 @@ export const ServerView = () => {
     () => (currentServer ? sockets[currentServer.host] : null),
     [currentServer, sockets]
   );
+
+  const [voiceWidth, setVoiceWidth] = useState("0px");
+
+  useEffect(() => {
+    setVoiceWidth(isConnected === currentServer?.host ? "400px" : "0px");
+  }, [isConnected, currentServer]);
 
   //  Check if I am speaking right now
   useEffect(() => {
@@ -145,31 +153,37 @@ export const ServerView = () => {
                       {channel.name}
                     </Button>
 
-                    <Box
+                    <Flex
                       position="absolute"
                       top="0"
+                      width="100%"
                       pt="6"
+                      direction="column"
                       style={{
                         background: "var(--color-panel-translucent)",
                         borderRadius: "0 0 12px 12px",
                         zIndex: -1,
                       }}
-                      width="100%"
                     >
-                      {Object.keys(clients[currentServer.host])?.map(
-                        (id) =>
-                          clients[currentServer.host][id].hasJoinedChannel && (
-                            <ConnectedUser
-                              isSpeaking={clientsSpeaking[id] || false}
-                              isMuted={clients[currentServer.host][id].isMuted}
-                              nickname={
-                                clients[currentServer.host][id].nickname
-                              }
-                              key={id}
-                            />
-                          )
-                      )}
-                    </Box>
+                      <AnimatePresence>
+                        {Object.keys(clients[currentServer.host])?.map(
+                          (id) =>
+                            clients[currentServer.host][id]
+                              .hasJoinedChannel && (
+                              <ConnectedUser
+                                isSpeaking={clientsSpeaking[id] || false}
+                                isMuted={
+                                  clients[currentServer.host][id].isMuted
+                                }
+                                nickname={
+                                  clients[currentServer.host][id].nickname
+                                }
+                                key={id}
+                              />
+                            )
+                        )}
+                      </AnimatePresence>
+                    </Flex>
                   </Flex>
                 )
               )}
@@ -181,40 +195,79 @@ export const ServerView = () => {
       {!isMobile && (
         <Flex flexGrow="1" gap="4">
           {/* Voice view */}
-          {isConnected === currentServer.host && (
-            <Box
-              overflow="hidden"
-              flexGrow="1"
-              style={{
-                background: "var(--color-panel-translucent)",
-                borderRadius: "12px",
-              }}
-            >
-              <Flex height="100%" width="100%" direction="column" p="3">
-                <Flex justify="center" align="center" flexGrow="1">
-                  {Object.keys(clients[currentServer.host])?.map(
-                    (id) =>
-                      clients[currentServer.host][id].hasJoinedChannel && (
-                        <Box key={id}>
-                          <Card>
-                            <Flex align="center" justify="center">
+          <motion.div
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            animate={{ width: voiceWidth }}
+            style={{
+              background: "var(--color-panel-translucent)",
+              borderRadius: "12px",
+              overflow: "hidden",
+            }}
+          >
+            <Flex height="100%" width="100%" direction="column" p="3">
+              <Flex
+                direction="column"
+                gap="4"
+                justify="center"
+                align="center"
+                flexGrow="1"
+              >
+                <AnimatePresence>
+                  {isConnected === currentServer.host &&
+                    Object.keys(clients[currentServer.host])?.map(
+                      (id) =>
+                        clients[currentServer.host][id].hasJoinedChannel && (
+                          <motion.div
+                            layout
+                            transition={{
+                              duration: 0.25,
+                              ease: "easeInOut",
+                            }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            key={id}
+                            style={{
+                              background: "var(--color-panel-translucent)",
+                              borderRadius: "12px",
+                            }}
+                          >
+                            <Flex
+                              align="center"
+                              justify="center"
+                              direction="column"
+                              gap="1"
+                              px="8"
+                              py="4"
+                            >
+                              <Avatar
+                                fallback={
+                                  clients[currentServer.host][id].nickname[0]
+                                }
+                                style={{
+                                  outline: "2px solid",
+                                  outlineColor: clientsSpeaking[id]
+                                    ? "var(--accent-9)"
+                                    : "transparent",
+                                  transition: "outline-color 0.1s ease",
+                                }}
+                              />
                               <Text>
                                 {clients[currentServer.host][id].nickname}
                               </Text>
                             </Flex>
-                          </Card>
-                        </Box>
-                      )
-                  )}
-                </Flex>
+                          </motion.div>
+                        )
+                    )}
+                </AnimatePresence>
               </Flex>
-            </Box>
-          )}
+            </Flex>
+          </motion.div>
 
           {/* Chat view */}
           <Box
             overflow="hidden"
-            minWidth={isConnected === currentServer.host ? "400px" : "100%"}
+            flexGrow="1"
             style={{
               background: "var(--color-panel-translucent)",
               borderRadius: "12px",
