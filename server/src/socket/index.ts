@@ -1,6 +1,5 @@
-import { getUniqueID } from "./clientUtils";
 import { Clients } from "../types";
-import { colors } from "./colors";
+import { colors } from "../utils/colors";
 import consola from "consola";
 import { config } from "dotenv";
 import { Server, Socket } from "socket.io";

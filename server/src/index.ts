@@ -1,6 +1,6 @@
 import { consola } from "consola";
 import { config } from "dotenv";
-import { socketHandler } from "./utils/socket";
+import { socketHandler } from "./socket";
 import { createServer } from "http";
 import { Server } from "socket.io";
 config();
