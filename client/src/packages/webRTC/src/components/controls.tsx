@@ -42,7 +42,7 @@ export function Controls() {
       }}
     >
       {isBrowserSupported && (
-        <Flex gap="4" align="center" justify="center">
+        <Flex align="center" justify="between">
           <IconButton
             color={isMuted ? "red" : "gray"}
             variant="soft"

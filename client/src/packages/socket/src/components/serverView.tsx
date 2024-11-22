@@ -189,7 +189,20 @@ export const ServerView = () => {
               )}
             </Flex>
           </Flex>
-          <Controls />
+          <AnimatePresence>
+            {isConnected && (
+              <motion.div
+                style={{
+                  width: "100%",
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <Controls />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </Flex>
       </Box>
       {!isMobile && (
@@ -215,7 +228,7 @@ export const ServerView = () => {
                 <AnimatePresence>
                   {isConnected === currentServer.host &&
                     Object.keys(clients[currentServer.host])?.map(
-                      (id) =>
+                      (id, index) =>
                         clients[currentServer.host][id].hasJoinedChannel && (
                           <motion.div
                             layout
@@ -226,7 +239,7 @@ export const ServerView = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            key={id}
+                            key={id + index}
                             style={{
                               background: "var(--color-panel-translucent)",
                               borderRadius: "12px",
