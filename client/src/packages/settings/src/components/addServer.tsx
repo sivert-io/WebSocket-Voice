@@ -1,3 +1,4 @@
+import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import {
   Avatar,
   Box,
@@ -11,12 +12,12 @@ import {
   Text,
   TextField,
 } from "@radix-ui/themes";
-import { useSettings } from "../hooks/useSettings";
-import { FiWifi, FiX } from "react-icons/fi";
-import { useEffect, useState } from "react";
-import { Socket, io } from "socket.io-client";
-import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState } from "react";
+import { FiWifi, FiX } from "react-icons/fi";
+import { io,Socket } from "socket.io-client";
+
+import { useSettings } from "../hooks/useSettings";
 
 export type FetchInfo = {
   name: string;
@@ -202,7 +203,7 @@ export function AddNewServer() {
                   </Box>
 
                   <Button disabled={!!servers[serverHost]} onClick={joinServer}>
-                    {!!servers[serverHost] ? (
+                    {servers[serverHost] ? (
                       "You are already a member"
                     ) : (
                       <>Join {serverInfo.name}</>

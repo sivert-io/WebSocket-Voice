@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 import {
   Avatar,
   Box,
@@ -9,14 +9,16 @@ import {
   Text,
   TextField,
 } from "@radix-ui/themes";
-import { Controls, useSFU } from "@/webRTC";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
+
 import { isSpeaking, useMicrophone } from "@/audio";
 import { useIsMobile } from "@/mobile";
-import { ConnectedUser } from "./connectedUser";
 import { useSettings } from "@/settings";
+import { Controls, useSFU } from "@/webRTC";
+
 import { useSockets } from "../hooks/useSockets";
-import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
-import { AnimatePresence, motion } from "motion/react";
+import { ConnectedUser } from "./connectedUser";
 
 export const ServerView = () => {
   const {
@@ -30,8 +32,7 @@ export const ServerView = () => {
     [id: string]: boolean;
   }>({});
   const isMobile = useIsMobile();
-  const { currentlyViewingServer, setShowRemoveServer, servers } =
-    useSettings();
+  const { currentlyViewingServer, setShowRemoveServer } = useSettings();
 
   const { sockets, serverDetailsList, clients } = useSockets();
 

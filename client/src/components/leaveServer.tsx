@@ -1,5 +1,6 @@
-import { useSettings } from "@/settings";
 import { AlertDialog, Button, Flex } from "@radix-ui/themes";
+
+import { useSettings } from "@/settings";
 
 export function LeaveServer() {
   const { removeServer, showRemoveServer, setShowRemoveServer, servers } =

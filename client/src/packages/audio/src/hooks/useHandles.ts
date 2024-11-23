@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 
 interface HandlesHook {
   handles: Handle[];
-  addHandle: (id: string) => any;
-  removeHandle: (id: string) => any;
+  addHandle: (id: string) => void;
+  removeHandle: (id: string) => void;
   isLoaded: boolean;
 }
 

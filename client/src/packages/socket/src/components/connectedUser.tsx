@@ -1,6 +1,6 @@
-import { MdMicOff } from "react-icons/md";
 import { Avatar, Flex, Text } from "@radix-ui/themes";
 import { motion } from "motion/react";
+import { MdMicOff } from "react-icons/md";
 
 export function ConnectedUser({
   isSpeaking,

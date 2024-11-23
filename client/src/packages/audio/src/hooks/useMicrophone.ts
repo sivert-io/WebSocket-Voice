@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
-import { useSettings } from "@/settings";
-import { useHandles } from "./useHandles";
-import { getIsBrowserSupported } from "@/audio";
-import { MicrophoneBufferType, MicrophoneInterface } from "../types/Microphone";
 
-function createMicrophoneHook() {
+import { getIsBrowserSupported } from "@/audio";
+import { useSettings } from "@/settings";
+
+import { MicrophoneBufferType, MicrophoneInterface } from "../types/Microphone";
+import { useHandles } from "./useHandles";
+
+function useCreateMicrophoneHook() {
   const { handles, addHandle, removeHandle, isLoaded } = useHandles(); // Custom hook for managing handles
   const { loopbackEnabled } = useSettings(); // Settings for audio loopback (live feedback)
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
@@ -188,7 +190,7 @@ const init: MicrophoneInterface = {
 };
 
 // Singleton hook instance for microphone access
-const singletonMicrophone = singletonHook(init, createMicrophoneHook);
+const singletonMicrophone = singletonHook(init, useCreateMicrophoneHook);
 
 // Hook for managing microphone access and ensuring it follows component lifecycle
 export const useMicrophone = () => {
