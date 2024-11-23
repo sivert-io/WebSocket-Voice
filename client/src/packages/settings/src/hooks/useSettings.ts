@@ -80,6 +80,8 @@ function settingsHook() {
     JSON.parse(localStorage.getItem("servers") || "{}")
   );
 
+  const [serverViewIndex, setServerViewIndex] = useState(0);
+
   const [showRemoveServer, setShowRemoveServer] = useState<string | null>(null);
 
   const [currentlyViewingServer, setCurrentlyViewingServer] =
@@ -106,13 +108,17 @@ function settingsHook() {
   }
 
   function addServer(oldServers: Servers, server: Server) {
+    console.log("adding server", server);
+
     const newServers = { ...oldServers, [server.host]: server };
+    setServerViewIndex(Object.keys(newServers).length - 1);
     updateServers(newServers);
   }
 
   function removeServer(host: string) {
     const newServers = { ...servers };
     delete newServers[host];
+    setServerViewIndex(Object.keys(newServers).length - 1);
     updateServers(newServers);
   }
 
@@ -140,14 +146,12 @@ function settingsHook() {
     }
   }, []);
 
+  // Update the currently viewing server when the server view index changes
   useEffect(() => {
-    if (
-      (!currentlyViewingServer || !servers[currentlyViewingServer?.host]) &&
-      Object.keys(servers).length > 0
-    ) {
-      updateCurrentServer(Object.keys(servers)[0]);
+    if (Object.keys(servers).length > 0) {
+      updateCurrentServer(Object.keys(servers)[serverViewIndex]);
     }
-  }, [servers]);
+  }, [serverViewIndex, servers]);
 
   return {
     micID,

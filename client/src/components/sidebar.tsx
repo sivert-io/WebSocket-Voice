@@ -43,20 +43,19 @@ export function Sidebar() {
               <ContextMenu.Trigger>
                 <HoverCard.Trigger>
                   <Avatar
+                    size="2"
+                    color="gray"
                     asChild
                     fallback={servers[host].name[0]}
+                    style={{
+                      opacity: currentlyViewingServer?.host === host ? 1 : 0.5,
+                    }}
                     src={`https://${host}/icon`}
                   >
                     <Button
                       style={{
-                        height: "32px",
-                        width: "32px",
                         padding: "0",
                       }}
-                      color="gray"
-                      variant={
-                        currentlyViewingServer?.host === host ? "solid" : "soft"
-                      }
                       onClick={() => setCurrentlyViewingServer(host)}
                     ></Button>
                   </Avatar>
@@ -93,18 +92,13 @@ export function Sidebar() {
           </HoverCard.Root>
         ))}
         <Tooltip content="Add new server" delayDuration={100} side="right">
-          <Button
-            style={{
-              height: "32px",
-              width: "32px",
-              padding: "0",
-            }}
+          <IconButton
             variant="soft"
             color="gray"
             onClick={() => setShowAddServer(true)}
           >
             <MdAdd />
-          </Button>
+          </IconButton>
         </Tooltip>
       </Flex>
 
