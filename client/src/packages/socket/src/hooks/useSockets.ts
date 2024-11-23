@@ -1,17 +1,19 @@
-import { singletonHook } from "react-singleton-hook";
 import { useEffect, useState } from "react";
+import { singletonHook } from "react-singleton-hook";
+import { io, Socket } from "socket.io-client";
+
 import { useSettings } from "@/settings";
-import { Socket, io } from "socket.io-client";
 import {
   Server,
   serverDetails,
   serverDetailsList,
 } from "@/settings/src/types/server";
+
 import { Clients } from "../types/clients";
 
 type Sockets = { [host: string]: Socket };
 
-function sockets() {
+function useSocketsHook() {
   const [sockets, setSockets] = useState<Sockets>({});
   const { servers, addServer, nickname } = useSettings();
   const [newServerInfo, setNewServerInfo] = useState<Server[]>([]);
@@ -24,6 +26,7 @@ function sockets() {
     return serverDetailsList[host]?.channels.find((c) => c.id === channel);
   }
 
+  // Update nickname on all servers
   useEffect(() => {
     Object.keys(servers).forEach((host) => {
       console.log("Sending nickname");
@@ -32,6 +35,7 @@ function sockets() {
     });
   }, [nickname, servers]);
 
+  // Add new or update servers to the list
   useEffect(() => {
     const info = [...newServerInfo];
     newServerInfo.forEach((server) => {
@@ -41,8 +45,10 @@ function sockets() {
     if (info.length !== newServerInfo.length) setNewServerInfo(info);
   }, [servers, newServerInfo]);
 
+  // Create sockets for all servers
   useEffect(() => {
     const newSockets = { ...sockets };
+
     Object.keys(servers).forEach((host) => {
       if (!newSockets[host]) {
         const socket = io(`wss://${host}`, {
@@ -81,6 +87,7 @@ function sockets() {
         });
       }
     });
+
     setSockets(newSockets);
   }, [servers]);
 
@@ -94,5 +101,5 @@ export const useSockets = singletonHook(
     clients: {},
     getChannelDetails: () => undefined,
   },
-  sockets
+  useSocketsHook
 );

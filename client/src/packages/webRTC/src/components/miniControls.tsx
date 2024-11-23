@@ -1,11 +1,13 @@
 import { Box, Button, Heading, HoverCard, IconButton } from "@radix-ui/themes";
+import { AnimatePresence, motion,Variants } from "motion/react";
 import { BsVolumeOffFill, BsVolumeUpFill } from "react-icons/bs";
-import { AnimatePresence, Variants, motion } from "motion/react";
 import { ImPhoneHangUp } from "react-icons/im";
 import { MdArrowForward, MdMic, MdMicOff } from "react-icons/md";
+
 import { useSettings } from "@/settings";
-import { useSFU } from "../hooks/useSFU";
 import { useSockets } from "@/socket";
+
+import { useSFU } from "../hooks/useSFU";
 
 const buttonAnimations: Variants = {
   hidden: { opacity: 0, x: -15, transition: { duration: 0.1 } },

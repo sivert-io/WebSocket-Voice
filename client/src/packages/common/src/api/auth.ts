@@ -7,6 +7,7 @@
 const grytAuthHost = "https://dev.auth.sivert.io" as const;
 
 import axios, { AxiosInstance, AxiosResponse } from "axios";
+
 import { LoginData, RegisterData } from "@/common";
 
 interface RefreshData {

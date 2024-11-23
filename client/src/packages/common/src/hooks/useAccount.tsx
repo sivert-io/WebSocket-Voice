@@ -1,10 +1,12 @@
+import { jwtDecode } from "jwt-decode";
 import { useEffect, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
-import { Account, LoginData, RegisterData } from "@/common";
-import { AuthApi } from "../api/auth";
-import { jwtDecode } from "jwt-decode";
 
-function accountHook(): Account {
+import { Account, LoginData, RegisterData } from "@/common";
+
+import { AuthApi } from "../api/auth";
+
+function useAccountHook(): Account {
   const [isSignedIn, setIsSignedIn] = useState<boolean | undefined>(undefined);
   const [token, setToken] = useState<undefined | string | null>(
     localStorage.getItem("token")
@@ -62,4 +64,4 @@ const init: Account = {
   logout: () => {},
 };
 
-export const useAccount = singletonHook(init, accountHook);
+export const useAccount = singletonHook(init, useAccountHook);

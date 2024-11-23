@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 
 type VisualizerProps = {
   analyser: AnalyserNode;
@@ -69,7 +69,7 @@ export const Visualizer: React.FC<VisualizerProps> = ({
       cancelAnimationFrame(drawVisualRef.current);
     }
     visualize();
-  }, [visualSetting, barsColor]);
+  }, [visualSetting, barsColor, visualize]);
 
   return <canvas ref={canvasRef} width={width} height={height} />;
 };

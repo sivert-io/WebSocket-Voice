@@ -11,9 +11,10 @@ import {
   IconButton,
   Tooltip,
 } from "@radix-ui/themes";
+import { MdAdd } from "react-icons/md";
+
 import { useAccount } from "@/common";
 import { useSettings } from "@/settings";
-import { MdAdd } from "react-icons/md";
 import { MiniControls } from "@/webRTC/src/components/miniControls";
 
 export function Sidebar() {

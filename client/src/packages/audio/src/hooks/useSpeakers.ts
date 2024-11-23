@@ -1,5 +1,6 @@
-import { singletonHook } from "react-singleton-hook";
 import { useEffect, useState } from "react";
+import { singletonHook } from "react-singleton-hook";
+
 import { useHandles } from "./useHandles";
 
 interface Speakers {
@@ -11,7 +12,7 @@ interface Speakers {
   isLoaded: boolean;
 }
 
-function speakersHook() {
+function useSpeakersHook() {
   const { handles, addHandle, removeHandle, isLoaded } = useHandles();
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
     undefined
@@ -76,7 +77,7 @@ const init: Speakers = {
   isLoaded: false,
 };
 
-const SpeakerHook = singletonHook(init, speakersHook);
+const SpeakerHook = singletonHook(init, useSpeakersHook);
 
 export const useSpeakers = () => {
   const speakers = SpeakerHook();

@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { useSettings } from "@/settings";
+import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import {
   Button,
   Callout,
@@ -10,8 +9,10 @@ import {
   Slider,
   Text,
 } from "@radix-ui/themes";
-import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
+import { useEffect, useState } from "react";
+
 import { getCurrentVolume, isSpeaking, useMicrophone } from "@/audio";
+import { useSettings } from "@/settings";
 
 export function MicrophoneSettings() {
   const { devices, microphoneBuffer } = useMicrophone();

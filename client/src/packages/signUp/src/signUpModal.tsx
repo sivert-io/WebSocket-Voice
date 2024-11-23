@@ -1,7 +1,9 @@
 import { Button, Flex, Heading, Text, TextField } from "@radix-ui/themes";
-import { RegisterData, useAccount, Logo } from "@/common";
 import { FormEvent, useState } from "react";
 import { useReward } from "react-rewards";
+
+import { Logo,RegisterData, useAccount } from "@/common";
+
 import { VerifyEmailContent } from "./verifyEmailContent";
 
 export function SignUpModal() {

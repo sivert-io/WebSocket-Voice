@@ -1,12 +1,13 @@
 import { Flex, IconButton } from "@radix-ui/themes";
 import { useState } from "react";
-import { useSettings } from "@/settings";
-import { getIsBrowserSupported } from "@/audio";
-import { FiSettings } from "react-icons/fi";
-import { MdMic, MdMicOff } from "react-icons/md";
 import { BsVolumeOffFill, BsVolumeUpFill } from "react-icons/bs";
-import { useSFU } from "@/webRTC";
+import { FiSettings } from "react-icons/fi";
 import { ImPhoneHangUp } from "react-icons/im";
+import { MdMic, MdMicOff } from "react-icons/md";
+
+import { getIsBrowserSupported } from "@/audio";
+import { useSettings } from "@/settings";
+import { useSFU } from "@/webRTC";
 
 export function Controls() {
   const [isBrowserSupported] = useState(getIsBrowserSupported());

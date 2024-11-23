@@ -1,8 +1,9 @@
-import { useSettings } from "@/settings";
-import { Flex, Dialog, IconButton } from "@radix-ui/themes";
-import { MicrophoneSettings } from "./microphoneSettings";
-
+import { Dialog, Flex, IconButton } from "@radix-ui/themes";
 import { FiX } from "react-icons/fi";
+
+import { useSettings } from "@/settings";
+
+import { MicrophoneSettings } from "./microphoneSettings";
 export function Settings() {
   const { setLoopbackEnabled, setShowSettings, showSettings } = useSettings();
 

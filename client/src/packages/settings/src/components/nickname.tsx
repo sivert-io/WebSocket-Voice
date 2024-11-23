@@ -1,7 +1,8 @@
 import { Dialog, Flex, IconButton, TextField } from "@radix-ui/themes";
-import { useSettings } from "../hooks/useSettings";
-import { FiX } from "react-icons/fi";
 import { useState } from "react";
+import { FiX } from "react-icons/fi";
+
+import { useSettings } from "../hooks/useSettings";
 
 export function Nickname() {
   const { showNickname, setShowNickname, nickname, setNickname } =

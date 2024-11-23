@@ -1,61 +1,66 @@
 import { useEffect, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
+
 import { Server, Servers } from "../types/server";
 
 interface Settings {
   micID?: string;
-  setMicID: (id: string) => any;
+  setMicID: (id: string) => void;
   micVolume: number;
-  setMicVolume: (num: number) => any;
+  setMicVolume: (num: number) => void;
   noiseGate: number;
-  setNoiseGate: (num: number) => any;
-  setLoopbackEnabled: (value: boolean) => any;
+  setNoiseGate: (num: number) => void;
+  setLoopbackEnabled: (value: boolean) => void;
   loopbackEnabled: boolean;
 
-  setNickname: (name: string) => any;
+  setNickname: (name: string) => void;
 
   nickname: string;
 
   isMuted: boolean;
-  setIsMuted: (value: boolean) => any;
+  setIsMuted: (value: boolean) => void;
 
   isDeafened: boolean;
-  setIsDeafened: (value: boolean) => any;
+  setIsDeafened: (value: boolean) => void;
 
   showSettings: boolean;
-  setShowSettings: (value: boolean) => any;
+  setShowSettings: (value: boolean) => void;
 
   showNickname: boolean;
-  setShowNickname: (value: boolean) => any;
+  setShowNickname: (value: boolean) => void;
 
   showAddServer: boolean;
-  setShowAddServer: (value: boolean) => any;
+  setShowAddServer: (value: boolean) => void;
 
   servers: Servers;
-  addServer: (oldServers: Servers, server: Server) => any;
+  addServer: (oldServers: Servers, server: Server) => void;
 
   showRemoveServer: string | null;
-  setShowRemoveServer: (value: string | null) => any;
-  removeServer: (host: string) => any;
+  setShowRemoveServer: (value: string | null) => void;
+  removeServer: (host: string) => void;
 
   hasSeenWelcome: boolean;
-  updateHasSeenWelcome: () => any;
+  updateHasSeenWelcome: () => void;
 
   currentlyViewingServer: Server | null;
-  setCurrentlyViewingServer: (value: string) => any;
+  setCurrentlyViewingServer: (value: string) => void;
 }
 
-function updateStorage(key: string, value: string, useState: (d: any) => any) {
-  useState(value);
+function updateStorage(key: string, value: string, state: (d: any) => void) {
+  state(value);
   localStorage.setItem(key, value);
 }
 
-function updateStorageJson(key: string, value: any, useState: (d: any) => any) {
-  useState(value);
+function updateStorageJson(
+  key: string,
+  value: object,
+  state: (d: any) => void
+) {
+  state(value);
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function settingsHook() {
+function useSettingsHook() {
   const [showSettings, setShowSettings] = useState(false);
   const [showNickname, setShowNickname] = useState(false);
   const [showAddServer, setShowAddServer] = useState(false);
@@ -125,7 +130,7 @@ function settingsHook() {
   function updateHasSeenWelcome() {
     updateStorage("hasSeenWelcome", "true", setHasSeenWelcome);
 
-    if (!!!localStorage.getItem("nickname")) {
+    if (!localStorage.getItem("nickname")) {
       setShowNickname(true);
     }
   }
@@ -136,9 +141,9 @@ function settingsHook() {
 
   useEffect(() => {
     // If the user has seen the welcome screen, show the nickname prompt
-    if (!!localStorage.getItem("hasSeenWelcome")) {
+    if (localStorage.getItem("hasSeenWelcome")) {
       setHasSeenWelcome(true);
-      setShowNickname(!!!localStorage.getItem("nickname"));
+      setShowNickname(!localStorage.getItem("nickname"));
     }
     // If the user has not seen the welcome screen, show the welcome screen
     else {
@@ -223,4 +228,4 @@ const init: Settings = {
   setCurrentlyViewingServer: () => {},
 };
 
-export const useSettings = singletonHook(init, settingsHook);
+export const useSettings = singletonHook(init, useSettingsHook);

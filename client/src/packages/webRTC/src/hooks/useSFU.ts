@@ -1,15 +1,17 @@
-import { useMicrophone, useSpeakers } from "@/audio";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
-import { SFUInterface, StreamData, StreamSources, Streams } from "../types/SFU";
-import { useSettings } from "@/settings";
-import { useSockets } from "@/socket";
 import { Socket } from "socket.io-client";
 import useSound from "use-sound";
+
+import { useMicrophone, useSpeakers } from "@/audio";
 import connectMp3 from "@/audio/src/assets/connect.mp3";
 import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
+import { useSettings } from "@/settings";
+import { useSockets } from "@/socket";
 
-function sfuHook(): SFUInterface {
+import { SFUInterface, StreamData, Streams, StreamSources } from "../types/SFU";
+
+function useSfuHook(): SFUInterface {
   // Using refs to store the RTCPeerConnection and WebSocket instances
   const RTCpeerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const SFUwsRef = useRef<WebSocket | null>(null);
@@ -186,16 +188,16 @@ function sfuHook(): SFUInterface {
           return resolve();
         }
 
-        if (!!!sfu_host) {
+        if (!sfu_host) {
           return reject(new Error("sfu_host is not defined"));
         }
-        if (!!RTCpeerConnectionRef.current) {
+        if (RTCpeerConnectionRef.current) {
           return reject(new Error("Already connected to SFU"));
         }
-        if (!!!stun_hosts) {
+        if (!stun_hosts) {
           return reject(new Error("stun_hosts is not defined"));
         }
-        if (!!SFUwsRef.current) {
+        if (SFUwsRef.current) {
           return reject(new Error("SFUref already exists"));
         }
         if (rtcActive) {
@@ -205,7 +207,7 @@ function sfuHook(): SFUInterface {
         const _currentsocket = sockets[currentlyViewingServer.host];
         console.log("Connecting to SFU");
 
-        if (!!microphoneBuffer.output) {
+        if (microphoneBuffer.output) {
           setRtcActive(true);
           const localStream = microphoneBuffer.output.mediaStream;
 
@@ -433,7 +435,7 @@ const init: SFUInterface = {
   isConnected: false,
 };
 
-const SFUHook = singletonHook(init, sfuHook);
+const SFUHook = singletonHook(init, useSfuHook);
 
 export const useSFU = () => {
   const sfu = SFUHook();
