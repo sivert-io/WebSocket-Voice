@@ -26,7 +26,7 @@ function sfuHook(): SFUInterface {
     null
   );
 
-  const { currentServer } = useSettings();
+  const { currentlyViewingServer, servers } = useSettings();
   const { microphoneBuffer } = useMicrophone();
   const { mediaDestination, audioContext } = useSpeakers();
   const { sockets, serverDetailsList } = useSockets();
@@ -34,12 +34,18 @@ function sfuHook(): SFUInterface {
   const [disconnectSound] = useSound(disconnectMp3, { volume: 0.1 });
 
   const sfu_host = useMemo(() => {
-    return currentServer && serverDetailsList[currentServer.host]?.sfu_host;
-  }, [serverDetailsList, currentServer]);
+    return (
+      currentlyViewingServer &&
+      serverDetailsList[currentlyViewingServer.host]?.sfu_host
+    );
+  }, [serverDetailsList, currentlyViewingServer]);
 
   const stun_hosts = useMemo(() => {
-    return currentServer && serverDetailsList[currentServer.host]?.stun_hosts;
-  }, [serverDetailsList, currentServer]);
+    return (
+      currentlyViewingServer &&
+      serverDetailsList[currentlyViewingServer.host]?.stun_hosts
+    );
+  }, [serverDetailsList, currentlyViewingServer]);
 
   const isConnectedToChannel = useMemo(() => {
     return !!SFUwsRef.current && !!RTCpeerConnectionRef.current;
@@ -57,6 +63,21 @@ function sfuHook(): SFUInterface {
       setChannelToConnectTo(null);
     }
   }, [channelToConnectTo]);
+
+  useEffect(() => {
+    if (isConnectedToChannel) {
+      if (!servers[currentServerConnected]) {
+        console.log("We are not part of this server anymore");
+        disconnect()
+          .then(() => {
+            console.log("Disconnected from previous server");
+          })
+          .catch((err) => {
+            console.error("Failed to disconnect from previous server:", err);
+          });
+      }
+    }
+  }, [servers, currentServerConnected, isConnectedToChannel]);
 
   useEffect(() => {
     // Iterate over all keys (IDs) in the streamSources object
@@ -140,7 +161,7 @@ function sfuHook(): SFUInterface {
   function connect(channelID: string) {
     return new Promise<void>(async (resolve, reject) => {
       try {
-        if (!currentServer) {
+        if (!currentlyViewingServer) {
           return reject(new Error("Invalid server or socket state."));
         }
 
@@ -150,13 +171,13 @@ function sfuHook(): SFUInterface {
 
         console.log(
           isConnectedToChannel,
-          currentServerConnected !== currentServer.host,
+          currentServerConnected !== currentlyViewingServer.host,
           currentChannel !== channelID
         );
 
         if (
           isConnectedToChannel &&
-          (currentServerConnected !== currentServer.host ||
+          (currentServerConnected !== currentlyViewingServer.host ||
             currentChannel !== channelID)
         ) {
           console.log("Disconnecting from current channel");
@@ -181,7 +202,7 @@ function sfuHook(): SFUInterface {
           return reject(new Error("RTC already active"));
         }
 
-        const _currentsocket = sockets[currentServer.host];
+        const _currentsocket = sockets[currentlyViewingServer.host];
         console.log("Connecting to SFU");
 
         if (!!microphoneBuffer.output) {
@@ -316,7 +337,7 @@ function sfuHook(): SFUInterface {
 
           console.log("Peer connection and WebSocket initialized");
 
-          setCurrentServerConnected(currentServer.host);
+          setCurrentServerConnected(currentlyViewingServer.host);
           setCurrentChannel(channelID);
 
           _currentsocket.emit("joinedChannel", true);
@@ -338,7 +359,11 @@ function sfuHook(): SFUInterface {
   function disconnect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        if (!currentServer || !currentSocket || !currentServerConnected) {
+        if (
+          !currentlyViewingServer ||
+          !currentSocket ||
+          !currentServerConnected
+        ) {
           setRtcActive(false); // Explicitly reset rtcActive on invalid state
           return reject(new Error("No server or socket to disconnect from."));
         }

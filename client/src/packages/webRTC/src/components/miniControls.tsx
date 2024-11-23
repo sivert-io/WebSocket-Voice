@@ -27,8 +27,8 @@ export function MiniControls({
   direction: "row" | "column";
 }) {
   const {
-    setCurrentServer,
-    currentServer,
+    setCurrentlyViewingServer,
+    currentlyViewingServer,
     isMuted,
     setIsMuted,
     isDeafened,
@@ -43,88 +43,91 @@ export function MiniControls({
 
   return (
     <AnimatePresence>
-      {isConnected && currentServer?.host !== currentServerConnected && (
-        <motion.div
-          variants={buttonAnimations}
-          initial="hidden"
-          animate="visible"
-          exit="hidden"
-          style={{
-            display: "flex",
-            flexDirection: direction === "column" ? "column" : "row-reverse",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          <motion.div variants={buttonAnimations}>
-            <IconButton
-              size="1"
-              color={isMuted ? "red" : "gray"}
-              variant="soft"
-              onClick={() => setIsMuted(!isMuted)}
-            >
-              {isMuted ? <MdMicOff size={12} /> : <MdMic size={12} />}
-            </IconButton>
-          </motion.div>
-
-          <motion.div variants={buttonAnimations}>
-            <IconButton
-              size="1"
-              color={isDeafened ? "red" : "gray"}
-              variant="soft"
-              onClick={() => setIsDeafened(!isDeafened)}
-            >
-              {isDeafened ? (
-                <BsVolumeOffFill size={12} />
-              ) : (
-                <BsVolumeUpFill size={12} />
-              )}
-            </IconButton>
-          </motion.div>
-
-          <motion.div variants={buttonAnimations}>
-            <IconButton
-              size="1"
-              variant="soft"
-              color="red"
-              onClick={disconnect}
-            >
-              <ImPhoneHangUp size={12} />
-            </IconButton>
-          </motion.div>
-          <motion.div variants={buttonAnimations}>
-            <HoverCard.Root
-              openDelay={100}
-              closeDelay={0}
-              key={currentServerConnected}
-            >
-              <HoverCard.Trigger>
-                <Button
-                  style={{
-                    height: "32px",
-                    width: "32px",
-                    padding: "0",
-                  }}
-                  color="gray"
-                  onClick={() => setCurrentServer(currentServerConnected)}
-                >
-                  <SpeakerLoudIcon />
-                </Button>
-              </HoverCard.Trigger>
-              <HoverCard.Content
-                maxWidth="300px"
-                side="right"
+      {isConnected &&
+        currentlyViewingServer?.host !== currentServerConnected && (
+          <motion.div
+            variants={buttonAnimations}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            style={{
+              display: "flex",
+              flexDirection: direction === "column" ? "column" : "row-reverse",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <motion.div variants={buttonAnimations}>
+              <IconButton
                 size="1"
-                align="center"
+                color={isMuted ? "red" : "gray"}
+                variant="soft"
+                onClick={() => setIsMuted(!isMuted)}
               >
-                <Box>
-                  <Heading size="1">Go to {currentChannelConnected}</Heading>
-                </Box>
-              </HoverCard.Content>
-            </HoverCard.Root>
+                {isMuted ? <MdMicOff size={12} /> : <MdMic size={12} />}
+              </IconButton>
+            </motion.div>
+
+            <motion.div variants={buttonAnimations}>
+              <IconButton
+                size="1"
+                color={isDeafened ? "red" : "gray"}
+                variant="soft"
+                onClick={() => setIsDeafened(!isDeafened)}
+              >
+                {isDeafened ? (
+                  <BsVolumeOffFill size={12} />
+                ) : (
+                  <BsVolumeUpFill size={12} />
+                )}
+              </IconButton>
+            </motion.div>
+
+            <motion.div variants={buttonAnimations}>
+              <IconButton
+                size="1"
+                variant="soft"
+                color="red"
+                onClick={disconnect}
+              >
+                <ImPhoneHangUp size={12} />
+              </IconButton>
+            </motion.div>
+            <motion.div variants={buttonAnimations}>
+              <HoverCard.Root
+                openDelay={100}
+                closeDelay={0}
+                key={currentServerConnected}
+              >
+                <HoverCard.Trigger>
+                  <Button
+                    style={{
+                      height: "32px",
+                      width: "32px",
+                      padding: "0",
+                    }}
+                    color="gray"
+                    onClick={() =>
+                      setCurrentlyViewingServer(currentServerConnected)
+                    }
+                  >
+                    <SpeakerLoudIcon />
+                  </Button>
+                </HoverCard.Trigger>
+                <HoverCard.Content
+                  maxWidth="300px"
+                  side="right"
+                  size="1"
+                  align="center"
+                >
+                  <Box>
+                    <Heading size="1">Go to {currentChannelConnected}</Heading>
+                  </Box>
+                </HoverCard.Content>
+              </HoverCard.Root>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
     </AnimatePresence>
   );
 }

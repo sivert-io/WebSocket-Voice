@@ -24,8 +24,8 @@ export function Sidebar() {
     servers,
     setShowAddServer,
     setShowRemoveServer,
-    setCurrentServer,
-    currentServer,
+    setCurrentlyViewingServer,
+    currentlyViewingServer,
   } = useSettings();
 
   return (
@@ -54,8 +54,10 @@ export function Sidebar() {
                         padding: "0",
                       }}
                       color="gray"
-                      variant={currentServer?.host === host ? "solid" : "soft"}
-                      onClick={() => setCurrentServer(host)}
+                      variant={
+                        currentlyViewingServer?.host === host ? "solid" : "soft"
+                      }
+                      onClick={() => setCurrentlyViewingServer(host)}
                     ></Button>
                   </Avatar>
                 </HoverCard.Trigger>

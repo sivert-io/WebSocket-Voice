@@ -31,31 +31,40 @@ export const ServerView = () => {
     [id: string]: boolean;
   }>({});
   const isMobile = useIsMobile();
-  const { currentServer, setShowRemoveServer, servers, setCurrentServer } =
-    useSettings();
+  const {
+    currentlyViewingServer,
+    setShowRemoveServer,
+    servers,
+    setCurrentlyViewingServer,
+  } = useSettings();
 
   const { sockets, serverDetailsList, clients } = useSockets();
 
   const currentConnection = useMemo(
-    () => (currentServer ? sockets[currentServer.host] : null),
-    [currentServer, sockets]
+    () =>
+      currentlyViewingServer ? sockets[currentlyViewingServer.host] : null,
+    [currentlyViewingServer, sockets]
   );
 
   const [voiceWidth, setVoiceWidth] = useState("0px");
 
   useEffect(() => {
     setVoiceWidth(
-      currentServerConnected === currentServer?.host ? "400px" : "0px"
+      currentServerConnected === currentlyViewingServer?.host ? "400px" : "0px"
     );
-  }, [currentServerConnected, currentServer]);
+  }, [currentServerConnected, currentlyViewingServer]);
 
   //  Check if I am speaking right now
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!currentServerConnected || !currentServer || !currentConnection)
+      if (
+        !currentServerConnected ||
+        !currentlyViewingServer ||
+        !currentConnection
+      )
         return;
-      Object.keys(clients[currentServer.host]).forEach((clientID) => {
-        const client = clients[currentServer.host][clientID];
+      Object.keys(clients[currentlyViewingServer.host]).forEach((clientID) => {
+        const client = clients[currentlyViewingServer.host][clientID];
 
         // is ourselves
         if (clientID === currentConnection.id && microphoneBuffer.analyser) {
@@ -84,13 +93,7 @@ export const ServerView = () => {
     return () => clearInterval(interval);
   }, [microphoneBuffer.analyser, streamSources]);
 
-  useEffect(() => {
-    if (!currentServer && Object.keys(servers).length > 0) {
-      setCurrentServer(Object.keys(servers)[0]);
-    }
-  }, [servers]);
-
-  if (!currentServer) return null;
+  if (!currentlyViewingServer) return null;
 
   return (
     <Flex width="100%" height="100%" gap="4">
@@ -110,7 +113,7 @@ export const ServerView = () => {
               }}
             >
               <Flex justify="between" align="center">
-                <Text>{currentServer?.name}</Text>
+                <Text>{currentlyViewingServer?.name}</Text>
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger>
                     <Button variant="soft" size="1" color="gray">
@@ -125,7 +128,8 @@ export const ServerView = () => {
                     <DropdownMenu.Item
                       color="red"
                       onClick={() =>
-                        currentServer && setShowRemoveServer(currentServer.host)
+                        currentlyViewingServer &&
+                        setShowRemoveServer(currentlyViewingServer.host)
                       }
                     >
                       Leave
@@ -136,7 +140,7 @@ export const ServerView = () => {
             </Card>
 
             <Flex direction="column" gap="3" align="center" width="100%">
-              {serverDetailsList[currentServer.host]?.channels.map(
+              {serverDetailsList[currentlyViewingServer.host]?.channels.map(
                 (channel) => (
                   <Flex
                     direction="column"
@@ -148,7 +152,7 @@ export const ServerView = () => {
                     <Button
                       variant={
                         channel.id === currentChannelConnected &&
-                        currentServer.host === currentServerConnected
+                        currentlyViewingServer.host === currentServerConnected
                           ? "solid"
                           : "soft"
                       }
@@ -180,17 +184,19 @@ export const ServerView = () => {
                       }}
                     >
                       <AnimatePresence>
-                        {Object.keys(clients[currentServer.host])?.map(
+                        {Object.keys(clients[currentlyViewingServer.host])?.map(
                           (id) =>
-                            clients[currentServer.host][id]
+                            clients[currentlyViewingServer.host][id]
                               .hasJoinedChannel && (
                               <ConnectedUser
                                 isSpeaking={clientsSpeaking[id] || false}
                                 isMuted={
-                                  clients[currentServer.host][id].isMuted
+                                  clients[currentlyViewingServer.host][id]
+                                    .isMuted
                                 }
                                 nickname={
-                                  clients[currentServer.host][id].nickname
+                                  clients[currentlyViewingServer.host][id]
+                                    .nickname
                                 }
                                 key={id}
                               />
@@ -237,10 +243,11 @@ export const ServerView = () => {
                 position="relative"
               >
                 <AnimatePresence>
-                  {currentServerConnected === currentServer.host &&
-                    Object.keys(clients[currentServer.host])?.map(
+                  {currentServerConnected === currentlyViewingServer.host &&
+                    Object.keys(clients[currentlyViewingServer.host])?.map(
                       (id, index) =>
-                        clients[currentServer.host][id].hasJoinedChannel && (
+                        clients[currentlyViewingServer.host][id]
+                          .hasJoinedChannel && (
                           <motion.div
                             layout
                             transition={{
@@ -266,7 +273,8 @@ export const ServerView = () => {
                             >
                               <Avatar
                                 fallback={
-                                  clients[currentServer.host][id].nickname[0]
+                                  clients[currentlyViewingServer.host][id]
+                                    .nickname[0]
                                 }
                                 style={{
                                   outline: "2px solid",
@@ -277,7 +285,10 @@ export const ServerView = () => {
                                 }}
                               />
                               <Text>
-                                {clients[currentServer.host][id].nickname}
+                                {
+                                  clients[currentlyViewingServer.host][id]
+                                    .nickname
+                                }
                               </Text>
                             </Flex>
                           </motion.div>
