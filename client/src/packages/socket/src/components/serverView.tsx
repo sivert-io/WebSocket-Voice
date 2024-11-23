@@ -19,7 +19,13 @@ import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 import { AnimatePresence, motion } from "motion/react";
 
 export const ServerView = () => {
-  const { connect, disconnect, isConnected, streamSources } = useSFU();
+  const {
+    connect,
+    disconnect,
+    currentServerConnected,
+    streamSources,
+    currentChannelConnected,
+  } = useSFU();
   const { microphoneBuffer } = useMicrophone();
   const [clientsSpeaking, setClientsSpeaking] = useState<{
     [id: string]: boolean;
@@ -38,13 +44,16 @@ export const ServerView = () => {
   const [voiceWidth, setVoiceWidth] = useState("0px");
 
   useEffect(() => {
-    setVoiceWidth(isConnected === currentServer?.host ? "400px" : "0px");
-  }, [isConnected, currentServer]);
+    setVoiceWidth(
+      currentServerConnected === currentServer?.host ? "400px" : "0px"
+    );
+  }, [currentServerConnected, currentServer]);
 
   //  Check if I am speaking right now
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!isConnected || !currentServer || !currentConnection) return;
+      if (!currentServerConnected || !currentServer || !currentConnection)
+        return;
       Object.keys(clients[currentServer.host]).forEach((clientID) => {
         const client = clients[currentServer.host][clientID];
 
@@ -84,7 +93,7 @@ export const ServerView = () => {
   if (!currentServer) return null;
 
   return (
-    <Flex gap="4" width="100%" height="100%">
+    <Flex width="100%" height="100%" gap="4">
       <Box width={{ sm: "240px", initial: "100%" }}>
         <Flex
           direction="column"
@@ -137,15 +146,18 @@ export const ServerView = () => {
                     position="relative"
                   >
                     <Button
-                      variant={isConnected ? "solid" : "soft"}
+                      variant={
+                        channel.id === currentChannelConnected &&
+                        currentServer.host === currentServerConnected
+                          ? "solid"
+                          : "soft"
+                      }
                       radius="large"
                       style={{
                         width: "100%",
                         justifyContent: "start",
                       }}
-                      onClick={() =>
-                        disconnect().finally(() => connect(channel.id))
-                      }
+                      onClick={() => connect(channel.id)}
                     >
                       {channel.type === "voice" ? (
                         <SpeakerLoudIcon />
@@ -194,18 +206,28 @@ export const ServerView = () => {
         </Flex>
       </Box>
       {!isMobile && (
-        <Flex flexGrow="1" gap="4">
+        <Flex flexGrow="1">
           {/* Voice view */}
           <motion.div
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            animate={{ width: voiceWidth }}
+            animate={{
+              width: voiceWidth,
+              paddingRight: voiceWidth === "0px" ? 0 : 16 * 1.15 + "px",
+            }}
             style={{
-              background: "var(--color-panel-translucent)",
-              borderRadius: "12px",
               overflow: "hidden",
             }}
           >
-            <Flex height="100%" width="100%" direction="column" p="3">
+            <Flex
+              style={{
+                background: "var(--color-panel-translucent)",
+                borderRadius: "12px",
+              }}
+              height="100%"
+              width="100%"
+              direction="column"
+              p="3"
+            >
               <Flex
                 direction="column"
                 gap="4"
@@ -215,7 +237,7 @@ export const ServerView = () => {
                 position="relative"
               >
                 <AnimatePresence>
-                  {isConnected === currentServer.host &&
+                  {currentServerConnected === currentServer.host &&
                     Object.keys(clients[currentServer.host])?.map(
                       (id, index) =>
                         clients[currentServer.host][id].hasJoinedChannel && (
@@ -264,7 +286,7 @@ export const ServerView = () => {
                 </AnimatePresence>
 
                 <AnimatePresence>
-                  {isConnected && (
+                  {currentServerConnected && (
                     <motion.div
                       style={{
                         width: "100%",
