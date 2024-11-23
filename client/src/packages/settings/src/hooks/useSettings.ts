@@ -41,8 +41,8 @@ interface Settings {
   hasSeenWelcome: boolean;
   updateHasSeenWelcome: () => any;
 
-  currentServer: Server | null;
-  setCurrentServer: (value: string) => any;
+  currentlyViewingServer: Server | null;
+  setCurrentlyViewingServer: (value: string) => any;
 }
 
 function updateStorage(key: string, value: string, useState: (d: any) => any) {
@@ -82,7 +82,8 @@ function settingsHook() {
 
   const [showRemoveServer, setShowRemoveServer] = useState<string | null>(null);
 
-  const [currentServer, setCurrentServer] = useState<Server | null>(null);
+  const [currentlyViewingServer, setCurrentlyViewingServer] =
+    useState<Server | null>(null);
 
   function updateMicID(newID: string) {
     updateStorage("micID", newID, setMicID);
@@ -124,7 +125,7 @@ function settingsHook() {
   }
 
   function updateCurrentServer(host: string) {
-    setCurrentServer(servers[host]);
+    setCurrentlyViewingServer(servers[host]);
   }
 
   useEffect(() => {
@@ -138,6 +139,15 @@ function settingsHook() {
       setHasSeenWelcome(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (
+      (!currentlyViewingServer || !servers[currentlyViewingServer?.host]) &&
+      Object.keys(servers).length > 0
+    ) {
+      updateCurrentServer(Object.keys(servers)[0]);
+    }
+  }, [servers]);
 
   return {
     micID,
@@ -163,8 +173,8 @@ function settingsHook() {
     updateHasSeenWelcome,
     showAddServer,
     setShowAddServer,
-    currentServer,
-    setCurrentServer: updateCurrentServer,
+    currentlyViewingServer,
+    setCurrentlyViewingServer: updateCurrentServer,
     addServer,
     removeServer,
     showRemoveServer,
@@ -205,8 +215,8 @@ const init: Settings = {
   setShowRemoveServer: () => {},
   removeServer: () => {},
 
-  currentServer: null,
-  setCurrentServer: () => {},
+  currentlyViewingServer: null,
+  setCurrentlyViewingServer: () => {},
 };
 
 export const useSettings = singletonHook(init, settingsHook);
