@@ -1,10 +1,10 @@
-// The authentication server the client will query to.
-// Note: Gryt Authentication Server is CLOSED-SOURCE and changing this value could result in your client not being able to connect to any servers.
-// In order to identify users when connecting to servers, we use Gryt Authentication as a middleware to verify that the user is who they claim to be.
-// Without Gryt Authentication, we cannot verify users. Alternatively every server would have to handle their own authentication, which would result
-// in a worse user experience. This means you'd have to sign up for an account on each server you join, entrusting your sign in details (such as email
-// and password) to every server host you are registered with.
-const grytAuthHost = "https://dev.auth.sivert.io";
+// The URL of the Gryt Authentication Server used by the client.
+// ⚠️ IMPORTANT: Changing this value is strongly discouraged and may cause the client to lose the ability to connect to any servers.
+// Gryt Authentication Server is CLOSED-SOURCE and acts as a trusted middleware for verifying user identities across all servers.
+// This centralized authentication ensures a seamless user experience by eliminating the need to create separate accounts for each server.
+// Without Gryt Authentication, user verification is impossible, forcing each server to manage its own authentication—
+// a scenario that compromises user convenience and security by requiring you to share credentials with multiple server hosts.
+const grytAuthHost = "https://dev.auth.sivert.io" as const;
 
 import axios, { AxiosInstance, AxiosResponse } from "axios";
 import { LoginData, RegisterData } from "@/common";

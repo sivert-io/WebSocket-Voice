@@ -21,7 +21,6 @@ import { AnimatePresence, motion } from "motion/react";
 export type FetchInfo = {
   name: string;
   members: string;
-  icon: string;
 };
 
 export function AddNewServer() {
@@ -48,7 +47,6 @@ export function AddNewServer() {
       addServer(servers, {
         name: serverInfo.name,
         host: serverHost,
-        icon: serverInfo.icon,
         token: "123",
       });
 
@@ -187,7 +185,7 @@ export function AddNewServer() {
                       <Flex direction="column" gap="3" align="center">
                         <Avatar
                           size="8"
-                          src={serverInfo.icon}
+                          src={`https://${serverHost}/icon`}
                           radius="full"
                           fallback={serverInfo.name[0]}
                         />

@@ -18,7 +18,6 @@ export type serverDetailsList = {
 export type Server = {
   host: string;
   name: string;
-  icon: string;
   token: string;
 };
 

@@ -18,7 +18,6 @@ export function sendInfo(socket: Socket) {
   socket.emit("info", {
     name: process.env.SERVER_NAME || "Unknown",
     members: "23",
-    icon: process.env.SERVER_ICON || "",
   });
 }
 
