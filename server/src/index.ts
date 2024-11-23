@@ -44,7 +44,7 @@ const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
   consola.start(`Starting ${process.env.SERVER_NAME}...`);
   consola.info("Using icon", serverIconPath);
-  process.env.SFU_WS_HOST &&
+  if (process.env.SFU_WS_HOST)
     consola.info("SFU host set to " + process.env.SFU_WS_HOST);
   consola.success("Signaling server started at port", PORT);
 });

@@ -8,7 +8,7 @@ import { sendInfo, sendServerDetails } from "./utils/server";
 const clientsInfo: Clients = {};
 
 export function socketHandler(io: Server, socket: Socket) {
-  const events: { [id: string]: (...args: any) => any } = {
+  const events: { [id: string]: (...args: any) => void } = {
     updateNickname: (newNickName: string) => {
       clientsInfo[socket.id].nickname = newNickName;
       syncAllClients(io, clientsInfo);
