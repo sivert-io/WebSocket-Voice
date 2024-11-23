@@ -21,7 +21,6 @@ import { AnimatePresence, motion } from "motion/react";
 export const ServerView = () => {
   const {
     connect,
-    disconnect,
     currentServerConnected,
     streamSources,
     currentChannelConnected,
@@ -31,12 +30,8 @@ export const ServerView = () => {
     [id: string]: boolean;
   }>({});
   const isMobile = useIsMobile();
-  const {
-    currentlyViewingServer,
-    setShowRemoveServer,
-    servers,
-    setCurrentlyViewingServer,
-  } = useSettings();
+  const { currentlyViewingServer, setShowRemoveServer, servers } =
+    useSettings();
 
   const { sockets, serverDetailsList, clients } = useSockets();
 
@@ -146,7 +141,7 @@ export const ServerView = () => {
                     direction="column"
                     align="start"
                     width="100%"
-                    key={channel.id}
+                    key={currentlyViewingServer.host + channel.id}
                     position="relative"
                   >
                     <Button
@@ -183,7 +178,7 @@ export const ServerView = () => {
                         zIndex: -1,
                       }}
                     >
-                      <AnimatePresence>
+                      <AnimatePresence initial={false}>
                         {Object.keys(clients[currentlyViewingServer.host])?.map(
                           (id) =>
                             clients[currentlyViewingServer.host][id]

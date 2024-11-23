@@ -20,6 +20,10 @@ function sockets() {
   );
   const [clients, setClients] = useState<{ [host: string]: Clients }>({});
 
+  function getChannelDetails(host: string, channel: string) {
+    return serverDetailsList[host]?.channels.find((c) => c.id === channel);
+  }
+
   useEffect(() => {
     Object.keys(servers).forEach((host) => {
       console.log("Sending nickname");
@@ -80,7 +84,7 @@ function sockets() {
     setSockets(newSockets);
   }, [servers]);
 
-  return { sockets, serverDetailsList, clients };
+  return { sockets, serverDetailsList, clients, getChannelDetails };
 }
 
 export const useSockets = singletonHook(
@@ -88,6 +92,7 @@ export const useSockets = singletonHook(
     sockets: {},
     serverDetailsList: {},
     clients: {},
+    getChannelDetails: () => undefined,
   },
   sockets
 );
