@@ -4,18 +4,21 @@
   "main": "index.ts",
   "license": "MIT",
   "dependencies": {
+    "@eslint/js": "^9.15.0",
     "consola": "^3.2.3",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "socket.io": "^4.8.1",
+    "typescript-eslint": "^8.15.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^20.11.17",
     "@types/ws": "^8.5.10",
+    "eslint": "^9.15.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.7.2"
   },
   "scripts": {
     "build": "tsc",
