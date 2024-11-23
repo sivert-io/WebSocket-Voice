@@ -2,10 +2,10 @@ import { Box, Button, Heading, HoverCard, IconButton } from "@radix-ui/themes";
 import { BsVolumeOffFill, BsVolumeUpFill } from "react-icons/bs";
 import { AnimatePresence, Variants, motion } from "motion/react";
 import { ImPhoneHangUp } from "react-icons/im";
-import { SpeakerLoudIcon } from "@radix-ui/react-icons";
-import { MdMic, MdMicOff } from "react-icons/md";
+import { MdArrowForward, MdMic, MdMicOff } from "react-icons/md";
 import { useSettings } from "@/settings";
 import { useSFU } from "../hooks/useSFU";
+import { useSockets } from "@/socket";
 
 const buttonAnimations: Variants = {
   hidden: { opacity: 0, x: -15, transition: { duration: 0.1 } },
@@ -34,12 +34,15 @@ export function MiniControls({
     isDeafened,
     setIsDeafened,
   } = useSettings();
+
   const {
     currentServerConnected,
     disconnect,
     currentChannelConnected,
     isConnected,
   } = useSFU();
+
+  const { getChannelDetails } = useSockets();
 
   return (
     <AnimatePresence>
@@ -101,6 +104,7 @@ export function MiniControls({
               >
                 <HoverCard.Trigger>
                   <Button
+                    variant="soft"
                     style={{
                       height: "32px",
                       width: "32px",
@@ -111,7 +115,7 @@ export function MiniControls({
                       setCurrentlyViewingServer(currentServerConnected)
                     }
                   >
-                    <SpeakerLoudIcon />
+                    <MdArrowForward size={12} />
                   </Button>
                 </HoverCard.Trigger>
                 <HoverCard.Content
@@ -121,7 +125,15 @@ export function MiniControls({
                   align="center"
                 >
                   <Box>
-                    <Heading size="1">Go to {currentChannelConnected}</Heading>
+                    <Heading size="1">
+                      Go to{" "}
+                      {
+                        getChannelDetails(
+                          currentServerConnected,
+                          currentChannelConnected
+                        )?.name
+                      }
+                    </Heading>
                   </Box>
                 </HoverCard.Content>
               </HoverCard.Root>

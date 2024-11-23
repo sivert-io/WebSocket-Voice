@@ -114,8 +114,8 @@ export function Sidebar() {
           <DropdownMenu.Content>
             <DropdownMenu.Item onClick={() => setShowNickname(true)}>
               <Flex gap="1" align="center">
-                {nickname}
                 <Pencil2Icon />
+                {nickname}
               </Flex>
             </DropdownMenu.Item>
             <DropdownMenu.Separator />
