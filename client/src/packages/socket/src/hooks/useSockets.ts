@@ -54,7 +54,6 @@ function sockets() {
             {
               ...servers[host],
               name: data.name,
-              icon: data.icon,
             },
           ]);
         });

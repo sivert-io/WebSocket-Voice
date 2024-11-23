@@ -1,5 +1,3 @@
-import { config } from "dotenv";
-config();
 import { Clients } from "../types";
 import { colors } from "../utils/colors";
 import consola from "consola";

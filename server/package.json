@@ -6,10 +6,12 @@
   "dependencies": {
     "consola": "^3.2.3",
     "dotenv": "^16.4.5",
+    "express": "^4.21.1",
     "socket.io": "^4.8.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^20.11.17",
     "@types/ws": "^8.5.10",
     "ts-node": "^10.9.2",

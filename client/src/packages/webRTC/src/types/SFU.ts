@@ -19,7 +19,8 @@ export interface SFUInterface {
   streams: Streams;
   error: string | null;
   streamSources: StreamSources;
-  connect: () => void;
-  disconnect: () => void;
+  connect: (channelID: string) => Promise<void>;
+  disconnect: () => Promise<void>;
   isConnected: string;
+  currentChannel: string;
 }

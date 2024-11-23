@@ -35,19 +35,13 @@ export function Controls() {
   }
 
   return (
-    <Card
-      style={{
-        width: "100%",
-        flexShrink: 0,
-      }}
-    >
+    <>
       {isBrowserSupported && (
-        <Flex align="center" justify="between">
+        <Flex align="center" justify="center" gap="4">
           <IconButton
             color={isMuted ? "red" : "gray"}
             variant="soft"
             onClick={handleMute}
-            disabled={!micID || !isConnected}
           >
             {isMuted ? <MdMicOff size={16} /> : <MdMic size={16} />}
           </IconButton>
@@ -56,7 +50,6 @@ export function Controls() {
             color={isDeafened ? "red" : "gray"}
             variant="soft"
             onClick={handleDeafen}
-            disabled={!isConnected}
           >
             {isDeafened ? (
               <BsVolumeOffFill size={16} />
@@ -65,12 +58,7 @@ export function Controls() {
             )}
           </IconButton>
 
-          <IconButton
-            variant="soft"
-            color="red"
-            onClick={disconnect}
-            disabled={!isConnected}
-          >
+          <IconButton variant="soft" color="red" onClick={disconnect}>
             <ImPhoneHangUp />
           </IconButton>
 
@@ -79,12 +67,6 @@ export function Controls() {
           </IconButton>
         </Flex>
       )}
-
-      {isBrowserSupported === false && (
-        <Text weight="bold" size="4">
-          Browser is not supported. Sorry!
-        </Text>
-      )}
-    </Card>
+    </>
   );
 }

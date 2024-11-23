@@ -19,7 +19,7 @@ import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 import { AnimatePresence, motion } from "motion/react";
 
 export const ServerView = () => {
-  const { connect, isConnected, streamSources } = useSFU();
+  const { connect, disconnect, isConnected, streamSources } = useSFU();
   const { microphoneBuffer } = useMicrophone();
   const [clientsSpeaking, setClientsSpeaking] = useState<{
     [id: string]: boolean;
@@ -143,7 +143,9 @@ export const ServerView = () => {
                         width: "100%",
                         justifyContent: "start",
                       }}
-                      onClick={connect}
+                      onClick={() =>
+                        disconnect().finally(() => connect(channel.id))
+                      }
                     >
                       {channel.type === "voice" ? (
                         <SpeakerLoudIcon />
@@ -189,20 +191,6 @@ export const ServerView = () => {
               )}
             </Flex>
           </Flex>
-          <AnimatePresence>
-            {isConnected && (
-              <motion.div
-                style={{
-                  width: "100%",
-                }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <Controls />
-              </motion.div>
-            )}
-          </AnimatePresence>
         </Flex>
       </Box>
       {!isMobile && (
@@ -224,6 +212,7 @@ export const ServerView = () => {
                 justify="center"
                 align="center"
                 flexGrow="1"
+                position="relative"
               >
                 <AnimatePresence>
                   {isConnected === currentServer.host &&
@@ -272,6 +261,26 @@ export const ServerView = () => {
                           </motion.div>
                         )
                     )}
+                </AnimatePresence>
+
+                <AnimatePresence>
+                  {isConnected && (
+                    <motion.div
+                      style={{
+                        width: "100%",
+                        position: "absolute",
+                        bottom: "0",
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "24px",
+                      }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <Controls />
+                    </motion.div>
+                  )}
                 </AnimatePresence>
               </Flex>
             </Flex>
