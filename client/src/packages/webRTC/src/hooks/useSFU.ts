@@ -11,22 +11,27 @@ import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 
 function sfuHook(): SFUInterface {
   // Using refs to store the RTCPeerConnection and WebSocket instances
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const SFUref = useRef<WebSocket | null>(null);
+  const RTCpeerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const SFUwsRef = useRef<WebSocket | null>(null);
 
   const [streams, setStreams] = useState<Streams>({});
   const [error, setError] = useState<string | null>(null);
   const [registeredTracks, setRegisteredTracks] = useState<RTCRtpSender[]>([]);
   const [rtcActive, setRtcActive] = useState(false);
   const [streamSources, setStreamSources] = useState<StreamSources>({});
-  const [isConnected, setIsConnected] = useState("");
+  const [currentServerConnected, setCurrentServerConnected] = useState("");
   const [currentSocket, setCurrentSocket] = useState<Socket | null>(null);
   const [currentChannel, setCurrentChannel] = useState("");
+  const [channelToConnectTo, setChannelToConnectTo] = useState<string | null>(
+    null
+  );
 
   const { currentServer } = useSettings();
   const { microphoneBuffer } = useMicrophone();
   const { mediaDestination, audioContext } = useSpeakers();
   const { sockets, serverDetailsList } = useSockets();
+  const [connectSound] = useSound(connectMp3, { volume: 0.1 });
+  const [disconnectSound] = useSound(disconnectMp3, { volume: 0.1 });
 
   const sfu_host = useMemo(() => {
     return currentServer && serverDetailsList[currentServer.host]?.sfu_host;
@@ -36,8 +41,22 @@ function sfuHook(): SFUInterface {
     return currentServer && serverDetailsList[currentServer.host]?.stun_hosts;
   }, [serverDetailsList, currentServer]);
 
-  const [connectSound] = useSound(connectMp3, { volume: 0.1 });
-  const [disconnectSound] = useSound(disconnectMp3, { volume: 0.1 });
+  const isConnectedToChannel = useMemo(() => {
+    return !!SFUwsRef.current && !!RTCpeerConnectionRef.current;
+  }, [SFUwsRef.current, RTCpeerConnectionRef.current]);
+
+  useEffect(() => {
+    if (channelToConnectTo) {
+      connect(channelToConnectTo)
+        .then(() => {
+          console.log("Connected to channel");
+        })
+        .catch((err) => {
+          console.error("Failed to connect to channel:", err);
+        });
+      setChannelToConnectTo(null);
+    }
+  }, [channelToConnectTo]);
 
   useEffect(() => {
     // Iterate over all keys (IDs) in the streamSources object
@@ -118,177 +137,194 @@ function sfuHook(): SFUInterface {
     }
   }, [streams, audioContext, mediaDestination]); // Re-run effect when streams, audioContext, or mediaDestination change
 
-  function connect(channelID: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+  function connect(channelID: string) {
+    return new Promise<void>(async (resolve, reject) => {
       try {
-        console.log(
-          !!sfu_host &&
-            !peerConnectionRef.current &&
-            !!stun_hosts &&
-            !SFUref.current &&
-            !rtcActive &&
-            isConnected.length === 0
-        );
-
-        if (!currentServer || currentSocket) {
+        if (!currentServer) {
           return reject(new Error("Invalid server or socket state."));
         }
 
-        const _currentsocket = sockets[currentServer.host];
+        if (channelID.length === 0) {
+          return reject(new Error("Invalid channel ID."));
+        }
+
+        console.log(
+          isConnectedToChannel,
+          currentServerConnected !== currentServer.host,
+          currentChannel !== channelID
+        );
+
         if (
-          !!sfu_host &&
-          !peerConnectionRef.current &&
-          !!stun_hosts &&
-          !SFUref.current &&
-          !rtcActive &&
-          isConnected.length === 0
+          isConnectedToChannel &&
+          (currentServerConnected !== currentServer.host ||
+            currentChannel !== channelID)
         ) {
-          console.log("Connecting to SFU");
+          console.log("Disconnecting from current channel");
+          await disconnect();
+          setChannelToConnectTo(channelID);
+          return resolve();
+        }
 
-          if (!!microphoneBuffer.output) {
-            setRtcActive(true);
-            const localStream = microphoneBuffer.output.mediaStream;
+        if (!!!sfu_host) {
+          return reject(new Error("sfu_host is not defined"));
+        }
+        if (!!RTCpeerConnectionRef.current) {
+          return reject(new Error("Already connected to SFU"));
+        }
+        if (!!!stun_hosts) {
+          return reject(new Error("stun_hosts is not defined"));
+        }
+        if (!!SFUwsRef.current) {
+          return reject(new Error("SFUref already exists"));
+        }
+        if (rtcActive) {
+          return reject(new Error("RTC already active"));
+        }
 
-            const streamData: StreamData = {
-              stream: localStream,
-              isLocal: true,
+        const _currentsocket = sockets[currentServer.host];
+        console.log("Connecting to SFU");
+
+        if (!!microphoneBuffer.output) {
+          setRtcActive(true);
+          const localStream = microphoneBuffer.output.mediaStream;
+
+          const streamData: StreamData = {
+            stream: localStream,
+            isLocal: true,
+          };
+
+          setCurrentSocket(_currentsocket);
+          _currentsocket.emit("streamID", localStream.id);
+
+          const newStreams = { ...streams, [localStream.id]: streamData };
+          setStreams(newStreams);
+
+          const configuration: RTCConfiguration = {
+            iceServers: [
+              {
+                urls: stun_hosts,
+              },
+            ],
+          };
+
+          connectSound();
+
+          const pc = new RTCPeerConnection(configuration);
+          const sfu_ws = new WebSocket(sfu_host);
+
+          const trcks: RTCRtpSender[] = [];
+          localStream.getTracks().forEach((track, index) => {
+            console.log(index, "added track to stream", track.id);
+            const trck = pc.addTrack(track, localStream);
+            trcks.push(trck);
+          });
+          setRegisteredTracks(trcks);
+
+          pc.ontrack = (event: RTCTrackEvent) => {
+            console.log("New incoming stream:", event.streams);
+            const remoteStream = event.streams[0];
+            const newStream = { stream: remoteStream, isLocal: false };
+
+            const updatedStreams = {
+              ...streams,
+              [remoteStream.id]: newStream,
             };
+            setStreams(updatedStreams);
+          };
 
-            setCurrentSocket(_currentsocket);
-            _currentsocket.emit("streamID", localStream.id);
+          pc.onicecandidate = (e) => {
+            if (e.candidate) {
+              sfu_ws.send(
+                JSON.stringify({
+                  event: "candidate",
+                  data: JSON.stringify(e.candidate),
+                })
+              );
+            }
+          };
 
-            const newStreams = { ...streams, [localStream.id]: streamData };
-            setStreams(newStreams);
+          sfu_ws.onopen = () => {
+            console.log("SFU connection opened");
+          };
 
-            const configuration: RTCConfiguration = {
-              iceServers: [
-                {
-                  urls: stun_hosts,
-                },
-              ],
-            };
+          sfu_ws.onclose = (event) => {
+            console.log("SFU connection closed", event);
+          };
 
-            connectSound();
+          sfu_ws.onerror = (evt) => {
+            console.log("WebSocket error:", evt);
+            reject(new Error("WebSocket connection failed."));
+          };
 
-            const pc = new RTCPeerConnection(configuration);
-            const sfu_ws = new WebSocket(sfu_host);
-
-            const trcks: RTCRtpSender[] = [];
-            localStream.getTracks().forEach((track, index) => {
-              console.log(index, "added track to stream", track.id);
-              const trck = pc.addTrack(track, localStream);
-              trcks.push(trck);
-            });
-            setRegisteredTracks(trcks);
-
-            pc.ontrack = (event: RTCTrackEvent) => {
-              console.log("New incoming stream:", event.streams);
-              const remoteStream = event.streams[0];
-              const newStream = { stream: remoteStream, isLocal: false };
-
-              const updatedStreams = {
-                ...streams,
-                [remoteStream.id]: newStream,
-              };
-              setStreams(updatedStreams);
-            };
-
-            pc.onicecandidate = (e) => {
-              if (e.candidate) {
-                sfu_ws.send(
-                  JSON.stringify({
-                    event: "candidate",
-                    data: JSON.stringify(e.candidate),
-                  })
-                );
+          sfu_ws.onmessage = (evt) => {
+            try {
+              const msg = JSON.parse(evt.data);
+              if (!msg) {
+                console.log("Failed to parse message");
+                return;
               }
-            };
 
-            sfu_ws.onopen = () => {
-              console.log("SFU connection opened");
-            };
+              switch (msg.event) {
+                case "offer":
+                  const offer = JSON.parse(msg.data);
+                  if (!offer) {
+                    console.log("Failed to parse offer");
+                    return;
+                  }
+                  pc.setRemoteDescription(new RTCSessionDescription(offer));
+                  pc.createAnswer().then((answer) => {
+                    pc.setLocalDescription(answer);
+                    sfu_ws.send(
+                      JSON.stringify({
+                        event: "answer",
+                        data: JSON.stringify(answer),
+                      })
+                    );
+                  });
+                  break;
 
-            sfu_ws.onclose = (event) => {
-              console.log("SFU connection closed", event);
-            };
+                case "candidate":
+                  const candidate = JSON.parse(msg.data);
+                  if (!candidate) {
+                    console.log("Failed to parse candidate");
+                    return;
+                  }
+                  pc.addIceCandidate(new RTCIceCandidate(candidate));
+                  break;
 
-            sfu_ws.onerror = (evt) => {
-              console.log("WebSocket error:", evt);
-              reject(new Error("WebSocket connection failed."));
-            };
+                case "disconnect":
+                  const disconnectedStreamId = msg.streamId;
+                  streams[disconnectedStreamId]?.stream
+                    .getTracks()
+                    .forEach((track) => track.stop());
+                  const updatedStreams = { ...streams };
+                  delete updatedStreams[disconnectedStreamId];
+                  setStreams(updatedStreams);
+                  break;
 
-            sfu_ws.onmessage = (evt) => {
-              try {
-                const msg = JSON.parse(evt.data);
-                if (!msg) {
-                  console.log("Failed to parse message");
-                  return;
-                }
-
-                switch (msg.event) {
-                  case "offer":
-                    const offer = JSON.parse(msg.data);
-                    if (!offer) {
-                      console.log("Failed to parse offer");
-                      return;
-                    }
-                    pc.setRemoteDescription(new RTCSessionDescription(offer));
-                    pc.createAnswer().then((answer) => {
-                      pc.setLocalDescription(answer);
-                      sfu_ws.send(
-                        JSON.stringify({
-                          event: "answer",
-                          data: JSON.stringify(answer),
-                        })
-                      );
-                    });
-                    break;
-
-                  case "candidate":
-                    const candidate = JSON.parse(msg.data);
-                    if (!candidate) {
-                      console.log("Failed to parse candidate");
-                      return;
-                    }
-                    pc.addIceCandidate(new RTCIceCandidate(candidate));
-                    break;
-
-                  case "disconnect":
-                    const disconnectedStreamId = msg.streamId;
-                    streams[disconnectedStreamId]?.stream
-                      .getTracks()
-                      .forEach((track) => track.stop());
-                    const updatedStreams = { ...streams };
-                    delete updatedStreams[disconnectedStreamId];
-                    setStreams(updatedStreams);
-                    break;
-
-                  default:
-                    console.log("Unknown message event:", msg.event);
-                    break;
-                }
-              } catch (err) {
-                console.error("Error handling message:", err);
+                default:
+                  console.log("Unknown message event:", msg.event);
+                  break;
               }
-            };
+            } catch (err) {
+              console.error("Error handling message:", err);
+            }
+          };
 
-            peerConnectionRef.current = pc;
-            SFUref.current = sfu_ws;
+          RTCpeerConnectionRef.current = pc;
+          SFUwsRef.current = sfu_ws;
 
-            console.log("Peer connection and WebSocket initialized");
+          console.log("Peer connection and WebSocket initialized");
 
-            setIsConnected(currentServer.host);
-            setCurrentChannel(channelID);
+          setCurrentServerConnected(currentServer.host);
+          setCurrentChannel(channelID);
 
-            _currentsocket.emit("joinedChannel", true);
+          _currentsocket.emit("joinedChannel", true);
 
-            // Resolve the promise when the connection is successfully established
-            resolve();
-          } else {
-            reject(new Error("Couldn't find microphone buffer"));
-          }
+          // Resolve the promise when the connection is successfully established
+          resolve();
         } else {
-          reject(new Error("Preconditions for connecting are not met."));
+          reject(new Error("Couldn't find microphone buffer"));
         }
       } catch (err: any) {
         console.error(err);
@@ -302,46 +338,49 @@ function sfuHook(): SFUInterface {
   function disconnect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        if (!currentServer || !currentSocket || !isConnected) {
+        if (!currentServer || !currentSocket || !currentServerConnected) {
+          setRtcActive(false); // Explicitly reset rtcActive on invalid state
           return reject(new Error("No server or socket to disconnect from."));
         }
 
-        if (peerConnectionRef.current && SFUref.current) {
+        if (RTCpeerConnectionRef.current && SFUwsRef.current) {
           try {
             registeredTracks.forEach((track) => {
               console.log("Removed track from peer", track.track?.id);
-              peerConnectionRef.current?.removeTrack(track);
+              RTCpeerConnectionRef.current?.removeTrack(track);
             });
 
             console.log("Cleaning up");
+            RTCpeerConnectionRef.current.close();
+            SFUwsRef.current.close();
 
-            peerConnectionRef.current.close();
-            SFUref.current.close();
-
-            SFUref.current = null;
-            peerConnectionRef.current = null;
+            SFUwsRef.current = null;
+            RTCpeerConnectionRef.current = null;
 
             currentSocket.emit("streamID", "");
-            setRtcActive(false);
+            setRtcActive(false); // Ensure rtcActive is updated here
             currentSocket.emit("joinedChannel", false);
             setCurrentSocket(null);
             disconnectSound();
-            setIsConnected("");
+            setCurrentServerConnected("");
             setCurrentChannel("");
 
             console.log("Disconnection successful");
-            resolve(); // Resolve the promise when cleanup is complete
+            resolve();
           } catch (cleanupError) {
+            setRtcActive(false); // Reset rtcActive even if cleanup fails
             console.error("Error during cleanup:", cleanupError);
             reject(cleanupError);
           }
         } else {
           console.log("No active peer connection or SFU reference");
-          resolve(); // Nothing to disconnect, resolve immediately
+          setRtcActive(false); // Handle cases with no active connections
+          resolve();
         }
       } catch (err: any) {
+        setRtcActive(false); // Ensure rtcActive is reset on errors
         console.error("Error in disconnect:", err);
-        reject(err); // Reject the promise if an error occurs
+        reject(err);
       }
     });
   }
@@ -352,8 +391,9 @@ function sfuHook(): SFUInterface {
     streamSources,
     connect,
     disconnect,
-    isConnected,
-    currentChannel,
+    currentServerConnected,
+    isConnected: isConnectedToChannel,
+    currentChannelConnected: currentChannel,
   };
 }
 
@@ -363,8 +403,9 @@ const init: SFUInterface = {
   streamSources: {},
   connect: () => Promise.resolve(),
   disconnect: () => Promise.resolve(),
-  isConnected: "",
-  currentChannel: "",
+  currentChannelConnected: "",
+  currentServerConnected: "",
+  isConnected: false,
 };
 
 const SFUHook = singletonHook(init, sfuHook);

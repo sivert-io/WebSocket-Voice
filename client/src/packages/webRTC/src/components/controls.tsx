@@ -1,4 +1,4 @@
-import { Card, Flex, Text, IconButton } from "@radix-ui/themes";
+import { Flex, IconButton } from "@radix-ui/themes";
 import { useState } from "react";
 import { useSettings } from "@/settings";
 import { getIsBrowserSupported } from "@/audio";
@@ -10,28 +10,17 @@ import { ImPhoneHangUp } from "react-icons/im";
 
 export function Controls() {
   const [isBrowserSupported] = useState(getIsBrowserSupported());
-  const { isConnected, disconnect } = useSFU();
+  const { disconnect } = useSFU();
 
-  const {
-    micID,
-    currentServer,
-    setIsMuted,
-    isMuted,
-    setShowSettings,
-    isDeafened,
-    setIsDeafened,
-  } = useSettings();
+  const { setIsMuted, isMuted, setShowSettings, isDeafened, setIsDeafened } =
+    useSettings();
 
   function handleMute() {
-    if (micID && currentServer) {
-      setIsMuted(!isMuted);
-    }
+    setIsMuted(!isMuted);
   }
 
   function handleDeafen() {
-    if (micID && currentServer) {
-      setIsDeafened(!isDeafened);
-    }
+    setIsDeafened(!isDeafened);
   }
 
   return (
