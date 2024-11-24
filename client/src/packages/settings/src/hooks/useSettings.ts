@@ -44,6 +44,9 @@ interface Settings {
 
   currentlyViewingServer: Server | null;
   setCurrentlyViewingServer: (value: string) => void;
+
+  showVoiceView: boolean;
+  setShowVoiceView: (value: boolean) => void;
 }
 
 function updateStorage(key: string, value: string, state: (d: any) => void) {
@@ -91,6 +94,8 @@ function useSettingsHook() {
 
   const [currentlyViewingServer, setCurrentlyViewingServer] =
     useState<Server | null>(null);
+
+  const [showVoiceView, setShowVoiceView] = useState(true);
 
   function updateMicID(newID: string) {
     updateStorage("micID", newID, setMicID);
@@ -188,6 +193,8 @@ function useSettingsHook() {
     removeServer,
     showRemoveServer,
     setShowRemoveServer,
+    showVoiceView,
+    setShowVoiceView,
   };
 }
 
@@ -226,6 +233,9 @@ const init: Settings = {
 
   currentlyViewingServer: null,
   setCurrentlyViewingServer: () => {},
+
+  showVoiceView: true,
+  setShowVoiceView: () => {},
 };
 
 export const useSettings = singletonHook(init, useSettingsHook);

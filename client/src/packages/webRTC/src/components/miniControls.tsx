@@ -1,5 +1,5 @@
 import { Box, Button, Heading, HoverCard, IconButton } from "@radix-ui/themes";
-import { AnimatePresence, motion,Variants } from "motion/react";
+import { AnimatePresence, motion, Variants } from "motion/react";
 import { BsVolumeOffFill, BsVolumeUpFill } from "react-icons/bs";
 import { ImPhoneHangUp } from "react-icons/im";
 import { MdArrowForward, MdMic, MdMicOff } from "react-icons/md";
@@ -34,6 +34,8 @@ export function MiniControls({
     isMuted,
     setIsMuted,
     isDeafened,
+    showVoiceView,
+    setShowVoiceView,
     setIsDeafened,
   } = useSettings();
 
@@ -49,7 +51,8 @@ export function MiniControls({
   return (
     <AnimatePresence>
       {isConnected &&
-        currentlyViewingServer?.host !== currentServerConnected && (
+        (currentlyViewingServer?.host !== currentServerConnected ||
+          !showVoiceView) && (
           <motion.div
             variants={buttonAnimations}
             initial="hidden"
@@ -113,9 +116,10 @@ export function MiniControls({
                       padding: "0",
                     }}
                     color="gray"
-                    onClick={() =>
-                      setCurrentlyViewingServer(currentServerConnected)
-                    }
+                    onClick={() => {
+                      setCurrentlyViewingServer(currentServerConnected);
+                      setShowVoiceView(true);
+                    }}
                   >
                     <MdArrowForward size={12} />
                   </Button>
