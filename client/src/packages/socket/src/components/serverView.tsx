@@ -25,11 +25,15 @@ export const ServerView = () => {
     [id: string]: boolean;
   }>({});
   const [voiceWidth, setVoiceWidth] = useState("0px");
-  const [showVoiceView, setShowVoiceView] = useState(true);
 
   const isMobile = useIsMobile();
 
-  const { currentlyViewingServer, setShowRemoveServer } = useSettings();
+  const {
+    currentlyViewingServer,
+    setShowRemoveServer,
+    showVoiceView,
+    setShowVoiceView,
+  } = useSettings();
 
   const {
     connect,
@@ -151,7 +155,9 @@ export const ServerView = () => {
                     <Button
                       variant={
                         channel.id === currentChannelConnected &&
-                        currentlyViewingServer.host === currentServerConnected
+                        currentlyViewingServer.host ===
+                          currentServerConnected &&
+                        showVoiceView
                           ? "solid"
                           : "soft"
                       }
