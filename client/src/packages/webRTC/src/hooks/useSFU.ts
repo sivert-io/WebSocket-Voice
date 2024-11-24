@@ -183,7 +183,7 @@ function useSfuHook(): SFUInterface {
             currentChannel !== channelID)
         ) {
           console.log("Disconnecting from current channel");
-          await disconnect();
+          await disconnect(false);
           setChannelToConnectTo(channelID);
           return resolve();
         }
@@ -358,7 +358,7 @@ function useSfuHook(): SFUInterface {
     });
   }
 
-  function disconnect(): Promise<void> {
+  function disconnect(playSound: boolean = true): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         if (
@@ -388,7 +388,7 @@ function useSfuHook(): SFUInterface {
             setRtcActive(false); // Ensure rtcActive is updated here
             currentSocket.emit("joinedChannel", false);
             setCurrentSocket(null);
-            disconnectSound();
+            if (playSound) disconnectSound(); // Play sound only if playSound is true
             setCurrentServerConnected("");
             setCurrentChannel("");
 
