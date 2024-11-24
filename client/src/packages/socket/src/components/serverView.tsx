@@ -21,18 +21,25 @@ import { useSockets } from "../hooks/useSockets";
 import { ConnectedUser } from "./connectedUser";
 
 export const ServerView = () => {
+  const [clientsSpeaking, setClientsSpeaking] = useState<{
+    [id: string]: boolean;
+  }>({});
+  const [voiceWidth, setVoiceWidth] = useState("0px");
+  const [showVoiceView, setShowVoiceView] = useState(true);
+
+  const isMobile = useIsMobile();
+
+  const { currentlyViewingServer, setShowRemoveServer } = useSettings();
+
   const {
     connect,
     currentServerConnected,
     streamSources,
     currentChannelConnected,
+    isConnected,
   } = useSFU();
+
   const { microphoneBuffer } = useMicrophone();
-  const [clientsSpeaking, setClientsSpeaking] = useState<{
-    [id: string]: boolean;
-  }>({});
-  const isMobile = useIsMobile();
-  const { currentlyViewingServer, setShowRemoveServer } = useSettings();
 
   const { sockets, serverDetailsList, clients } = useSockets();
 
@@ -41,8 +48,6 @@ export const ServerView = () => {
       currentlyViewingServer ? sockets[currentlyViewingServer.host] : null,
     [currentlyViewingServer, sockets]
   );
-
-  const [voiceWidth, setVoiceWidth] = useState("0px");
 
   useEffect(() => {
     setVoiceWidth(
@@ -155,7 +160,17 @@ export const ServerView = () => {
                         width: "100%",
                         justifyContent: "start",
                       }}
-                      onClick={() => connect(channel.id)}
+                      onClick={() => {
+                        if (
+                          isConnected &&
+                          channel.id === currentChannelConnected &&
+                          currentlyViewingServer.host === currentServerConnected
+                        )
+                          setShowVoiceView(!showVoiceView);
+                        else setShowVoiceView(true);
+
+                        connect(channel.id);
+                      }}
                     >
                       {channel.type === "voice" ? (
                         <SpeakerLoudIcon />
@@ -211,8 +226,9 @@ export const ServerView = () => {
           <motion.div
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             animate={{
-              width: voiceWidth,
-              paddingRight: voiceWidth === "0px" ? 0 : 16 * 1.15 + "px",
+              width: showVoiceView ? voiceWidth : 0,
+              paddingRight:
+                !showVoiceView || voiceWidth === "0px" ? 0 : 16 * 1.15 + "px",
             }}
             style={{
               overflow: "hidden",
