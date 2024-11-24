@@ -28,7 +28,12 @@ export function sendServerDetails(socket: Socket, clientsInfo: Clients) {
     clients: clientsInfo,
     channels: [
       {
-        name: "Channel #1",
+        name: "General",
+        type: "text",
+        id: "general",
+      },
+      {
+        name: "Voice Chat",
         type: "voice",
         id: "voice",
       },

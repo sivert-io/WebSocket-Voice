@@ -19,6 +19,7 @@ import { Controls, useSFU } from "@/webRTC";
 
 import { useSockets } from "../hooks/useSockets";
 import { ConnectedUser } from "./connectedUser";
+import { Channel } from "@/settings/src/types/server";
 
 export const ServerView = () => {
   const [clientsSpeaking, setClientsSpeaking] = useState<{
@@ -100,6 +101,26 @@ export const ServerView = () => {
 
   if (!currentlyViewingServer) return null;
 
+  const handleChannelClick = (channel: Channel) => {
+    switch (channel.type) {
+      case "voice":
+        if (
+          isConnected &&
+          channel.id === currentChannelConnected &&
+          currentlyViewingServer.host === currentServerConnected
+        )
+          setShowVoiceView(!showVoiceView);
+        else setShowVoiceView(true);
+
+        connect(channel.id);
+        break;
+
+      case "text":
+        // Show selected channels chat history
+        break;
+    }
+  };
+
   return (
     <Flex width="100%" height="100%" gap="4">
       <Box width={{ sm: "240px", initial: "100%" }}>
@@ -166,17 +187,7 @@ export const ServerView = () => {
                         width: "100%",
                         justifyContent: "start",
                       }}
-                      onClick={() => {
-                        if (
-                          isConnected &&
-                          channel.id === currentChannelConnected &&
-                          currentlyViewingServer.host === currentServerConnected
-                        )
-                          setShowVoiceView(!showVoiceView);
-                        else setShowVoiceView(true);
-
-                        connect(channel.id);
-                      }}
+                      onClick={() => handleChannelClick(channel)}
                     >
                       {channel.type === "voice" ? (
                         <SpeakerLoudIcon />
@@ -186,39 +197,43 @@ export const ServerView = () => {
                       {channel.name}
                     </Button>
 
-                    <Flex
-                      position="absolute"
-                      top="0"
-                      width="100%"
-                      pt="6"
-                      direction="column"
-                      style={{
-                        background: "var(--color-panel-translucent)",
-                        borderRadius: "0 0 12px 12px",
-                        zIndex: -1,
-                      }}
-                    >
-                      <AnimatePresence initial={false}>
-                        {Object.keys(clients[currentlyViewingServer.host])?.map(
-                          (id) =>
-                            clients[currentlyViewingServer.host][id]
-                              .hasJoinedChannel && (
-                              <ConnectedUser
-                                isSpeaking={clientsSpeaking[id] || false}
-                                isMuted={
-                                  clients[currentlyViewingServer.host][id]
-                                    .isMuted
-                                }
-                                nickname={
-                                  clients[currentlyViewingServer.host][id]
-                                    .nickname
-                                }
-                                key={id}
-                              />
-                            )
-                        )}
-                      </AnimatePresence>
-                    </Flex>
+                    {channel.type === "voice" && (
+                      <Flex
+                        position="absolute"
+                        top="0"
+                        width="100%"
+                        pt="6"
+                        direction="column"
+                        style={{
+                          background: "var(--color-panel-translucent)",
+                          borderRadius: "0 0 12px 12px",
+                          zIndex: -1,
+                        }}
+                      >
+                        <AnimatePresence initial={false}>
+                          {Object.keys(
+                            clients[currentlyViewingServer.host]
+                          )?.map(
+                            (id) =>
+                              clients[currentlyViewingServer.host][id]
+                                .hasJoinedChannel && (
+                                <ConnectedUser
+                                  isSpeaking={clientsSpeaking[id] || false}
+                                  isMuted={
+                                    clients[currentlyViewingServer.host][id]
+                                      .isMuted
+                                  }
+                                  nickname={
+                                    clients[currentlyViewingServer.host][id]
+                                      .nickname
+                                  }
+                                  key={id}
+                                />
+                              )
+                          )}
+                        </AnimatePresence>
+                      </Flex>
+                    )}
                   </Flex>
                 )
               )}
