@@ -117,9 +117,7 @@ export const ServerView = () => {
                     </Button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Content>
-                    <DropdownMenu.Item>Edit</DropdownMenu.Item>
                     <DropdownMenu.Item>Share</DropdownMenu.Item>
-                    <DropdownMenu.Item>Pin server</DropdownMenu.Item>
                     <DropdownMenu.Separator />
                     <DropdownMenu.Item
                       color="red"
