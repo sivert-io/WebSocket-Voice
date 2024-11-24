@@ -1,4 +1,4 @@
-import { Pencil2Icon } from "@radix-ui/react-icons";
+import { Pencil2Icon, PinTopIcon } from "@radix-ui/react-icons";
 import {
   Avatar,
   Box,
@@ -38,7 +38,7 @@ export function Sidebar() {
       justify="between"
     >
       <Flex direction="column" gap="4" pt="2">
-        {Object.keys(servers).map((host) => (
+        {Object.keys(servers).map((host, index) => (
           <HoverCard.Root openDelay={500} closeDelay={0} key={host}>
             <ContextMenu.Root>
               <ContextMenu.Trigger>
@@ -66,10 +66,14 @@ export function Sidebar() {
                 <ContextMenu.Label style={{ fontWeight: "bold" }}>
                   {servers[host].name}
                 </ContextMenu.Label>
-                <ContextMenu.Separator />
+                {index !== 0 && (
+                  <ContextMenu.Item>
+                    <PinTopIcon />
+                    Pin to top
+                  </ContextMenu.Item>
+                )}
                 <ContextMenu.Item>Edit</ContextMenu.Item>
                 <ContextMenu.Item>Share</ContextMenu.Item>
-                <ContextMenu.Item>Pin server</ContextMenu.Item>
                 <ContextMenu.Item>Add to new group</ContextMenu.Item>
                 <ContextMenu.Separator />
                 <ContextMenu.Item
