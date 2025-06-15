@@ -1,21 +1,25 @@
-import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
+import { ExclamationTriangleIcon, ReloadIcon } from "@radix-ui/react-icons";
 import {
   Button,
   Callout,
   Flex,
   Heading,
+  IconButton,
   Progress,
   Select,
   Slider,
+  Switch,
   Text,
+  Tooltip,
 } from "@radix-ui/themes";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 import { getCurrentVolume, isSpeaking, useMicrophone } from "@/audio";
+import { useNoiseSuppression } from "@/audio/src/hooks/useNoiseSuppression";
 import { useSettings } from "@/settings";
 
 export function MicrophoneSettings() {
-  const { devices, microphoneBuffer } = useMicrophone();
+  const { devices, microphoneBuffer, getDevices } = useMicrophone(true); // Enable microphone access in settings
   const {
     micID,
     setMicID,
@@ -25,10 +29,22 @@ export function MicrophoneSettings() {
     setNoiseGate,
     setLoopbackEnabled,
     loopbackEnabled,
+    noiseSuppressionEnabled,
+    setNoiseSuppressionEnabled,
   } = useSettings();
 
+  const noiseSuppression = useNoiseSuppression();
   const [micLiveVolume, setMicLiveVolume] = useState(0);
   const [isMicLive, setIsMicLive] = useState(false);
+  const devicesLoadedRef = useRef(false);
+
+  // Fetch devices when component mounts (only once)
+  useEffect(() => {
+    if (!devicesLoadedRef.current) {
+      devicesLoadedRef.current = true;
+      getDevices();
+    }
+  }, []); // Empty dependency array - only run once on mount
 
   // Get microphone volume and return if over noise gate
   useEffect(() => {
@@ -51,6 +67,14 @@ export function MicrophoneSettings() {
       }
     };
   }, [loopbackEnabled, setLoopbackEnabled]);
+
+  const resetGain = () => {
+    setMicVolume(50);
+  };
+
+  const resetNoiseGate = () => {
+    setNoiseGate(10);
+  };
 
   return (
     <>
@@ -128,9 +152,22 @@ export function MicrophoneSettings() {
 
           {/* Gain */}
           <Flex direction="column">
-            <Text weight="medium" size="2">
-              Gain
-            </Text>
+            <Flex align="center" justify="between">
+              <Text weight="medium" size="2">
+                Gain
+              </Text>
+              <Tooltip content="Reset to default (50)" side="top">
+                <IconButton
+                  size="1"
+                  variant="ghost"
+                  color={micVolume !== 50 ? "red" : "gray"}
+                  onClick={resetGain}
+                  disabled={micVolume === 50}
+                >
+                  <ReloadIcon />
+                </IconButton>
+              </Tooltip>
+            </Flex>
             <Flex align="center" gap="2">
               <Slider
                 min={0}
@@ -156,9 +193,22 @@ export function MicrophoneSettings() {
 
           {/* Noise Gate */}
           <Flex direction="column">
-            <Text weight="medium" size="2">
-              Noise Gate
-            </Text>
+            <Flex align="center" justify="between">
+              <Text weight="medium" size="2">
+                Noise Gate
+              </Text>
+              <Tooltip content="Reset to default (10)" side="top">
+                <IconButton
+                  size="1"
+                  variant="ghost"
+                  color={noiseGate !== 10 ? "red" : "gray"}
+                  onClick={resetNoiseGate}
+                  disabled={noiseGate === 10}
+                >
+                  <ReloadIcon />
+                </IconButton>
+              </Tooltip>
+            </Flex>
             <Flex align="center" gap="2">
               <Slider
                 min={0}
@@ -186,6 +236,35 @@ export function MicrophoneSettings() {
                 color={isMicLive ? "green" : "gray"}
               />
               <div style={{ minWidth: "36px" }} />
+            </Flex>
+          </Flex>
+
+          {/* Noise Suppression */}
+          <Flex direction="column" gap="2">
+            <Text weight="medium" size="2">
+              Noise Suppression (AI)
+            </Text>
+            <Flex align="center" justify="between">
+              <Flex direction="column" gap="1">
+                <Text size="2" color="gray">
+                  Applies audio filtering to reduce background noise
+                </Text>
+                {noiseSuppression.state.error && (
+                  <Text size="1" color="red">
+                    Error: {noiseSuppression.state.error}
+                  </Text>
+                )}
+                {noiseSuppression.state.isInitialized && !noiseSuppression.state.error && (
+                  <Text size="1" color="green">
+                    ✓ Ready
+                  </Text>
+                )}
+              </Flex>
+              <Switch
+                checked={noiseSuppressionEnabled}
+                onCheckedChange={setNoiseSuppressionEnabled}
+                disabled={noiseSuppression.state.isProcessing}
+              />
             </Flex>
           </Flex>
         </Flex>

@@ -15,7 +15,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { FiWifi, FiX } from "react-icons/fi";
-import { io,Socket } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 
 import { useSettings } from "../hooks/useSettings";
 

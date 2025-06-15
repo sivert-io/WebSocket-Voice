@@ -5,10 +5,24 @@ import { socketHandler } from "./socket";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import express from "express"; // Import express
+import { SFUClient } from "./sfu/client"; // Import SFU client
 
 const app = express(); // Create an Express app
 
-if (!process.env.SFU_WS_HOST) {
+// Initialize SFU client if host is configured
+let sfuClient: SFUClient | null = null;
+
+if (process.env.SFU_WS_HOST) {
+  const serverId = process.env.SERVER_NAME?.replace(/\s+/g, '_').toLowerCase() || 'unknown_server';
+  const serverToken = process.env.SERVER_TOKEN || 'default_token';
+  
+  sfuClient = new SFUClient(serverId, serverToken, process.env.SFU_WS_HOST);
+  
+  // Connect to SFU server
+  sfuClient.connect().catch((error) => {
+    consola.error('Failed to connect to SFU:', error);
+  });
+} else {
   consola.error(
     "No SFU host defined! Server will not send or retrieve streams."
   );
@@ -36,7 +50,7 @@ const io = new Server(httpServer, {
 });
 
 io.on("connection", (socket) => {
-  socketHandler(io, socket);
+  socketHandler(io, socket, sfuClient);
 });
 
 const PORT = process.env.PORT || 5000;

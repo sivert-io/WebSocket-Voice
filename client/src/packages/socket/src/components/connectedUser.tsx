@@ -6,10 +6,12 @@ export function ConnectedUser({
   isSpeaking,
   isMuted,
   nickname,
+  isConnectedToVoice = true, // Default to true for backward compatibility
 }: {
   isSpeaking: boolean;
   isMuted: boolean;
   nickname: string;
+  isConnectedToVoice?: boolean;
 }) {
   return (
     <motion.div
@@ -19,7 +21,18 @@ export function ConnectedUser({
       transition={{ duration: 0.25 }}
       style={{ width: "100%", overflow: "hidden" }}
     >
-      <Flex gap="2" align="center" px="3" py="2" width="100%" justify="between">
+      <Flex 
+        gap="2" 
+        align="center" 
+        px="3" 
+        py="2" 
+        width="100%" 
+        justify="between"
+        style={{
+          opacity: isConnectedToVoice ? 1 : 0.5,
+          transition: "opacity 0.3s ease",
+        }}
+      >
         <Flex gap="2" align="center">
           <Avatar
             radius="full"

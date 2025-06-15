@@ -13,6 +13,23 @@ interface Settings {
   setLoopbackEnabled: (value: boolean) => void;
   loopbackEnabled: boolean;
 
+  noiseSuppressionEnabled: boolean;
+  setNoiseSuppressionEnabled: (value: boolean) => void;
+
+  // Voice call settings
+  connectSoundEnabled: boolean;
+  setConnectSoundEnabled: (value: boolean) => void;
+  disconnectSoundEnabled: boolean;
+  setDisconnectSoundEnabled: (value: boolean) => void;
+  connectSoundVolume: number;
+  setConnectSoundVolume: (value: number) => void;
+  disconnectSoundVolume: number;
+  setDisconnectSoundVolume: (value: number) => void;
+  customConnectSoundFile: string | null;
+  setCustomConnectSoundFile: (value: string | null) => void;
+  customDisconnectSoundFile: string | null;
+  setCustomDisconnectSoundFile: (value: string | null) => void;
+
   setNickname: (name: string) => void;
 
   nickname: string;
@@ -71,6 +88,30 @@ function useSettingsHook() {
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
+  const [noiseSuppressionEnabled, setNoiseSuppressionEnabled] = useState(
+    localStorage.getItem("noiseSuppressionEnabled") !== "false" // Default to true
+  );
+
+  // Voice call settings
+  const [connectSoundEnabled, setConnectSoundEnabled] = useState(
+    localStorage.getItem("connectSoundEnabled") !== "false" // Default to true
+  );
+  const [disconnectSoundEnabled, setDisconnectSoundEnabled] = useState(
+    localStorage.getItem("disconnectSoundEnabled") !== "false" // Default to true
+  );
+  const [connectSoundVolume, setConnectSoundVolume] = useState(
+    Number(localStorage.getItem("connectSoundVolume")) || 10
+  );
+  const [disconnectSoundVolume, setDisconnectSoundVolume] = useState(
+    Number(localStorage.getItem("disconnectSoundVolume")) || 10
+  );
+  const [customConnectSoundFile, setCustomConnectSoundFile] = useState<string | null>(
+    localStorage.getItem("customConnectSoundFile") || null
+  );
+  const [customDisconnectSoundFile, setCustomDisconnectSoundFile] = useState<string | null>(
+    localStorage.getItem("customDisconnectSoundFile") || null
+  );
+
   const [micID, setMicID] = useState(
     localStorage.getItem("micID") || undefined
   );
@@ -106,11 +147,57 @@ function useSettingsHook() {
   }
 
   function updateMicVolume(newVol: number) {
-    updateStorage("micVolume", newVol.toString(), setMicVolume);
+    setMicVolume(newVol);
+    localStorage.setItem("micVolume", newVol.toString());
   }
 
   function updateNoiseGate(newGate: number) {
-    updateStorage("noiseGate", newGate.toString(), setNoiseGate);
+    setNoiseGate(newGate);
+    localStorage.setItem("noiseGate", newGate.toString());
+  }
+
+  function updateNoiseSuppressionEnabled(enabled: boolean) {
+    setNoiseSuppressionEnabled(enabled);
+    localStorage.setItem("noiseSuppressionEnabled", enabled.toString());
+  }
+
+  // Voice call settings update functions
+  function updateConnectSoundEnabled(enabled: boolean) {
+    setConnectSoundEnabled(enabled);
+    localStorage.setItem("connectSoundEnabled", enabled.toString());
+  }
+
+  function updateDisconnectSoundEnabled(enabled: boolean) {
+    setDisconnectSoundEnabled(enabled);
+    localStorage.setItem("disconnectSoundEnabled", enabled.toString());
+  }
+
+  function updateConnectSoundVolume(volume: number) {
+    setConnectSoundVolume(volume);
+    localStorage.setItem("connectSoundVolume", volume.toString());
+  }
+
+  function updateDisconnectSoundVolume(volume: number) {
+    setDisconnectSoundVolume(volume);
+    localStorage.setItem("disconnectSoundVolume", volume.toString());
+  }
+
+  function updateCustomConnectSoundFile(file: string | null) {
+    if (file) {
+      updateStorage("customConnectSoundFile", file, setCustomConnectSoundFile);
+    } else {
+      localStorage.removeItem("customConnectSoundFile");
+      setCustomConnectSoundFile(null);
+    }
+  }
+
+  function updateCustomDisconnectSoundFile(file: string | null) {
+    if (file) {
+      updateStorage("customDisconnectSoundFile", file, setCustomDisconnectSoundFile);
+    } else {
+      localStorage.removeItem("customDisconnectSoundFile");
+      setCustomDisconnectSoundFile(null);
+    }
   }
 
   function updateServers(newServers: Servers) {
@@ -195,6 +282,21 @@ function useSettingsHook() {
     setShowRemoveServer,
     showVoiceView,
     setShowVoiceView,
+    noiseSuppressionEnabled,
+    setNoiseSuppressionEnabled: updateNoiseSuppressionEnabled,
+    // Voice call settings
+    connectSoundEnabled,
+    setConnectSoundEnabled: updateConnectSoundEnabled,
+    disconnectSoundEnabled,
+    setDisconnectSoundEnabled: updateDisconnectSoundEnabled,
+    connectSoundVolume,
+    setConnectSoundVolume: updateConnectSoundVolume,
+    disconnectSoundVolume,
+    setDisconnectSoundVolume: updateDisconnectSoundVolume,
+    customConnectSoundFile,
+    setCustomConnectSoundFile: updateCustomConnectSoundFile,
+    customDisconnectSoundFile,
+    setCustomDisconnectSoundFile: updateCustomDisconnectSoundFile,
   };
 }
 
@@ -236,6 +338,23 @@ const init: Settings = {
 
   showVoiceView: true,
   setShowVoiceView: () => {},
+
+  noiseSuppressionEnabled: localStorage.getItem("noiseSuppressionEnabled") !== "false",
+  setNoiseSuppressionEnabled: () => {},
+
+  // Voice call settings
+  connectSoundEnabled: localStorage.getItem("connectSoundEnabled") !== "false",
+  setConnectSoundEnabled: () => {},
+  disconnectSoundEnabled: localStorage.getItem("disconnectSoundEnabled") !== "false",
+  setDisconnectSoundEnabled: () => {},
+  connectSoundVolume: Number(localStorage.getItem("connectSoundVolume")) || 10,
+  setConnectSoundVolume: () => {},
+  disconnectSoundVolume: Number(localStorage.getItem("disconnectSoundVolume")) || 10,
+  setDisconnectSoundVolume: () => {},
+  customConnectSoundFile: localStorage.getItem("customConnectSoundFile") || null,
+  setCustomConnectSoundFile: () => {},
+  customDisconnectSoundFile: localStorage.getItem("customDisconnectSoundFile") || null,
+  setCustomDisconnectSoundFile: () => {},
 };
 
 export const useSettings = singletonHook(init, useSettingsHook);

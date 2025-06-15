@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { singletonHook } from "react-singleton-hook";
 
 import { getIsBrowserSupported } from "@/audio";
@@ -6,10 +6,11 @@ import { useSettings } from "@/settings";
 
 import { MicrophoneBufferType, MicrophoneInterface } from "../types/Microphone";
 import { useHandles } from "./useHandles";
+import { useNoiseSuppression } from "./useNoiseSuppression";
 
 function useCreateMicrophoneHook() {
   const { handles, addHandle, removeHandle, isLoaded } = useHandles(); // Custom hook for managing handles
-  const { loopbackEnabled } = useSettings(); // Settings for audio loopback (live feedback)
+  const { loopbackEnabled, noiseSuppressionEnabled } = useSettings(); // Settings for audio loopback and noise suppression
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
     undefined
   );
@@ -18,6 +19,9 @@ function useCreateMicrophoneHook() {
   const [devices, setDevices] = useState<InputDeviceInfo[]>([]); // Stores available input devices
   const [micStream, setStream] = useState<MediaStream | undefined>(undefined); // Stores microphone stream
   const { micID, micVolume } = useSettings(); // Fetch microphone ID and volume settings
+  
+  // Initialize noise suppression
+  const noiseSuppression = useNoiseSuppression();
 
   // Manage audio context based on handle count
   useEffect(() => {
@@ -50,37 +54,54 @@ function useCreateMicrophoneHook() {
         inputDestination.stream
       );
 
-      input.connect(analyser); // Connects gain to analyser
-      analyser.connect(inputDestination); // Pass-through to destination
+      // Create audio processing chain with optional noise suppression
+      if (noiseSuppressionEnabled) {
+        // Chain: input → noise suppression → analyser → destination
+        noiseSuppression.processAudio(input, audioContext)
+          .then((processedNode) => {
+            processedNode.connect(analyser);
+            analyser.connect(inputDestination);
+          })
+          .catch((error) => {
+            console.error("Failed to setup noise suppression, using direct connection:", error);
+            // Fallback to direct connection
+            input.connect(analyser);
+            analyser.connect(inputDestination);
+          });
+      } else {
+        // Direct chain: input → analyser → destination
+        input.connect(analyser);
+        analyser.connect(inputDestination);
+      }
 
       return { input, output: streamSource, analyser };
     }
 
     return {};
-  }, [audioContext]);
+  }, [audioContext, noiseSuppressionEnabled, noiseSuppression]);
 
-  // Retrieve available audio input devices
-  useEffect(() => {
-    // console.log("useEffect: Checking browser support and fetching devices");
+  // Retrieve available audio input devices (only when needed)
+  const getDevices = useCallback(async () => {
+    if (!isBrowserSupported) return;
 
-    if (isBrowserSupported) {
-      navigator.mediaDevices
-        .getUserMedia({
-          audio: {
-            autoGainControl: false,
-            echoCancellation: false,
-            noiseSuppression: false,
-          },
-        })
-        .then(() => {
-          navigator.mediaDevices.enumerateDevices().then((devices) => {
-            const audioDevices = devices.filter((d) => d.kind === "audioinput");
-            setDevices(audioDevices as InputDeviceInfo[]);
-            // console.log("Audio input devices fetched: ", audioDevices);
-          });
-        });
+    try {
+      // Request permission to enumerate devices
+      await navigator.mediaDevices.getUserMedia({
+        audio: {
+          autoGainControl: false,
+          echoCancellation: false,
+          noiseSuppression: false,
+        },
+      });
+
+      const allDevices = await navigator.mediaDevices.enumerateDevices();
+      const audioDevices = allDevices.filter((d) => d.kind === "audioinput");
+      setDevices(audioDevices as InputDeviceInfo[]);
+      console.log("Audio input devices fetched: ", audioDevices);
+    } catch (error) {
+      console.error("Error getting audio devices:", error);
     }
-  }, [isBrowserSupported]);
+  }, [isBrowserSupported]); // Only depend on isBrowserSupported which is stable
 
   // Update microphone stream when mic ID or handles change
   useEffect(() => {
@@ -137,7 +158,7 @@ function useCreateMicrophoneHook() {
         console.log("No handles, stopping microphone stream.");
       }
     }
-  }, [micID, audioContext, handles]);
+  }, [micID, audioContext, handles, microphoneBuffer.input, micStream]);
 
   // Adjust input gain based on volume setting
   useEffect(() => {
@@ -171,6 +192,7 @@ function useCreateMicrophoneHook() {
     devices,
     audioContext,
     isLoaded,
+    getDevices, // Expose device fetching function
   };
 }
 
@@ -187,25 +209,45 @@ const init: MicrophoneInterface = {
   addHandle: () => {},
   removeHandle: () => {},
   isLoaded: false,
+  getDevices: async () => {},
 };
 
 // Singleton hook instance for microphone access
 const singletonMicrophone = singletonHook(init, useCreateMicrophoneHook);
 
 // Hook for managing microphone access and ensuring it follows component lifecycle
-export const useMicrophone = () => {
+export const useMicrophone = (shouldAccess: boolean = false) => {
   const mic = singletonMicrophone();
+  const handleIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const id = self.crypto.randomUUID();
-    // console.log("useMicrophone: Adding handle with ID:", id);
-    mic.addHandle(id);
+    if (!shouldAccess) {
+      // If we shouldn't access but have a handle, remove it
+      if (handleIdRef.current) {
+        console.log("useMicrophone: Removing handle with ID:", handleIdRef.current);
+        mic.removeHandle(handleIdRef.current);
+        handleIdRef.current = null;
+      }
+      return;
+    }
+
+    // If we should access but don't have a handle, add one
+    if (!handleIdRef.current) {
+      const id = self.crypto.randomUUID();
+      handleIdRef.current = id;
+      console.log("useMicrophone: Adding handle with ID:", id);
+      mic.addHandle(id);
+    }
 
     return () => {
-      // console.log("useMicrophone: Removing handle with ID:", id);
-      mic.removeHandle(id); // Cleanup on component unmount
+      // Cleanup on component unmount
+      if (handleIdRef.current) {
+        console.log("useMicrophone: Removing handle with ID:", handleIdRef.current);
+        mic.removeHandle(handleIdRef.current);
+        handleIdRef.current = null;
+      }
     };
-  }, [mic.isLoaded]);
+  }, [shouldAccess]); // Only depend on shouldAccess
 
   return mic;
 };
