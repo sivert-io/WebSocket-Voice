@@ -12,4 +12,5 @@ export interface MicrophoneInterface {
   devices: InputDeviceInfo[];
   audioContext?: AudioContext;
   isLoaded: boolean;
+  getDevices: () => Promise<void>;
 }

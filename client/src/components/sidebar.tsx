@@ -11,11 +11,13 @@ import {
   IconButton,
   Tooltip,
 } from "@radix-ui/themes";
-import { MdAdd } from "react-icons/md";
+import { MdAdd, MdMic } from "react-icons/md";
+import { FiSettings } from "react-icons/fi";
 
 import { useAccount } from "@/common";
 import { useSettings } from "@/settings";
 import { MiniControls } from "@/webRTC/src/components/miniControls";
+import { useSFU } from "@/webRTC";
 
 export function Sidebar() {
   const { logout } = useAccount();
@@ -27,7 +29,10 @@ export function Sidebar() {
     setShowRemoveServer,
     setCurrentlyViewingServer,
     currentlyViewingServer,
+    setShowSettings,
   } = useSettings();
+
+  const { currentServerConnected, isConnected } = useSFU();
 
   return (
     <Flex
@@ -43,23 +48,47 @@ export function Sidebar() {
             <ContextMenu.Root>
               <ContextMenu.Trigger>
                 <HoverCard.Trigger>
-                  <Avatar
-                    size="2"
-                    color="gray"
-                    asChild
-                    fallback={servers[host].name[0]}
-                    style={{
-                      opacity: currentlyViewingServer?.host === host ? 1 : 0.5,
-                    }}
-                    src={`https://${host}/icon`}
-                  >
-                    <Button
+                  <Box position="relative">
+                    <Avatar
+                      size="2"
+                      color="gray"
+                      asChild
+                      fallback={servers[host].name[0]}
                       style={{
-                        padding: "0",
+                        opacity: currentlyViewingServer?.host === host ? 1 : 0.5,
                       }}
-                      onClick={() => setCurrentlyViewingServer(host)}
-                    ></Button>
-                  </Avatar>
+                      src={`https://${host}/icon`}
+                    >
+                      <Button
+                        style={{
+                          padding: "0",
+                        }}
+                        onClick={() => setCurrentlyViewingServer(host)}
+                      ></Button>
+                    </Avatar>
+                    
+                    {/* Connection badge */}
+                    {isConnected && currentServerConnected === host && (
+                      <Box
+                        position="absolute"
+                        top="-2px"
+                        right="-2px"
+                        style={{
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "50%",
+                          backgroundColor: "var(--accent-9)",
+                          border: "2px solid var(--color-background)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          zIndex: 1,
+                        }}
+                      >
+                        <MdMic size={8} color="white" />
+                      </Box>
+                    )}
+                  </Box>
                 </HoverCard.Trigger>
               </ContextMenu.Trigger>
               <ContextMenu.Content>
@@ -91,7 +120,14 @@ export function Sidebar() {
               align="center"
             >
               <Box>
-                <Heading size="1">{servers[host].name}</Heading>
+                <Heading size="1">
+                  {servers[host].name}
+                  {isConnected && currentServerConnected === host && (
+                    <span style={{ color: "var(--accent-9)", marginLeft: "8px" }}>
+                      • Connected to voice
+                    </span>
+                  )}
+                </Heading>
               </Box>
             </HoverCard.Content>
           </HoverCard.Root>
@@ -121,6 +157,13 @@ export function Sidebar() {
               <Flex gap="1" align="center">
                 <Pencil2Icon />
                 {nickname}
+              </Flex>
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item onClick={() => setShowSettings(true)}>
+              <Flex gap="1" align="center">
+                <FiSettings size={14} />
+                Settings
               </Flex>
             </DropdownMenu.Item>
             <DropdownMenu.Separator />

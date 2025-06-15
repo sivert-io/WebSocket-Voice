@@ -114,6 +114,8 @@ export function MiniControls({
                       height: "32px",
                       width: "32px",
                       padding: "0",
+                      position: "relative",
+                      overflow: "hidden",
                     }}
                     color="gray"
                     onClick={() => {
@@ -121,6 +123,19 @@ export function MiniControls({
                       setShowVoiceView(true);
                     }}
                   >
+                    <img
+                      style={{
+                        position: "absolute",
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "100%",
+                        opacity: 0.25,
+                        objectFit: "cover",
+                        objectPosition: "center",
+                      }}
+                      src={`https://${currentServerConnected}/icon`}
+                    />
+
                     <MdArrowForward size={12} />
                   </Button>
                 </HoverCard.Trigger>

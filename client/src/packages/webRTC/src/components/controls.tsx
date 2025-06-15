@@ -1,7 +1,6 @@
 import { Flex, IconButton } from "@radix-ui/themes";
 import { useState } from "react";
 import { BsVolumeOffFill, BsVolumeUpFill } from "react-icons/bs";
-import { FiSettings } from "react-icons/fi";
 import { ImPhoneHangUp } from "react-icons/im";
 import { MdMic, MdMicOff } from "react-icons/md";
 
@@ -13,7 +12,7 @@ export function Controls() {
   const [isBrowserSupported] = useState(getIsBrowserSupported());
   const { disconnect } = useSFU();
 
-  const { setIsMuted, isMuted, setShowSettings, isDeafened, setIsDeafened } =
+  const { setIsMuted, isMuted, isDeafened, setIsDeafened } =
     useSettings();
 
   function handleMute() {
@@ -50,10 +49,6 @@ export function Controls() {
 
           <IconButton variant="soft" color="red" onClick={disconnect}>
             <ImPhoneHangUp />
-          </IconButton>
-
-          <IconButton variant="soft" onClick={() => setShowSettings(true)}>
-            <FiSettings size={16} />
           </IconButton>
         </Flex>
       )}

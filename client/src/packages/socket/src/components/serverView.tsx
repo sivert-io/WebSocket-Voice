@@ -15,11 +15,11 @@ import { useEffect, useMemo, useState } from "react";
 import { isSpeaking, useMicrophone } from "@/audio";
 import { useIsMobile } from "@/mobile";
 import { useSettings } from "@/settings";
+import { Channel } from "@/settings/src/types/server";
 import { Controls, useSFU } from "@/webRTC";
 
 import { useSockets } from "../hooks/useSockets";
 import { ConnectedUser } from "./connectedUser";
-import { Channel } from "@/settings/src/types/server";
 
 export const ServerView = () => {
   const [clientsSpeaking, setClientsSpeaking] = useState<{
@@ -44,7 +44,7 @@ export const ServerView = () => {
     isConnected,
   } = useSFU();
 
-  const { microphoneBuffer } = useMicrophone();
+  const { microphoneBuffer } = useMicrophone(isConnected);
 
   const { sockets, serverDetailsList, clients } = useSockets();
 
@@ -227,6 +227,10 @@ export const ServerView = () => {
                                     clients[currentlyViewingServer.host][id]
                                       .nickname
                                   }
+                                  isConnectedToVoice={
+                                    clients[currentlyViewingServer.host][id]
+                                      .isConnectedToVoice ?? true
+                                  }
                                   key={id}
                                 />
                               )
@@ -292,6 +296,8 @@ export const ServerView = () => {
                             style={{
                               background: "var(--color-panel-translucent)",
                               borderRadius: "12px",
+                              opacity: clients[currentlyViewingServer.host][id].isConnectedToVoice ?? true ? 1 : 0.5,
+                              transition: "opacity 0.3s ease",
                             }}
                           >
                             <Flex

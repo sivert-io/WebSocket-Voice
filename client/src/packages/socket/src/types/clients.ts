@@ -4,6 +4,7 @@ export type Client = {
   color: string;
   streamID: string;
   hasJoinedChannel: boolean;
+  isConnectedToVoice?: boolean;
 };
 
 export type Clients = { [id: string]: Client };

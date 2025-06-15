@@ -5,5 +5,6 @@ export interface Clients {
     isMuted: boolean;
     streamID: string;
     hasJoinedChannel: boolean;
+    isConnectedToVoice?: boolean;
   };
 }
