@@ -25,6 +25,7 @@ function useSocketsHook() {
     addServer, 
     nickname,
     isMuted,
+    isDeafened,
     connectSoundEnabled,
     disconnectSoundEnabled,
     connectSoundVolume,
@@ -75,6 +76,15 @@ function useSocketsHook() {
       sockets[host]?.emit("updateMute", isMuted);
     });
   }, [isMuted, servers, sockets]);
+
+  // Update deafen state on all servers
+  useEffect(() => {
+    Object.keys(servers).forEach((host) => {
+      console.log("Sending deafen state:", isDeafened);
+
+      sockets[host]?.emit("updateDeafen", isDeafened);
+    });
+  }, [isDeafened, servers, sockets]);
 
   // Add new or update servers to the list
   useEffect(() => {

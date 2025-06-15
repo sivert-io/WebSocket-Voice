@@ -1,0 +1,74 @@
+# 🚀 Gryt Quick Start
+
+Get Gryt voice chat running in seconds with these one-liners!
+
+## 🐳 Docker (Easiest)
+
+### Development Setup
+```bash
+git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && docker-compose up -d
+```
+**That's it!** Open http://localhost:5173
+
+### Production Setup
+```bash
+git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && docker-compose -f docker-compose.prod.yml up -d
+```
+**That's it!** Open http://localhost
+
+## ☸️ Kubernetes with Helm
+
+### Quick Deploy
+```bash
+git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && helm install gryt ./helm/gryt
+```
+
+### Production Deploy
+```bash
+git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && helm install gryt ./helm/gryt -f helm/gryt/examples/production-values.yaml --set gryt.domain=yourdomain.com --set server.secrets.serverToken=your-secure-token
+```
+
+## 🎯 What You Get
+
+- **Voice Chat**: Crystal clear WebRTC audio
+- **Multiple Servers**: Connect to different communities  
+- **Real-time**: Instant voice activity indicators
+- **Modern UI**: Beautiful, responsive interface
+- **Production Ready**: Health checks, scaling, monitoring
+
+## 🔧 Configuration (Optional)
+
+All services work out-of-the-box, but you can customize:
+
+### Environment Files
+- `server/.env` - Server configuration
+- `sfu-v2/.env` - SFU configuration  
+- `client/.env` - Client configuration
+
+### Key Settings
+```env
+# Server
+SERVER_NAME="My Gryt Server"
+SERVER_TOKEN="your-secure-token"
+
+# SFU  
+STUN_SERVERS="stun:stun.l.google.com:19302"
+
+# Client
+VITE_WS_HOST="ws://localhost:5000"
+```
+
+## 🆘 Troubleshooting
+
+**Can't connect?** Check if ports are available:
+```bash
+docker-compose logs
+```
+
+**Audio not working?** Ensure HTTPS in production (WebRTC requirement)
+
+**Need help?** Check the full [DEPLOYMENT.md](DEPLOYMENT.md) guide
+
+---
+
+**🎉 Happy voice chatting!** 

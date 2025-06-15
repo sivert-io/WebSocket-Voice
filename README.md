@@ -13,6 +13,22 @@ Welcome to **Gryt**, a cutting-edge WebRTC-based voice chat platform featuring r
 
 </div>
 
+## 🚀 **[Quick Start - Get Running in 30 Seconds!](QUICK-START.md)**
+
+**Want to try Gryt right now?** Check out our **[QUICK-START.md](QUICK-START.md)** guide for true one-liner setup:
+
+```bash
+# Docker (easiest)
+git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && docker-compose up -d
+
+# Kubernetes  
+git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && helm install gryt ./helm/gryt
+```
+
+**That's it!** 🎉
+
+---
+
 ## ✨ Features
 
 ### 🎙️ **Advanced Voice Communication**

@@ -3,6 +3,7 @@ export interface Clients {
     nickname: string;
     color: string;
     isMuted: boolean;
+    isDeafened: boolean;
     streamID: string;
     hasJoinedChannel: boolean;
     isConnectedToVoice?: boolean;
