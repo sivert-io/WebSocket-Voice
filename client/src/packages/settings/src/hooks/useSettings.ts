@@ -64,6 +64,9 @@ interface Settings {
 
   showVoiceView: boolean;
   setShowVoiceView: (value: boolean) => void;
+
+  settingsTab: string;
+  setSettingsTab: (value: string) => void;
 }
 
 function updateStorage(key: string, value: string, state: (d: any) => void) {
@@ -82,6 +85,7 @@ function updateStorageJson(
 
 function useSettingsHook() {
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("microphone");
   const [showNickname, setShowNickname] = useState(false);
   const [showAddServer, setShowAddServer] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(true);
@@ -112,9 +116,12 @@ function useSettingsHook() {
     localStorage.getItem("customDisconnectSoundFile") || null
   );
 
-  const [micID, setMicID] = useState(
-    localStorage.getItem("micID") || undefined
-  );
+  const [micID, setMicID] = useState<string | undefined>(() => {
+    const stored = localStorage.getItem("micID");
+    console.log("Initializing micID from localStorage:", stored, "type:", typeof stored);
+    // Return undefined if null, empty string, or "undefined" string
+    return (stored && stored !== "undefined" && stored.trim() !== "") ? stored : undefined;
+  });
   const [nickname, setNickname] = useState(
     localStorage.getItem("nickname") || "Unknown"
   );
@@ -139,7 +146,17 @@ function useSettingsHook() {
   const [showVoiceView, setShowVoiceView] = useState(true);
 
   function updateMicID(newID: string) {
+    console.log("updateMicID called with:", newID, "type:", typeof newID, "length:", newID?.length);
+    
+    // Validate the newID is not empty or whitespace
+    if (!newID || newID.trim() === "") {
+      console.warn("updateMicID: Invalid micID provided:", newID);
+      return;
+    }
+    
     updateStorage("micID", newID, setMicID);
+    console.log("updateMicID completed, localStorage value:", localStorage.getItem("micID"));
+    console.log("updateMicID completed, state should be:", newID);
   }
 
   function updateNickname(newName: string) {
@@ -267,6 +284,8 @@ function useSettingsHook() {
     setIsDeafened,
     showSettings,
     setShowSettings,
+    settingsTab,
+    setSettingsTab,
     showNickname,
     setShowNickname,
     servers,
@@ -301,11 +320,14 @@ function useSettingsHook() {
 }
 
 const init: Settings = {
-  micID: localStorage.getItem("micID") || undefined,
+  micID: (() => {
+    const stored = localStorage.getItem("micID");
+    return (stored && stored !== "undefined" && stored.trim() !== "") ? stored : undefined;
+  })(),
   setMicID: () => {},
   micVolume: Number(localStorage.getItem("micVolume")) || 50,
   setMicVolume: () => {},
-  noiseGate: Number(localStorage.getItem("noiseGate") || 10),
+  noiseGate: Number(localStorage.getItem("noiseGate")) || 10,
   setNoiseGate: () => {},
   loopbackEnabled: false,
   setLoopbackEnabled: () => {},
@@ -355,6 +377,9 @@ const init: Settings = {
   setCustomConnectSoundFile: () => {},
   customDisconnectSoundFile: localStorage.getItem("customDisconnectSoundFile") || null,
   setCustomDisconnectSoundFile: () => {},
+
+  settingsTab: "microphone",
+  setSettingsTab: () => {},
 };
 
 export const useSettings = singletonHook(init, useSettingsHook);

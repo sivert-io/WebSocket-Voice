@@ -1,7 +1,15 @@
 export type MicrophoneBufferType = {
   input?: GainNode;
   output?: MediaStreamAudioSourceNode;
-  analyser?: AnalyserNode;
+  rawOutput?: GainNode; // Raw audio output for monitoring (before noise gate)
+  analyser?: AnalyserNode; // Raw audio analyser (for noise gate threshold detection)
+  finalAnalyser?: AnalyserNode; // Final processed audio analyser (for UI and loopback)
+  mediaStream?: MediaStream; // Raw microphone stream
+  processedStream?: MediaStream; // Processed stream (after noise suppression, mute, etc.)
+  muteGain?: GainNode; // Dedicated gain node for muting
+  volumeGain?: GainNode; // Dedicated gain node for volume control
+  noiseGate?: GainNode; // Dedicated gain node for noise gate functionality
+  noiseSuppressionNode?: AudioWorkletNode; // RNNoise processor node
 };
 
 export interface MicrophoneInterface {
@@ -13,4 +21,9 @@ export interface MicrophoneInterface {
   audioContext?: AudioContext;
   isLoaded: boolean;
   getDevices: () => Promise<void>;
+  // New mute functionality
+  isMuted: boolean;
+  setMuted: (muted: boolean) => void;
+  // Visualizer support
+  getVisualizerData: () => Uint8Array | null;
 }

@@ -27,11 +27,21 @@ export function useHandles(): HandlesHook {
       id,
     };
 
-    setHandles((old) => [...old, handle]);
+    console.log("useHandles: Adding handle", id, "current handles:", handles.length);
+    setHandles((old) => {
+      const newHandles = [...old, handle];
+      console.log("useHandles: New handles array length:", newHandles.length);
+      return newHandles;
+    });
   }
 
   function removeHandle(id: string) {
-    setHandles((old) => old.filter((handle) => handle.id !== id));
+    console.log("useHandles: Removing handle", id, "current handles:", handles.length);
+    setHandles((old) => {
+      const newHandles = old.filter((handle) => handle.id !== id);
+      console.log("useHandles: New handles array length:", newHandles.length);
+      return newHandles;
+    });
   }
 
   return {
