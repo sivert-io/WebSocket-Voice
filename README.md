@@ -110,7 +110,7 @@ Gryt consists of three main components working together, with authentication pro
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/gryt.git
+   git clone https://github.com/sivert-io/WebSocket-Voice.git
    cd gryt
    ```
 
@@ -310,6 +310,6 @@ This project is licensed under the [MIT License](LICENSE) - see the LICENSE file
 
 **Built with ❤️ for the future of voice communication**
 
-[Report Bug](https://github.com/your-org/gryt/issues) • [Request Feature](https://github.com/your-org/gryt/issues) • [Documentation](https://docs.gryt.chat)
+[Report Bug](https://github.com/sivert-io/WebSocket-Voice/issues) • [Request Feature](https://github.com/sivert-io/WebSocket-Voice/issues) • [Documentation](https://docs.gryt.chat)
 
 </div>
