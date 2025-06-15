@@ -9,85 +9,165 @@ import { useHandles } from "./useHandles";
 import { useNoiseSuppression } from "./useNoiseSuppression";
 
 function useCreateMicrophoneHook() {
-  const { handles, addHandle, removeHandle, isLoaded } = useHandles(); // Custom hook for managing handles
-  const { loopbackEnabled, noiseSuppressionEnabled } = useSettings(); // Settings for audio loopback and noise suppression
-  const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
-    undefined
-  );
-
-  const isBrowserSupported = useMemo(() => getIsBrowserSupported(), []); // Check browser compatibility
-  const [devices, setDevices] = useState<InputDeviceInfo[]>([]); // Stores available input devices
-  const [micStream, setStream] = useState<MediaStream | undefined>(undefined); // Stores microphone stream
-  const { micID, micVolume } = useSettings(); // Fetch microphone ID and volume settings
+  const { handles, addHandle, removeHandle, isLoaded } = useHandles();
+  const { 
+    loopbackEnabled, 
+    noiseSuppressionEnabled, 
+    micID, 
+    micVolume, 
+    isMuted: globalMuted, 
+    setIsMuted: setGlobalMuted,
+    noiseGate
+  } = useSettings();
   
-  // Initialize noise suppression
+  const [audioContext, setAudioContext] = useState<AudioContext | undefined>(undefined);
+  const [devices, setDevices] = useState<InputDeviceInfo[]>([]);
+  const [micStream, setMicStream] = useState<MediaStream | undefined>(undefined);
+  const [isLocalMuted, setIsLocalMuted] = useState(false);
+  const [currentDeviceId, setCurrentDeviceId] = useState<string | undefined>(micID);
+  
+  // Store the current source node to prevent multiple connections
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  
+  // Store the loopback gain node to prevent multiple connections
+  const loopbackGainRef = useRef<GainNode | null>(null);
+  
+  const isBrowserSupported = useMemo(() => getIsBrowserSupported(), []);
   const noiseSuppression = useNoiseSuppression();
+  
+  // Combined mute state (local mute OR global mute)
+  const isMuted = useMemo(() => isLocalMuted || globalMuted, [isLocalMuted, globalMuted]);
 
-  // Manage audio context based on handle count
+  // Manage shared AudioContext lifecycle
   useEffect(() => {
-    // console.log("useEffect: handles length = ", handles.length);
-
+    console.log("🎤 AudioContext lifecycle - handles:", handles.length, "context exists:", !!audioContext);
+    
     if (handles.length > 0 && !audioContext) {
+      console.log("🎤 Creating shared AudioContext");
       const context = new AudioContext();
       setAudioContext(context);
-      // console.log("New AudioContext created.");
     } else if (handles.length === 0 && audioContext) {
-      // Close audio context when no handles are active
-      audioContext.close();
+      console.log("🎤 Closing shared AudioContext");
+      audioContext.close().catch(console.error);
       setAudioContext(undefined);
-      // console.log("AudioContext closed.");
     }
-  }, [handles, audioContext]);
+  }, [handles.length, audioContext]);
 
-  // Create and return a microphone buffer using the current audio context
+  // Enhanced microphone buffer with full audio processing chain
   const microphoneBuffer = useMemo<MicrophoneBufferType>(() => {
-    // console.log(
-    //   "useMemo: Creating microphone buffer with audioContext",
-    //   audioContext
-    // );
-
-    if (audioContext) {
-      const input = audioContext.createGain(); // Gain node for adjusting volume
-      const analyser = audioContext.createAnalyser(); // Analyser for audio data
-      const inputDestination = audioContext.createMediaStreamDestination(); // Creates an output stream
-      const streamSource = audioContext.createMediaStreamSource(
-        inputDestination.stream
-      );
-
-      // Create audio processing chain with optional noise suppression
-      if (noiseSuppressionEnabled) {
-        // Chain: input → noise suppression → analyser → destination
-        noiseSuppression.processAudio(input, audioContext)
-          .then((processedNode) => {
-            processedNode.connect(analyser);
-            analyser.connect(inputDestination);
-          })
-          .catch((error) => {
-            console.error("Failed to setup noise suppression, using direct connection:", error);
-            // Fallback to direct connection
-            input.connect(analyser);
-            analyser.connect(inputDestination);
-          });
-      } else {
-        // Direct chain: input → analyser → destination
-        input.connect(analyser);
-        analyser.connect(inputDestination);
-      }
-
-      return { input, output: streamSource, analyser };
+    if (!audioContext) {
+      console.log("🎤 No AudioContext - returning empty buffer");
+      return {};
     }
 
-    return {};
-  }, [audioContext, noiseSuppressionEnabled, noiseSuppression]);
+    console.log("🎤 Creating enhanced microphone buffer with processing chain");
+    
+    // Core audio nodes
+    const input = audioContext.createGain();
+    const volumeGain = audioContext.createGain();
+    const rawOutput = audioContext.createGain(); // For raw audio monitoring
+    const noiseGate = audioContext.createGain();
+    const muteGain = audioContext.createGain();
+    const analyser = audioContext.createAnalyser(); // Raw audio analyser for noise gate
+    const finalAnalyser = audioContext.createAnalyser(); // Final processed audio analyser
+    const outputDestination = audioContext.createMediaStreamDestination();
+    const output = audioContext.createMediaStreamSource(outputDestination.stream);
 
-  // Retrieve available audio input devices (only when needed)
+    // Configure analysers for better visualization
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.8;
+    finalAnalyser.fftSize = 256;
+    finalAnalyser.smoothingTimeConstant = 0.8;
+
+    // Set default gain values (will be updated by useEffects)
+    volumeGain.gain.value = 2.0; // Default to 100% (2.0 gain), will be updated by volume effect
+    rawOutput.gain.value = 1; // Raw monitoring output
+    noiseGate.gain.value = 1; // Default to open, will be controlled by noise gate logic
+    muteGain.gain.value = 1; // Default to 1, will be updated by mute effect
+
+    // Build the audio processing chain
+    let processingChain = input;
+    
+    // Step 1: Volume control
+    processingChain.connect(volumeGain);
+    processingChain = volumeGain;
+
+    // Step 2: Connect raw analyser and raw output for noise gate monitoring
+    processingChain.connect(analyser); // Raw audio for noise gate threshold
+    processingChain.connect(rawOutput); // Raw audio backup (not used for loopback anymore)
+
+    // Step 3: Noise suppression (if enabled and we have active handles)
+    let noiseSuppressionNode: AudioWorkletNode | undefined;
+    if (noiseSuppressionEnabled && handles.length > 0) {
+      console.log("🎤 Setting up RNNoise processing");
+      noiseSuppression.processAudio(processingChain, audioContext)
+        .then((processedNode) => {
+          console.log("✅ RNNoise connected successfully");
+          noiseSuppressionNode = processedNode as AudioWorkletNode;
+          processedNode.connect(noiseGate);
+        })
+        .catch((error) => {
+          console.warn("⚠️ RNNoise failed, using direct connection:", error);
+          processingChain.connect(noiseGate);
+        });
+    } else {
+      console.log("🎤 Using direct audio connection (no noise suppression)");
+      processingChain.connect(noiseGate);
+    }
+
+    // Step 4: Noise gate control (applied to output stream only)
+    noiseGate.connect(muteGain);
+
+    // Step 5: Mute control and final output with final analyser
+    muteGain.connect(finalAnalyser); // Final processed audio for UI and loopback
+    finalAnalyser.connect(outputDestination);
+
+    const buffer: MicrophoneBufferType = {
+      input,
+      output,
+      rawOutput,
+      analyser, // Raw audio analyser (for noise gate only)
+      finalAnalyser, // Final processed audio analyser (for UI and loopback)
+      mediaStream: micStream || new MediaStream(), // Raw microphone stream
+      processedStream: outputDestination.stream, // Processed stream for SFU
+      muteGain,
+      volumeGain,
+      noiseGate,
+      noiseSuppressionNode
+    };
+
+    console.log("🎤 Enhanced microphone buffer created:", {
+      hasInput: !!buffer.input,
+      hasOutput: !!buffer.output,
+      hasRawOutput: !!buffer.rawOutput,
+      hasAnalyser: !!buffer.analyser,
+      hasFinalAnalyser: !!buffer.finalAnalyser,
+      hasMediaStream: !!buffer.mediaStream,
+      hasProcessedStream: !!buffer.processedStream,
+      hasMuteGain: !!buffer.muteGain,
+      hasVolumeGain: !!buffer.volumeGain,
+      hasNoiseSuppression: !!buffer.noiseSuppressionNode,
+      rawStreamActive: buffer.mediaStream?.active,
+      processedStreamActive: buffer.processedStream?.active
+    });
+
+    return buffer;
+  }, [audioContext, noiseSuppressionEnabled, handles.length]);
+
+  // Device enumeration with permission handling
   const getDevices = useCallback(async () => {
-    if (!isBrowserSupported) return;
+    if (!isBrowserSupported) {
+      console.warn("🎤 Browser not supported for device enumeration");
+      return;
+    }
 
     try {
-      // Request permission to enumerate devices
+      console.log("🎤 Enumerating audio devices...");
+      
+      // Request permission first - using truly raw audio constraints
       await navigator.mediaDevices.getUserMedia({
         audio: {
+          // Disable all WebRTC audio processing
           autoGainControl: false,
           echoCancellation: false,
           noiseSuppression: false,
@@ -95,94 +175,287 @@ function useCreateMicrophoneHook() {
       });
 
       const allDevices = await navigator.mediaDevices.enumerateDevices();
-      const audioDevices = allDevices.filter((d) => d.kind === "audioinput");
-      setDevices(audioDevices as InputDeviceInfo[]);
-      console.log("Audio input devices fetched: ", audioDevices);
+      const audioDevices = allDevices.filter((d) => d.kind === "audioinput") as InputDeviceInfo[];
+      
+      console.log("🎤 Found audio devices:", audioDevices.length);
+      setDevices(audioDevices);
+
+      // Auto-select device from localStorage or first available
+      if (audioDevices.length > 0) {
+        let selectedDeviceId = currentDeviceId;
+        
+        // Check if stored device is still available
+        if (selectedDeviceId && !audioDevices.find(d => d.deviceId === selectedDeviceId)) {
+          console.log("🎤 Stored device not found, selecting first available");
+          selectedDeviceId = audioDevices[0].deviceId;
+        } else if (!selectedDeviceId) {
+          console.log("🎤 No stored device, selecting first available");
+          selectedDeviceId = audioDevices[0].deviceId;
+        }
+
+        if (selectedDeviceId !== currentDeviceId) {
+          setCurrentDeviceId(selectedDeviceId);
+        }
+      }
     } catch (error) {
-      console.error("Error getting audio devices:", error);
+      console.error("🎤 Error enumerating devices:", error);
     }
-  }, [isBrowserSupported]); // Only depend on isBrowserSupported which is stable
+  }, [isBrowserSupported, currentDeviceId]);
 
-  // Update microphone stream when mic ID or handles change
+  // Enhanced device management with localStorage integration
   useEffect(() => {
-    // console.log("useEffect: micID or handles changed. micID:", micID);
+    console.log("🎤 Device management effect:", {
+      handlesLength: handles.length,
+      currentDeviceId,
+      hasAudioContext: !!audioContext,
+      hasStream: !!micStream
+    });
 
-    async function changeDevice(id: string | undefined) {
-      if (!id) {
-        console.log("Missing capture device ID.");
+    async function initializeDevice(deviceId: string | undefined) {
+      if (!deviceId) {
+        console.log("🎤 No device ID provided");
         return;
       }
 
       try {
-        const _stream: MediaStream = await navigator.mediaDevices.getUserMedia({
+        console.log("🎤 Initializing device:", deviceId);
+        
+        const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            deviceId: id,
+            deviceId: { exact: deviceId },
+            // Disable all WebRTC audio processing for truly raw audio
             autoGainControl: false,
             echoCancellation: false,
             noiseSuppression: false,
+            // High quality raw capture settings
+            channelCount: 1,
+            sampleRate: 48000,
+            sampleSize: 16,
           },
         });
 
-        // console.log("New media stream created for device ID:", id);
+        console.log("🎤 Device stream acquired:", {
+          id: stream.id,
+          active: stream.active,
+          audioTracks: stream.getAudioTracks().length,
+          settings: stream.getAudioTracks()[0]?.getSettings()
+        });
 
-        // Stop any previous stream before applying the new one
+        // Stop previous stream
         if (micStream) {
-          micStream.getTracks().forEach((track) => track.stop());
-          // console.log("Previous stream tracks stopped.");
+          console.log("🎤 Stopping previous stream");
+          micStream.getTracks().forEach(track => track.stop());
         }
 
-        if (audioContext && microphoneBuffer.input) {
-          const mediaStream = audioContext.createMediaStreamSource(_stream);
-          const splitter = audioContext.createChannelSplitter(2); // Splits audio into separate channels
-          const merger = audioContext.createChannelMerger(1); // Merges channels back into one output
-
-          mediaStream.connect(splitter);
-          splitter.connect(merger, 0, 0); // Connect left channel to merged output
-          splitter.connect(merger, 1, 0); // Connect right channel to merged output
-
-          merger.connect(microphoneBuffer.input); // Connect merged audio to input
-          // console.log("Media stream connected to microphone buffer.");
+        setMicStream(stream);
+        
+        // Update localStorage
+        if (deviceId !== micID) {
+          console.log("🎤 Updating stored device ID");
+          localStorage.setItem("micID", deviceId);
         }
-        setStream(_stream);
+
       } catch (error) {
-        console.error("Error accessing microphone:", error);
+        console.error("🎤 Failed to initialize device:", error);
+        
+        // Try fallback to any available device
+        try {
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              // Disable all WebRTC audio processing for truly raw audio
+              autoGainControl: false,
+              echoCancellation: false,
+              noiseSuppression: false,
+              // High quality raw capture settings
+              channelCount: 1,
+              sampleRate: 48000,
+              sampleSize: 16,
+            },
+          });
+          
+          console.log("🎤 Fallback stream acquired");
+          if (micStream) {
+            micStream.getTracks().forEach(track => track.stop());
+          }
+          setMicStream(fallbackStream);
+          
+        } catch (fallbackError) {
+          console.error("🎤 Fallback device access failed:", fallbackError);
+        }
       }
     }
 
     if (handles.length > 0) {
-      changeDevice(micID);
+      initializeDevice(currentDeviceId);
     } else {
+      // Clean up when no handles
       if (micStream) {
-        micStream.getTracks().forEach((track) => track.stop()); // Stop microphone stream if no handles
-        setStream(undefined);
-        console.log("No handles, stopping microphone stream.");
+        console.log("🎤 Cleaning up stream - no active handles");
+        micStream.getTracks().forEach(track => track.stop());
+        setMicStream(undefined);
       }
     }
-  }, [micID, audioContext, handles, microphoneBuffer.input, micStream]);
+  }, [handles.length, currentDeviceId]);
 
-  // Adjust input gain based on volume setting
+  // Connect microphone stream to processing chain - with proper cleanup
   useEffect(() => {
-    if (microphoneBuffer.input) {
-      microphoneBuffer.input.gain.value = micVolume / 50;
+    // Cleanup previous connection
+    if (sourceNodeRef.current) {
+      console.log("🎤 Disconnecting previous source node");
+      try {
+        sourceNodeRef.current.disconnect();
+      } catch (error) {
+        // Ignore disconnect errors
+      }
+      sourceNodeRef.current = null;
     }
-  }, [micVolume, microphoneBuffer]);
 
-  // Toggle audio loopback based on settings
-  useEffect(() => {
-    try {
-      if (microphoneBuffer.output && audioContext) {
-        if (loopbackEnabled) {
-          microphoneBuffer.output.connect(audioContext.destination); // Connect output for playback
-          console.log("Loopback enabled, connected to audio context.");
-        } else if (audioContext.destination.numberOfOutputs > 0) {
-          microphoneBuffer.output.disconnect(audioContext.destination); // Disconnect playback output
-          console.log("Loopback disabled, disconnected from audio context.");
+    if (micStream && audioContext && microphoneBuffer.input) {
+      console.log("🎤 Connecting microphone stream to processing chain");
+      
+      try {
+        const sourceNode = audioContext.createMediaStreamSource(micStream);
+        sourceNode.connect(microphoneBuffer.input);
+        sourceNodeRef.current = sourceNode; // Store reference for cleanup
+        console.log("✅ Microphone connected to processing chain");
+      } catch (error) {
+        console.error("❌ Failed to connect microphone to processing chain:", error);
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      if (sourceNodeRef.current) {
+        console.log("🎤 Cleanup - disconnecting source node");
+        try {
+          sourceNodeRef.current.disconnect();
+        } catch (error) {
+          // Ignore disconnect errors
         }
+        sourceNodeRef.current = null;
       }
-    } catch (e) {
-      console.error("Error toggling loopback:", e);
+    };
+  }, [micStream, audioContext, microphoneBuffer.input]);
+
+  // Volume control updates
+  useEffect(() => {
+    if (microphoneBuffer.volumeGain) {
+      const gainValue = micVolume / 50; // Convert 0-100 to 0-2 range
+      microphoneBuffer.volumeGain.gain.setValueAtTime(gainValue, audioContext?.currentTime || 0);
+      console.log("🔊 Volume updated:", gainValue);
     }
-  }, [loopbackEnabled, audioContext, microphoneBuffer.output]);
+  }, [micVolume, microphoneBuffer.volumeGain, audioContext]);
+
+  // Mute control updates
+  useEffect(() => {
+    if (microphoneBuffer.muteGain) {
+      const gainValue = isMuted ? 0 : 1;
+      microphoneBuffer.muteGain.gain.setValueAtTime(gainValue, audioContext?.currentTime || 0);
+      console.log("🔇 Mute updated:", isMuted);
+    }
+  }, [isMuted, microphoneBuffer.muteGain, audioContext]);
+
+  // Noise gate control - monitors audio level and gates below threshold
+  useEffect(() => {
+    if (!microphoneBuffer.analyser || !microphoneBuffer.noiseGate || !audioContext) {
+      return;
+    }
+
+    let animationFrame: number;
+    const bufferLength = microphoneBuffer.analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const checkNoiseGate = () => {
+      microphoneBuffer.analyser!.getByteFrequencyData(dataArray);
+      
+      // Calculate RMS (Root Mean Square) for more accurate volume detection
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i] * dataArray[i];
+      }
+      const rms = Math.sqrt(sum / bufferLength);
+      const volume = (rms / 255) * 100; // Convert to 0-100 scale
+
+      // Apply noise gate
+      const shouldGate = volume < noiseGate;
+      const gateValue = shouldGate ? 0 : 1;
+      
+      microphoneBuffer.noiseGate!.gain.setValueAtTime(
+        gateValue, 
+        audioContext!.currentTime
+      );
+
+      animationFrame = requestAnimationFrame(checkNoiseGate);
+    };
+
+    checkNoiseGate();
+
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [microphoneBuffer.analyser, microphoneBuffer.noiseGate, audioContext, noiseGate]);
+
+  // Loopback (monitoring) control - uses FINAL processed audio so users hear what others hear
+  useEffect(() => {
+    if (microphoneBuffer.finalAnalyser && audioContext) {
+      try {
+        // Clean up previous loopback connection
+        if (loopbackGainRef.current) {
+          loopbackGainRef.current.disconnect();
+          loopbackGainRef.current = null;
+        }
+
+        // Create new loopback gain node
+        const loopbackGain = audioContext.createGain();
+        loopbackGain.gain.value = 1;
+        loopbackGainRef.current = loopbackGain;
+        
+        // Connect finalAnalyser to loopback gain
+        microphoneBuffer.finalAnalyser.connect(loopbackGain);
+        
+        if (loopbackEnabled) {
+          loopbackGain.connect(audioContext.destination);
+          console.log("🔊 Loopback enabled (final processed audio)");
+        } else {
+          console.log("🔇 Loopback disabled");
+        }
+      } catch (error) {
+        console.error("❌ Loopback control error:", error);
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      if (loopbackGainRef.current) {
+        try {
+          loopbackGainRef.current.disconnect();
+        } catch (error) {
+          // Ignore disconnect errors
+        }
+        loopbackGainRef.current = null;
+      }
+    };
+  }, [loopbackEnabled, microphoneBuffer.finalAnalyser, audioContext]);
+
+  // Visualizer data extraction - now returns FINAL processed audio
+  const getVisualizerData = useCallback((): Uint8Array | null => {
+    if (!microphoneBuffer.finalAnalyser) {
+      return null;
+    }
+
+    const bufferLength = microphoneBuffer.finalAnalyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    microphoneBuffer.finalAnalyser.getByteFrequencyData(dataArray);
+    return dataArray;
+  }, [microphoneBuffer.finalAnalyser]);
+
+  // Mute control functions
+  const setMuted = useCallback((muted: boolean) => {
+    console.log("🔇 Local mute changed:", muted);
+    setIsLocalMuted(muted);
+  }, []);
 
   return {
     addHandle,
@@ -192,62 +465,75 @@ function useCreateMicrophoneHook() {
     devices,
     audioContext,
     isLoaded,
-    getDevices, // Expose device fetching function
+    getDevices,
+    isMuted,
+    setMuted,
+    getVisualizerData,
   };
 }
 
-// Default initialization for the microphone hook singleton
+// Enhanced initialization with mute support
 const init: MicrophoneInterface = {
   devices: [],
   isBrowserSupported: undefined,
   microphoneBuffer: {
     input: undefined,
     output: undefined,
+    rawOutput: undefined,
     analyser: undefined,
+    finalAnalyser: undefined,
+    mediaStream: undefined,
+    processedStream: undefined,
+    muteGain: undefined,
+    volumeGain: undefined,
+    noiseGate: undefined,
+    noiseSuppressionNode: undefined,
   },
   audioContext: undefined,
   addHandle: () => {},
   removeHandle: () => {},
   isLoaded: false,
   getDevices: async () => {},
+  isMuted: false,
+  setMuted: () => {},
+  getVisualizerData: () => null,
 };
 
-// Singleton hook instance for microphone access
+// Singleton hook instance
 const singletonMicrophone = singletonHook(init, useCreateMicrophoneHook);
 
-// Hook for managing microphone access and ensuring it follows component lifecycle
+// Enhanced consumer hook with automatic handle management
 export const useMicrophone = (shouldAccess: boolean = false) => {
   const mic = singletonMicrophone();
   const handleIdRef = useRef<string | null>(null);
 
+  // console.log("🎤 useMicrophone called - shouldAccess:", shouldAccess, "handleId:", handleIdRef.current);
+
   useEffect(() => {
     if (!shouldAccess) {
-      // If we shouldn't access but have a handle, remove it
       if (handleIdRef.current) {
-        console.log("useMicrophone: Removing handle with ID:", handleIdRef.current);
+        console.log("🎤 Releasing microphone handle:", handleIdRef.current);
         mic.removeHandle(handleIdRef.current);
         handleIdRef.current = null;
       }
       return;
     }
 
-    // If we should access but don't have a handle, add one
     if (!handleIdRef.current) {
       const id = self.crypto.randomUUID();
       handleIdRef.current = id;
-      console.log("useMicrophone: Adding handle with ID:", id);
+      console.log("🎤 Acquiring microphone handle:", id);
       mic.addHandle(id);
     }
 
     return () => {
-      // Cleanup on component unmount
       if (handleIdRef.current) {
-        console.log("useMicrophone: Removing handle with ID:", handleIdRef.current);
+        console.log("🎤 Cleanup - releasing handle:", handleIdRef.current);
         mic.removeHandle(handleIdRef.current);
         handleIdRef.current = null;
       }
     };
-  }, [shouldAccess]); // Only depend on shouldAccess
+  }, [shouldAccess]);
 
   return mic;
 };

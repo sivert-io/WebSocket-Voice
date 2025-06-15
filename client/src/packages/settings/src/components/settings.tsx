@@ -8,7 +8,13 @@ import { MicrophoneSettings } from "./microphoneSettings";
 import { VoiceCallSettings } from "./voiceCallSettings";
 
 export function Settings() {
-  const { setLoopbackEnabled, setShowSettings, showSettings } = useSettings();
+  const { 
+    setLoopbackEnabled, 
+    setShowSettings, 
+    showSettings, 
+    settingsTab, 
+    setSettingsTab 
+  } = useSettings();
 
   function handleDialogChange(isOpen: boolean) {
     setShowSettings(isOpen);
@@ -36,7 +42,7 @@ export function Settings() {
           </Dialog.Title>
 
           {showSettings && (
-            <Tabs.Root defaultValue="microphone" orientation="vertical" style={{ flex: 1 }}>
+            <Tabs.Root value={settingsTab} onValueChange={setSettingsTab} orientation="vertical" style={{ flex: 1 }}>
               <Flex gap="4" height="100%">
                 {/* Vertical Tab List */}
                 <Box style={{ minWidth: "200px" }}>

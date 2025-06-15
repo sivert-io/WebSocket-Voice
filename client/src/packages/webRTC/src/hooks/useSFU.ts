@@ -99,15 +99,37 @@ function useSfuHook(): SFUInterface {
            !!peerConnectionRef.current;
   }, [connectionState.state]);
 
-  // Only access microphone when connecting or connected
+  // Only access microphone when SFU specifically needs it AND no other component is using it
   const shouldAccessMicrophone = useMemo(() => {
-    return connectionState.state === ConnectionState.CONNECTING || 
-           connectionState.state === ConnectionState.CONNECTED ||
-           connectionState.state === ConnectionState.REQUESTING_ACCESS;
+    // If we're connecting/connected, we definitely need microphone access
+    const sfuNeedsMicrophone = connectionState.state === ConnectionState.CONNECTING || 
+                               connectionState.state === ConnectionState.CONNECTED ||
+                               connectionState.state === ConnectionState.REQUESTING_ACCESS;
+    
+    console.log("🔊 useSFU shouldAccessMicrophone calculation:", {
+      connectionState: connectionState.state,
+      sfuNeedsMicrophone
+    });
+    
+    return sfuNeedsMicrophone;
   }, [connectionState.state]);
 
   const { microphoneBuffer } = useMicrophone(shouldAccessMicrophone);
   const { mediaDestination, audioContext } = useSpeakers();
+
+  console.log("🔊 useSFU render - shouldAccessMicrophone:", shouldAccessMicrophone, "microphoneBuffer state:", {
+    exists: !!microphoneBuffer,
+    rawMediaStream: !!microphoneBuffer.mediaStream,
+    processedStream: !!microphoneBuffer.processedStream,
+    input: !!microphoneBuffer.input,
+    output: !!microphoneBuffer.output,
+    analyser: !!microphoneBuffer.analyser,
+    muteGain: !!microphoneBuffer.muteGain,
+    volumeGain: !!microphoneBuffer.volumeGain,
+    rawStreamActive: microphoneBuffer.mediaStream?.active,
+    processedStreamActive: microphoneBuffer.processedStream?.active,
+    audioTracks: microphoneBuffer.processedStream?.getAudioTracks().length || 0
+  });
 
   // Enhanced cleanup function
   const performCleanup = useCallback(async (skipServerUpdate = false) => {
@@ -859,9 +881,71 @@ function useSfuHook(): SFUInterface {
         throw new Error("SFU configuration not available");
       }
 
-      if (!microphoneBuffer.output) {
+      // Enhanced microphone availability check
+      console.log("🔍 SFU Connect - Starting microphone availability check");
+      console.log("🔍 microphoneBuffer:", {
+        exists: !!microphoneBuffer,
+        rawMediaStream: !!microphoneBuffer.mediaStream,
+        processedStream: !!microphoneBuffer.processedStream,
+        input: !!microphoneBuffer.input,
+        output: !!microphoneBuffer.output,
+        analyser: !!microphoneBuffer.analyser
+      });
+
+      // Use processed stream for SFU (includes mute and noise suppression)
+      const streamToUse = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
+      
+      if (!streamToUse) {
+        console.error("❌ No microphone stream available (neither processed nor raw)");
+        
+        // Check if we're in a contradictory state: we should have microphone access but don't
+        if (shouldAccessMicrophone) {
+          console.log("🔄 Contradiction detected: shouldAccessMicrophone=true but no stream");
+          console.log("🔄 Attempting to force microphone initialization...");
+          
+          // Force re-render of microphone hook to trigger initialization
+          // This is a workaround for timing/singleton issues
+          throw new Error("Microphone initializing - please wait a moment and try again");
+        }
+        
         throw new Error("Microphone not available");
       }
+
+      console.log("🔍 Stream details:", {
+        usingProcessedStream: !!microphoneBuffer.processedStream,
+        id: streamToUse.id,
+        active: streamToUse.active,
+        audioTracks: streamToUse.getAudioTracks().length,
+        videoTracks: streamToUse.getVideoTracks().length,
+        allTracks: streamToUse.getTracks().length
+      });
+
+      // Check if the stream has active audio tracks
+      const audioTracks = streamToUse.getAudioTracks();
+      console.log("🔍 Audio tracks analysis:");
+      audioTracks.forEach((track, index) => {
+        console.log(`  Track ${index}:`, {
+          id: track.id,
+          kind: track.kind,
+          label: track.label,
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+          constraints: track.getConstraints(),
+          settings: track.getSettings()
+        });
+      });
+
+      if (audioTracks.length === 0 || !audioTracks.some(track => track.readyState === 'live')) {
+        console.error("❌ Stream has no active audio tracks");
+        console.error("❌ Audio tracks count:", audioTracks.length);
+        console.error("❌ Live tracks:", audioTracks.filter(track => track.readyState === 'live').length);
+        console.log("❌ Stream has no active audio tracks, waiting for microphone initialization...");
+        throw new Error("Microphone not ready - please wait a moment and try again");
+      }
+
+      console.log("✅ Microphone ready with", audioTracks.length, "active audio track(s)");
+      console.log("✅ Using", microphoneBuffer.processedStream ? "processed" : "raw", "stream for SFU");
 
       // If already connected to the same room and server, just return success
       if (
@@ -916,14 +1000,14 @@ function useSfuHook(): SFUInterface {
         }
       }, 30000);
 
-      // Step 3: Add local tracks
-      const localStream = microphoneBuffer.output.mediaStream;
+      // Step 3: Add local tracks (using processed stream with mute/noise suppression)
+      const localStream = streamToUse;
       const tracks: RTCRtpSender[] = [];
       
       localStream.getTracks().forEach((track) => {
         const sender = peerConnection.addTrack(track, localStream);
         tracks.push(sender);
-        console.log("🎤 Added local track:", track.kind, track.id);
+        console.log("🎤 Added local track to SFU:", track.kind, track.id, "from", microphoneBuffer.processedStream ? "processed" : "raw", "stream");
       });
       
       registeredTracksRef.current = tracks;
@@ -1007,7 +1091,7 @@ function useSfuHook(): SFUInterface {
     currentlyViewingServer,
     sfuHost,
     stunHosts,
-    microphoneBuffer.output,
+    microphoneBuffer.mediaStream,
     connectionState,
     isConnected,
     sockets,
