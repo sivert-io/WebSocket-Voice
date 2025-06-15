@@ -8,13 +8,12 @@ interface Settings {
   setMicID: (id: string) => void;
   micVolume: number;
   setMicVolume: (num: number) => void;
+  outputVolume: number;
+  setOutputVolume: (num: number) => void;
   noiseGate: number;
   setNoiseGate: (num: number) => void;
   setLoopbackEnabled: (value: boolean) => void;
   loopbackEnabled: boolean;
-
-  noiseSuppressionEnabled: boolean;
-  setNoiseSuppressionEnabled: (value: boolean) => void;
 
   // Voice call settings
   connectSoundEnabled: boolean;
@@ -92,9 +91,6 @@ function useSettingsHook() {
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
-  const [noiseSuppressionEnabled, setNoiseSuppressionEnabled] = useState(
-    localStorage.getItem("noiseSuppressionEnabled") !== "false" // Default to true
-  );
 
   // Voice call settings
   const [connectSoundEnabled, setConnectSoundEnabled] = useState(
@@ -125,8 +121,20 @@ function useSettingsHook() {
   const [nickname, setNickname] = useState(
     localStorage.getItem("nickname") || "Unknown"
   );
-  const [micVolume, setMicVolume] = useState(
-    Number(localStorage.getItem("micVolume")) || 50
+  const [micVolume, setMicVolume] = useState(() => {
+    const stored = localStorage.getItem("micVolume");
+    const value = stored ? Number(stored) : 50;
+    
+    // One-time migration: if volume is 100%, reset to 50%
+    if (value === 100) {
+      localStorage.setItem("micVolume", "50");
+      return 50;
+    }
+    
+    return value;
+  });
+  const [outputVolume, setOutputVolume] = useState(
+    Number(localStorage.getItem("outputVolume")) || 50
   );
   const [noiseGate, setNoiseGate] = useState(
     Number(localStorage.getItem("noiseGate")) || 10
@@ -168,14 +176,14 @@ function useSettingsHook() {
     localStorage.setItem("micVolume", newVol.toString());
   }
 
+  function updateOutputVolume(newVol: number) {
+    setOutputVolume(newVol);
+    localStorage.setItem("outputVolume", newVol.toString());
+  }
+
   function updateNoiseGate(newGate: number) {
     setNoiseGate(newGate);
     localStorage.setItem("noiseGate", newGate.toString());
-  }
-
-  function updateNoiseSuppressionEnabled(enabled: boolean) {
-    setNoiseSuppressionEnabled(enabled);
-    localStorage.setItem("noiseSuppressionEnabled", enabled.toString());
   }
 
   // Voice call settings update functions
@@ -274,6 +282,8 @@ function useSettingsHook() {
     setNickname: updateNickname,
     micVolume,
     setMicVolume: updateMicVolume,
+    outputVolume,
+    setOutputVolume: updateOutputVolume,
     noiseGate,
     setNoiseGate: updateNoiseGate,
     loopbackEnabled,
@@ -301,8 +311,6 @@ function useSettingsHook() {
     setShowRemoveServer,
     showVoiceView,
     setShowVoiceView,
-    noiseSuppressionEnabled,
-    setNoiseSuppressionEnabled: updateNoiseSuppressionEnabled,
     // Voice call settings
     connectSoundEnabled,
     setConnectSoundEnabled: updateConnectSoundEnabled,
@@ -327,6 +335,8 @@ const init: Settings = {
   setMicID: () => {},
   micVolume: Number(localStorage.getItem("micVolume")) || 50,
   setMicVolume: () => {},
+  outputVolume: Number(localStorage.getItem("outputVolume")) || 50,
+  setOutputVolume: () => {},
   noiseGate: Number(localStorage.getItem("noiseGate")) || 10,
   setNoiseGate: () => {},
   loopbackEnabled: false,
@@ -360,9 +370,6 @@ const init: Settings = {
 
   showVoiceView: true,
   setShowVoiceView: () => {},
-
-  noiseSuppressionEnabled: localStorage.getItem("noiseSuppressionEnabled") !== "false",
-  setNoiseSuppressionEnabled: () => {},
 
   // Voice call settings
   connectSoundEnabled: localStorage.getItem("connectSoundEnabled") !== "false",

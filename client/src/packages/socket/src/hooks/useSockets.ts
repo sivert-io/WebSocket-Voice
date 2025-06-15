@@ -24,6 +24,7 @@ function useSocketsHook() {
     servers, 
     addServer, 
     nickname,
+    isMuted,
     connectSoundEnabled,
     disconnectSoundEnabled,
     connectSoundVolume,
@@ -65,6 +66,15 @@ function useSocketsHook() {
       sockets[host]?.emit("updateNickname", nickname);
     });
   }, [nickname, servers]);
+
+  // Update mute state on all servers
+  useEffect(() => {
+    Object.keys(servers).forEach((host) => {
+      console.log("Sending mute state:", isMuted);
+
+      sockets[host]?.emit("updateMute", isMuted);
+    });
+  }, [isMuted, servers, sockets]);
 
   // Add new or update servers to the list
   useEffect(() => {

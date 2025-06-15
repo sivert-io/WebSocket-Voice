@@ -15,6 +15,15 @@ export type StreamSources = {
   };
 };
 
+// Connection states for SFU
+export enum SFUConnectionState {
+  DISCONNECTED = 'disconnected',
+  REQUESTING_ACCESS = 'requesting_access',
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  FAILED = 'failed',
+}
+
 export interface SFUInterface {
   streams: Streams;
   error: string | null;
@@ -24,4 +33,6 @@ export interface SFUInterface {
   currentServerConnected: string;
   currentChannelConnected: string;
   isConnected: boolean;
+  connectionState: SFUConnectionState;
+  isConnecting: boolean;
 }

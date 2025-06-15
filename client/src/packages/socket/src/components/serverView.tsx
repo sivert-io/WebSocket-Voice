@@ -8,6 +8,7 @@ import {
   Flex,
   Text,
   TextField,
+  Spinner,
 } from "@radix-ui/themes";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
@@ -46,13 +47,45 @@ export const ServerView = () => {
     streamSources,
     currentChannelConnected,
     isConnected,
+    isConnecting,
   } = useSFU();
 
-  // Stable microphone access - only when actually needed for speaking detection
-  // Don't tie it to micID to prevent constant adding/removing of handles
+  // Helper function to extract original channel ID from unique room ID
+  // Server creates unique room IDs like "techial_voice" from original "voice"
+  const extractChannelIdFromRoomId = (roomId: string, serverId: string): string => {
+    if (!roomId || !serverId) return "";
+    
+    // Convert server host to server name format (e.g., "techial.sivert.io" -> "techial")
+    const serverName = serverId.split('.')[0];
+    const expectedPrefix = `${serverName}_`;
+    
+    if (roomId.startsWith(expectedPrefix)) {
+      return roomId.substring(expectedPrefix.length);
+    }
+    
+    // Fallback: return the room ID as-is if it doesn't match expected format
+    return roomId;
+  };
+
+  // Get the current channel ID from the connected room
+  const currentChannelId = extractChannelIdFromRoomId(currentChannelConnected, currentServerConnected);
+
+  // Debug logging for room ID handling
+  useEffect(() => {
+    if (currentChannelConnected && currentServerConnected) {
+      console.log("🏠 Room ID mapping:", {
+        uniqueRoomId: currentChannelConnected,
+        serverId: currentServerConnected,
+        extractedChannelId: currentChannelId,
+      });
+    }
+  }, [currentChannelConnected, currentServerConnected, currentChannelId]);
+
+  // Stable microphone access - when we have a microphone selected and viewing a server
+  // This ensures microphone is ready BEFORE attempting to connect
   const shouldAccessMic = useMemo(() => {
-    return !!currentServerConnected && !!currentlyViewingServer;
-  }, [currentServerConnected, currentlyViewingServer]);
+    return !!micID && !!currentlyViewingServer;
+  }, [micID, currentlyViewingServer]);
 
   const { microphoneBuffer } = useMicrophone(shouldAccessMic);
 
@@ -70,13 +103,20 @@ export const ServerView = () => {
     );
   }, [currentServerConnected, currentlyViewingServer]);
 
-  // Auto-connect when microphone is selected and we have a pending channel
+  // Auto-connect to pending channel when microphone becomes available
   useEffect(() => {
     if (micID && pendingChannelId) {
       console.log("Microphone selected, connecting to pending channel:", pendingChannelId);
       setShowVoiceView(true);
-      connect(pendingChannelId);
-      setPendingChannelId(null);
+      connect(pendingChannelId)
+        .then(() => {
+          setPendingChannelId(null); // Clear pending state on success
+        })
+        .catch((error) => {
+          console.error("❌ Failed to connect to pending channel:", error);
+          setPendingChannelId(null); // Clear pending state on failure
+          // Don't show settings again if connection fails for other reasons
+        });
     }
   }, [micID, pendingChannelId, connect, setShowVoiceView]);
 
@@ -93,10 +133,10 @@ export const ServerView = () => {
         const client = clients[currentlyViewingServer.host][clientID];
 
         // is ourselves
-        if (clientID === currentConnection.id && microphoneBuffer.analyser) {
+        if (clientID === currentConnection.id && microphoneBuffer.finalAnalyser) {
           setClientsSpeaking((old) => ({
             ...old,
-            [clientID]: isSpeaking(microphoneBuffer.analyser!, 1),
+            [clientID]: isSpeaking(microphoneBuffer.finalAnalyser!, 1),
           }));
         }
 
@@ -117,7 +157,7 @@ export const ServerView = () => {
 
     //Clearing the interval
     return () => clearInterval(interval);
-  }, [microphoneBuffer.analyser, streamSources]);
+  }, [microphoneBuffer.finalAnalyser, streamSources]);
 
   if (!currentlyViewingServer) return null;
 
@@ -133,93 +173,37 @@ export const ServerView = () => {
           return;
         }
 
-        if (
+        // Check if we're already connected to this exact channel
+        const isAlreadyConnectedToThisChannel = 
           isConnected &&
-          channel.id === currentChannelConnected &&
-          currentlyViewingServer.host === currentServerConnected
-        )
-          setShowVoiceView(!showVoiceView);
-        else setShowVoiceView(true);
+          channel.id === currentChannelId &&
+          currentlyViewingServer.host === currentServerConnected;
 
-        console.log("Attempting to connect with micID:", micID);
-        
-        // STEP 1: Proactively ensure microphone is initialized
-        console.log("🎤 Step 1: Proactively initializing microphone...");
-        
-        // Use the appropriate microphone buffer (forced or normal)
-        const activeMicBuffer = microphoneBuffer;
-        
-        console.log("🎤 Current microphone state:", {
-          micID: !!micID,
-          normalBuffer: {
-            exists: !!microphoneBuffer,
-            mediaStream: !!microphoneBuffer.mediaStream,
-            input: !!microphoneBuffer.input,
-          },
-          activeBuffer: {
-            mediaStream: !!activeMicBuffer.mediaStream,
-            input: !!activeMicBuffer.input,
-          }
-        });
-        
-        // If microphone buffer doesn't have the necessary components, we need to wait
-        if (!activeMicBuffer.mediaStream || !activeMicBuffer.input) {
-          console.log("🎤 Microphone not fully initialized, waiting for initialization...");
-          
-          // Set up a more aggressive retry mechanism
-          let retryCount = 0;
-          const maxRetries = 50; // 10 seconds total
-          
-          const checkMicrophoneReady = () => {
-            retryCount++;
-            console.log(`🎤 Checking microphone readiness (attempt ${retryCount}/${maxRetries})...`);
-            console.log("🎤 Current state:", {
-              mediaStream: !!activeMicBuffer.mediaStream,
-              input: !!activeMicBuffer.input,
-            });
-            
-            // Check if microphone is ready
-            if (activeMicBuffer.mediaStream && activeMicBuffer.input) {
-              console.log("✅ Microphone is ready! Proceeding with SFU connection...");
-              connect(channel.id).catch(error => {
-                console.error("❌ SFU connection failed:", error);
-                if (error instanceof Error && error.message.includes("Microphone")) {
-                  setSettingsTab("microphone");
-                  setShowSettings(true);
-                }
-              });
-              return;
-            }
-            
-            // If we've reached max retries, give up and open settings
-            if (retryCount >= maxRetries) {
-              console.error("❌ Microphone initialization timed out after", maxRetries * 200, "ms");
-              console.log("Opening microphone settings for user to reconfigure");
-              setSettingsTab("microphone");
-              setShowSettings(true);
-              return;
-            }
-            
-            // Continue checking
-            console.log("⏳ Microphone not ready yet, checking again in 200ms...");
-            setTimeout(checkMicrophoneReady, 200);
-          };
-          
-          // Start checking immediately
-          setTimeout(checkMicrophoneReady, 100);
+        if (isAlreadyConnectedToThisChannel) {
+          // Just toggle the voice view, don't reconnect
+          setShowVoiceView(!showVoiceView);
           return;
         }
+
+        // Clear any pending channel since we're manually connecting
+        setPendingChannelId(null);
+
+        // We're connecting to a different channel or not connected at all
+        setShowVoiceView(true);
+        console.log("Attempting to connect with micID:", micID);
         
-        // STEP 2: Microphone is ready, proceed with SFU connection
-        console.log("✅ Microphone is ready, proceeding with SFU connection");
+        // Connect to voice channel - the SFU hook now handles microphone initialization properly
         try {
           await connect(channel.id);
         } catch (error) {
           console.error("❌ SFU connection failed:", error);
-          if (error instanceof Error && error.message.includes("Microphone")) {
+          // Only show settings if it's specifically a microphone issue
+          if (error instanceof Error && error.message.includes("Microphone not available")) {
+            setPendingChannelId(channel.id);
             setSettingsTab("microphone");
             setShowSettings(true);
           }
+          // For other errors, just log them - don't force settings open
         }
         break;
 
@@ -284,7 +268,7 @@ export const ServerView = () => {
                     >
                       <Button
                         variant={
-                          channel.id === currentChannelConnected &&
+                          channel.id === currentChannelId &&
                           currentlyViewingServer.host ===
                             currentServerConnected &&
                           showVoiceView
@@ -304,6 +288,13 @@ export const ServerView = () => {
                           <ChatBubbleIcon />
                         )}
                         {channel.name}
+                        {/* Show spinner when connecting to this specific channel */}
+                        {channel.type === "voice" && 
+                         isConnecting && 
+                         channel.id === currentChannelId &&
+                         currentlyViewingServer.host === currentServerConnected && (
+                          <Spinner size="1" style={{ marginLeft: "auto" }} />
+                        )}
                       </Button>
 
                       {channel.type === "voice" && (
@@ -339,6 +330,13 @@ export const ServerView = () => {
                                     isConnectedToVoice={
                                       clients[currentlyViewingServer.host][id]
                                         .isConnectedToVoice ?? true
+                                    }
+                                    isConnectingToVoice={
+                                      // Show connecting state if this is our connection and we're connecting
+                                      id === currentConnection?.id && 
+                                      isConnecting &&
+                                      currentlyViewingServer.host === currentServerConnected &&
+                                      channel.id === currentChannelId
                                     }
                                     key={id}
                                   />
@@ -403,10 +401,15 @@ export const ServerView = () => {
                               exit={{ opacity: 0 }}
                               key={id + index}
                               style={{
-                                background: "var(--color-panel-translucent)",
+                                background: clientsSpeaking[id] 
+                                  ? "var(--accent-3)" 
+                                  : "var(--color-panel-translucent)",
                                 borderRadius: "12px",
                                 opacity: clients[currentlyViewingServer.host][id].isConnectedToVoice ?? true ? 1 : 0.5,
-                                transition: "opacity 0.3s ease",
+                                transition: "opacity 0.3s ease, background-color 0.1s ease",
+                                border: clientsSpeaking[id] 
+                                  ? "1px solid var(--accent-6)" 
+                                  : "1px solid transparent",
                               }}
                             >
                               <Flex
@@ -417,20 +420,51 @@ export const ServerView = () => {
                                 px="8"
                                 py="4"
                               >
-                                <Avatar
-                                  fallback={
-                                    clients[currentlyViewingServer.host][id]
-                                      .nickname[0]
-                                  }
+                                <Flex align="center" justify="center" position="relative">
+                                  <Avatar
+                                    fallback={
+                                      clients[currentlyViewingServer.host][id]
+                                        .nickname[0]
+                                    }
+                                    style={{
+                                      outline: clientsSpeaking[id] ? "3px solid" : "2px solid",
+                                      outlineColor: clientsSpeaking[id]
+                                        ? "var(--accent-9)"
+                                        : "transparent",
+                                      transition: "outline-color 0.1s ease, outline-width 0.1s ease",
+                                      boxShadow: clientsSpeaking[id] 
+                                        ? "0 0 12px var(--accent-7)" 
+                                        : "none",
+                                    }}
+                                  />
+                                  {/* Show spinner overlay for connecting users */}
+                                  {id === currentConnection?.id && isConnecting && (
+                                    <Flex
+                                      position="absolute"
+                                      align="center"
+                                      justify="center"
+                                      style={{
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        background: "var(--color-panel-translucent)",
+                                        borderRadius: "50%",
+                                      }}
+                                    >
+                                      <Spinner size="2" />
+                                    </Flex>
+                                  )}
+                                </Flex>
+                                <Text
+                                  weight={clientsSpeaking[id] ? "bold" : "regular"}
                                   style={{
-                                    outline: "2px solid",
-                                    outlineColor: clientsSpeaking[id]
-                                      ? "var(--accent-9)"
-                                      : "transparent",
-                                    transition: "outline-color 0.1s ease",
+                                    color: clientsSpeaking[id] 
+                                      ? "var(--accent-11)" 
+                                      : "inherit",
+                                    transition: "color 0.1s ease",
                                   }}
-                                />
-                                <Text>
+                                >
                                   {
                                     clients[currentlyViewingServer.host][id]
                                       .nickname
