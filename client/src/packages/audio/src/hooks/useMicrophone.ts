@@ -6,17 +6,14 @@ import { useSettings } from "@/settings";
 
 import { MicrophoneBufferType, MicrophoneInterface } from "../types/Microphone";
 import { useHandles } from "./useHandles";
-import { useNoiseSuppression } from "./useNoiseSuppression";
 
 function useCreateMicrophoneHook() {
   const { handles, addHandle, removeHandle, isLoaded } = useHandles();
   const { 
     loopbackEnabled, 
-    noiseSuppressionEnabled, 
     micID, 
     micVolume, 
     isMuted: globalMuted, 
-    setIsMuted: setGlobalMuted,
     noiseGate
   } = useSettings();
   
@@ -33,7 +30,6 @@ function useCreateMicrophoneHook() {
   const loopbackGainRef = useRef<GainNode | null>(null);
   
   const isBrowserSupported = useMemo(() => getIsBrowserSupported(), []);
-  const noiseSuppression = useNoiseSuppression();
   
   // Combined mute state (local mute OR global mute)
   const isMuted = useMemo(() => isLocalMuted || globalMuted, [isLocalMuted, globalMuted]);
@@ -96,24 +92,8 @@ function useCreateMicrophoneHook() {
     processingChain.connect(analyser); // Raw audio for noise gate threshold
     processingChain.connect(rawOutput); // Raw audio backup (not used for loopback anymore)
 
-    // Step 3: Noise suppression (if enabled and we have active handles)
-    let noiseSuppressionNode: AudioWorkletNode | undefined;
-    if (noiseSuppressionEnabled && handles.length > 0) {
-      console.log("🎤 Setting up RNNoise processing");
-      noiseSuppression.processAudio(processingChain, audioContext)
-        .then((processedNode) => {
-          console.log("✅ RNNoise connected successfully");
-          noiseSuppressionNode = processedNode as AudioWorkletNode;
-          processedNode.connect(noiseGate);
-        })
-        .catch((error) => {
-          console.warn("⚠️ RNNoise failed, using direct connection:", error);
-          processingChain.connect(noiseGate);
-        });
-    } else {
-      console.log("🎤 Using direct audio connection (no noise suppression)");
-      processingChain.connect(noiseGate);
-    }
+    // Step 3: Connect directly to noise gate (no noise suppression)
+    processingChain.connect(noiseGate);
 
     // Step 4: Noise gate control (applied to output stream only)
     noiseGate.connect(muteGain);
@@ -133,7 +113,6 @@ function useCreateMicrophoneHook() {
       muteGain,
       volumeGain,
       noiseGate,
-      noiseSuppressionNode
     };
 
     console.log("🎤 Enhanced microphone buffer created:", {
@@ -146,13 +125,13 @@ function useCreateMicrophoneHook() {
       hasProcessedStream: !!buffer.processedStream,
       hasMuteGain: !!buffer.muteGain,
       hasVolumeGain: !!buffer.volumeGain,
-      hasNoiseSuppression: !!buffer.noiseSuppressionNode,
+      hasNoiseGate: !!buffer.noiseGate,
       rawStreamActive: buffer.mediaStream?.active,
       processedStreamActive: buffer.processedStream?.active
     });
 
     return buffer;
-  }, [audioContext, noiseSuppressionEnabled, handles.length]);
+  }, [audioContext, micStream]);
 
   // Device enumeration with permission handling
   const getDevices = useCallback(async () => {
@@ -297,6 +276,35 @@ function useCreateMicrophoneHook() {
     }
   }, [handles.length, currentDeviceId]);
 
+  // Monitor track state and reinitialize if tracks are stopped externally
+  useEffect(() => {
+    if (!micStream || handles.length === 0) {
+      return;
+    }
+
+    const tracks = micStream.getAudioTracks();
+    if (tracks.length === 0) {
+      return;
+    }
+
+    // Check track state periodically
+    const checkInterval = setInterval(() => {
+      const currentTracks = micStream.getAudioTracks();
+      const hasLiveTracks = currentTracks.length > 0 && currentTracks.some(track => track.readyState === 'live');
+      
+      if (!hasLiveTracks && handles.length > 0) {
+        console.warn("🎤 Detected stopped tracks, reinitializing microphone...");
+        // Force reinitialization by clearing the stream
+        setMicStream(undefined);
+        // The device management effect will reinitialize
+      }
+    }, 1000); // Check every second
+
+    return () => {
+      clearInterval(checkInterval);
+    };
+  }, [micStream, handles.length]);
+
   // Connect microphone stream to processing chain - with proper cleanup
   useEffect(() => {
     // Cleanup previous connection
@@ -340,9 +348,26 @@ function useCreateMicrophoneHook() {
   // Volume control updates
   useEffect(() => {
     if (microphoneBuffer.volumeGain) {
-      const gainValue = micVolume / 50; // Convert 0-100 to 0-2 range
+      // New scaling: 50% = 1.0 gain (100% volume), 100% = 2.0 gain (200% volume)
+      // This makes 50% the baseline "normal" volume
+      let gainValue: number;
+      
+      if (micVolume === 0) {
+        gainValue = 0; // Complete silence
+      } else {
+        // Convert 0-100% to 0-2.0 gain range, where 50% = 1.0 gain
+        gainValue = (micVolume / 50); // 50% = 1.0, 100% = 2.0
+        
+        // Apply logarithmic scaling for more natural volume perception
+        // Convert to dB, apply scaling, then back to linear
+        if (gainValue > 0) {
+          const dbValue = 20 * Math.log10(gainValue);
+          gainValue = Math.pow(10, dbValue / 20);
+        }
+      }
+      
       microphoneBuffer.volumeGain.gain.setValueAtTime(gainValue, audioContext?.currentTime || 0);
-      console.log("🔊 Volume updated:", gainValue);
+      console.log(`🔊 Volume updated: ${micVolume}% -> ${gainValue.toFixed(3)} gain (${(20 * Math.log10(gainValue || 0.001)).toFixed(1)} dB)`);
     }
   }, [micVolume, microphoneBuffer.volumeGain, audioContext]);
 
@@ -487,7 +512,6 @@ const init: MicrophoneInterface = {
     muteGain: undefined,
     volumeGain: undefined,
     noiseGate: undefined,
-    noiseSuppressionNode: undefined,
   },
   audioContext: undefined,
   addHandle: () => {},

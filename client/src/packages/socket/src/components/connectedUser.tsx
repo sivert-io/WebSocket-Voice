@@ -1,4 +1,4 @@
-import { Avatar, Flex, Text } from "@radix-ui/themes";
+import { Avatar, Flex, Text, Spinner } from "@radix-ui/themes";
 import { motion } from "motion/react";
 import { MdMicOff } from "react-icons/md";
 
@@ -7,11 +7,13 @@ export function ConnectedUser({
   isMuted,
   nickname,
   isConnectedToVoice = true, // Default to true for backward compatibility
+  isConnectingToVoice = false, // New prop for showing loading state
 }: {
   isSpeaking: boolean;
   isMuted: boolean;
   nickname: string;
   isConnectedToVoice?: boolean;
+  isConnectingToVoice?: boolean;
 }) {
   return (
     <motion.div
@@ -47,7 +49,12 @@ export function ConnectedUser({
           <Text size="2">{nickname}</Text>
         </Flex>
 
-        <div>{isMuted && <MdMicOff color="var(--red-8)" />}</div>
+        <Flex gap="1" align="center">
+          {isConnectingToVoice && (
+            <Spinner size="1" />
+          )}
+          {isMuted && <MdMicOff color="var(--red-8)" />}
+        </Flex>
       </Flex>
     </motion.div>
   );

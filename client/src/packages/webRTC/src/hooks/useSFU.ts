@@ -9,19 +9,19 @@ import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
 import { useSockets } from "@/socket";
 
-import { SFUInterface, Streams, StreamSources } from "../types/SFU";
+import { SFUInterface, Streams, StreamSources, SFUConnectionState } from "../types/SFU";
 
 // Connection states for better state management
-enum ConnectionState {
-  DISCONNECTED = 'disconnected',
-  REQUESTING_ACCESS = 'requesting_access',
-  CONNECTING = 'connecting',
-  CONNECTED = 'connected',
-  FAILED = 'failed',
-}
+// enum ConnectionState {
+//   DISCONNECTED = 'disconnected',
+//   REQUESTING_ACCESS = 'requesting_access',
+//   CONNECTING = 'connecting',
+//   CONNECTED = 'connected',
+//   FAILED = 'failed',
+// }
 
-interface SFUConnectionState {
-  state: ConnectionState;
+interface SFUConnectionStateInternal {
+  state: SFUConnectionState;
   roomId: string | null;
   serverId: string | null;
   error: string | null;
@@ -43,10 +43,11 @@ function useSfuHook(): SFUInterface {
   const previousRemoteStreamsRef = useRef<Set<string>>(new Set());
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDisconnectingRef = useRef<boolean>(false);
+  const isConnectingRef = useRef<boolean>(false);
 
   // State management
-  const [connectionState, setConnectionState] = useState<SFUConnectionState>({
-    state: ConnectionState.DISCONNECTED,
+  const [connectionState, setConnectionState] = useState<SFUConnectionStateInternal>({
+    state: SFUConnectionState.DISCONNECTED,
     roomId: null,
     serverId: null,
     error: null,
@@ -59,12 +60,14 @@ function useSfuHook(): SFUInterface {
   const { 
     currentlyViewingServer, 
     servers,
+    outputVolume,
     connectSoundEnabled,
     disconnectSoundEnabled,
     connectSoundVolume,
     disconnectSoundVolume,
     customConnectSoundFile,
     customDisconnectSoundFile,
+    isDeafened,
   } = useSettings();
   const { sockets, serverDetailsList } = useSockets();
   
@@ -94,50 +97,40 @@ function useSfuHook(): SFUInterface {
   }, [serverDetailsList, currentlyViewingServer]);
 
   const isConnected = useMemo(() => {
-    return connectionState.state === ConnectionState.CONNECTED &&
+    return connectionState.state === SFUConnectionState.CONNECTED &&
            !!sfuWebSocketRef.current &&
            !!peerConnectionRef.current;
   }, [connectionState.state]);
 
-  // Only access microphone when SFU specifically needs it AND no other component is using it
-  const shouldAccessMicrophone = useMemo(() => {
-    // If we're connecting/connected, we definitely need microphone access
-    const sfuNeedsMicrophone = connectionState.state === ConnectionState.CONNECTING || 
-                               connectionState.state === ConnectionState.CONNECTED ||
-                               connectionState.state === ConnectionState.REQUESTING_ACCESS;
-    
-    console.log("🔊 useSFU shouldAccessMicrophone calculation:", {
-      connectionState: connectionState.state,
-      sfuNeedsMicrophone
-    });
-    
-    return sfuNeedsMicrophone;
+  const isConnecting = useMemo(() => {
+    return connectionState.state === SFUConnectionState.CONNECTING ||
+           connectionState.state === SFUConnectionState.REQUESTING_ACCESS;
   }, [connectionState.state]);
 
-  const { microphoneBuffer } = useMicrophone(shouldAccessMicrophone);
+  // Access shared microphone buffer without creating our own handle
+  // ServerView manages the microphone access, we just use the shared singleton buffer
+  const { microphoneBuffer } = useMicrophone(false);
   const { mediaDestination, audioContext } = useSpeakers();
-
-  console.log("🔊 useSFU render - shouldAccessMicrophone:", shouldAccessMicrophone, "microphoneBuffer state:", {
-    exists: !!microphoneBuffer,
-    rawMediaStream: !!microphoneBuffer.mediaStream,
-    processedStream: !!microphoneBuffer.processedStream,
-    input: !!microphoneBuffer.input,
-    output: !!microphoneBuffer.output,
-    analyser: !!microphoneBuffer.analyser,
-    muteGain: !!microphoneBuffer.muteGain,
-    volumeGain: !!microphoneBuffer.volumeGain,
-    rawStreamActive: microphoneBuffer.mediaStream?.active,
-    processedStreamActive: microphoneBuffer.processedStream?.active,
-    audioTracks: microphoneBuffer.processedStream?.getAudioTracks().length || 0
-  });
 
   // Enhanced cleanup function
   const performCleanup = useCallback(async (skipServerUpdate = false) => {
-    console.log("🧹 Performing comprehensive cleanup");
+    console.log("🧹 Performing SFU cleanup");
+    
+    // Prevent multiple cleanup attempts
+    if (isDisconnectingRef.current) {
+      console.log("🧹 Cleanup already in progress, skipping");
+      return;
+    }
     
     isDisconnectingRef.current = true;
 
-    // Clear all timeouts
+    // If connecting is in progress, cancel it gracefully
+    if (isConnectingRef.current) {
+      console.log("🧹 Canceling connection in progress");
+      isConnectingRef.current = false;
+    }
+
+    // Clear all timeouts first
     if (reconnectAttemptRef.current) {
       clearTimeout(reconnectAttemptRef.current);
       reconnectAttemptRef.current = null;
@@ -151,92 +144,129 @@ function useSfuHook(): SFUInterface {
     // Clear peer tracking
     previousRemoteStreamsRef.current.clear();
 
-    // Remove tracks with proper error handling
+    // Enhanced track removal with better error handling
     const tracksToRemove = [...registeredTracksRef.current];
     registeredTracksRef.current = [];
     
     for (const sender of tracksToRemove) {
       try {
         if (peerConnectionRef.current && sender.track) {
+          // Don't stop local tracks - they're managed by the microphone hook
+          // Just remove them from the peer connection
           peerConnectionRef.current.removeTrack(sender);
-          console.log("🗑️ Removed track:", sender.track.id);
         }
       } catch (error) {
-        console.error("Error removing track:", error);
+        console.error("❌ Error removing track:", error);
       }
     }
 
-    // Close peer connection with proper state checking
+    // Enhanced peer connection cleanup
     if (peerConnectionRef.current) {
       try {
+        // Remove all event listeners to prevent memory leaks
+        peerConnectionRef.current.onicecandidate = null;
+        peerConnectionRef.current.oniceconnectionstatechange = null;
+        peerConnectionRef.current.onicegatheringstatechange = null;
+        peerConnectionRef.current.onsignalingstatechange = null;
+        peerConnectionRef.current.ontrack = null;
+        peerConnectionRef.current.onconnectionstatechange = null;
+        peerConnectionRef.current.ondatachannel = null;
+        
+        // Close peer connection if not already closed
         if (peerConnectionRef.current.connectionState !== 'closed') {
           peerConnectionRef.current.close();
         }
         peerConnectionRef.current = null;
-        console.log("🔌 Peer connection closed");
       } catch (error) {
-        console.error("Error closing peer connection:", error);
+        console.error("❌ Error closing peer connection:", error);
         peerConnectionRef.current = null;
       }
     }
 
-    // Close WebSocket with proper state checking and keep-alive cleanup
+    // Enhanced WebSocket cleanup with proper close codes and event handler removal
     if (sfuWebSocketRef.current) {
       try {
-        if (sfuWebSocketRef.current.readyState === WebSocket.OPEN || 
-            sfuWebSocketRef.current.readyState === WebSocket.CONNECTING) {
-          sfuWebSocketRef.current.close(1000, "Client disconnecting");
-        }
+        // Store reference to current WebSocket for cleanup
+        const wsToClean = sfuWebSocketRef.current;
+        
+        // Clear the reference immediately to prevent new operations
         sfuWebSocketRef.current = null;
-        console.log("🔌 SFU WebSocket closed");
+        
+        // Remove all event listeners to prevent memory leaks and unwanted callbacks
+        wsToClean.onopen = null;
+        wsToClean.onmessage = null;
+        wsToClean.onclose = null;
+        wsToClean.onerror = null;
+        
+        // Close with proper code if still open
+        if (wsToClean.readyState === WebSocket.OPEN || 
+            wsToClean.readyState === WebSocket.CONNECTING) {
+          wsToClean.close(1000, "Client disconnecting gracefully");
+        }
+        
+        console.log("🧹 WebSocket cleaned up and closed");
       } catch (error) {
-        console.error("Error closing SFU WebSocket:", error);
+        console.error("❌ Error closing SFU WebSocket:", error);
+        // Ensure reference is cleared even if cleanup fails
         sfuWebSocketRef.current = null;
       }
     }
 
-    // Update server state if not skipping
+    // Update server state with proper error handling (non-blocking)
     if (!skipServerUpdate && connectionState.serverId && sockets[connectionState.serverId]) {
       try {
         const socket = sockets[connectionState.serverId];
+        // Send disconnect signals immediately without waiting
         socket.emit("streamID", "");
         socket.emit("joinedChannel", false);
-        console.log("📤 Updated server state: disconnected");
+        socket.emit("leaveRoom"); // Explicit leave room signal
       } catch (error) {
-        console.error("Error updating server state:", error);
+        console.error("❌ Error updating server state:", error);
       }
     }
 
-    // Aggressively clean up all audio processing
+    // Enhanced audio processing cleanup
     setStreamSources(prev => {
       Object.values(prev).forEach(({ gain, analyser, stream }) => {
         try {
-          stream.disconnect();
-          analyser.disconnect();
-          gain.disconnect();
+          // Disconnect in reverse order of connection
+          if (gain) gain.disconnect();
+          if (analyser) analyser.disconnect();
+          if (stream) stream.disconnect();
         } catch (error) {
-          console.error("Error disconnecting audio nodes:", error);
+          console.error("❌ Error disconnecting audio nodes:", error);
         }
       });
       return {};
     });
 
-    // Clear only remote streams, preserve local streams for UI
+    // Clear streams with better separation
     setStreams(prev => {
       const localStreams: Streams = {};
       Object.entries(prev).forEach(([id, stream]) => {
         if (stream.isLocal) {
           localStreams[id] = stream;
+        } else {
+          // Stop remote stream tracks to free resources
+          try {
+            stream.stream.getTracks().forEach(track => {
+              if (track.readyState !== 'ended') {
+                track.stop();
+              }
+            });
+          } catch (error) {
+            console.error("❌ Error stopping remote stream tracks:", error);
+          }
         }
       });
       return localStreams;
     });
 
-    // Add a small delay to ensure cleanup completes
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Minimal delay for cleanup completion
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     isDisconnectingRef.current = false;
-    console.log("✅ Cleanup completed");
+    console.log("🧹 SFU cleanup completed");
   }, [connectionState.serverId, sockets]);
 
   // Track peer connections and play sounds when peers join/leave
@@ -265,14 +295,12 @@ function useSfuHook(): SFUInterface {
 
     // Play sounds for peer changes
     if (newPeers.length > 0) {
-      console.log("🔊 Peer(s) connected to WebRTC:", newPeers);
-      
       // Play connect sound if enabled
       if (connectSoundEnabled) {
         try {
           connectSound();
         } catch (error) {
-          console.error("Error playing peer connect sound:", error);
+          console.error("❌ Error playing peer connect sound:", error);
         }
       }
       
@@ -286,14 +314,12 @@ function useSfuHook(): SFUInterface {
     }
 
     if (disconnectedPeers.length > 0) {
-      console.log("🔇 Peer(s) disconnected from WebRTC:", disconnectedPeers);
-      
       // Play disconnect sound if enabled
       if (disconnectSoundEnabled) {
         try {
           disconnectSound();
         } catch (error) {
-          console.error("Error playing peer disconnect sound:", error);
+          console.error("❌ Error playing peer disconnect sound:", error);
         }
       }
 
@@ -326,9 +352,8 @@ function useSfuHook(): SFUInterface {
             return newSources;
           });
 
-          console.log("🧹 Stream disconnected and removed:", id);
         } catch (error) {
-          console.error("Error cleaning up stream:", id, error);
+          console.error("❌ Error cleaning up stream:", id, error);
           // Remove from state even if cleanup fails
           setStreamSources(prev => {
             const newSources = { ...prev };
@@ -364,6 +389,12 @@ function useSfuHook(): SFUInterface {
         const analyserNode = audioContext.createAnalyser();
         const gainNode = audioContext.createGain();
 
+        // Apply global output volume (same scaling as microphone: 50% = 1.0 gain)
+        // When deafened, mute all incoming audio
+        const baseOutputGain = outputVolume / 50; // 50% = 1.0, 100% = 2.0
+        const outputGain = isDeafened ? 0 : baseOutputGain;
+        gainNode.gain.value = outputGain;
+
         // Connect: source → analyser → gain → destination
         sourceNode.connect(analyserNode);
         analyserNode.connect(gainNode);
@@ -376,7 +407,6 @@ function useSfuHook(): SFUInterface {
         };
 
         hasChanges = true;
-        console.log("🎵 Audio processing setup for stream:", streamID);
       } catch (error) {
         console.error("❌ Failed to setup audio processing for stream:", streamID, error);
       }
@@ -386,7 +416,19 @@ function useSfuHook(): SFUInterface {
     if (hasChanges) {
       setStreamSources(newStreamSources);
     }
-  }, [streams, audioContext, mediaDestination]);
+  }, [streams, audioContext, mediaDestination, outputVolume, isDeafened]);
+
+  // Update output volume for all streams when setting changes
+  useEffect(() => {
+    const baseOutputGain = outputVolume / 50; // 50% = 1.0, 100% = 2.0
+    const outputGain = isDeafened ? 0 : baseOutputGain;
+    
+    Object.values(streamSources).forEach(({ gain }) => {
+      if (gain) {
+        gain.gain.setValueAtTime(outputGain, audioContext?.currentTime || 0);
+      }
+    });
+  }, [outputVolume, isDeafened, streamSources, audioContext]);
 
   // Auto-disconnect when server is removed (only if the current server is actually removed)
   useEffect(() => {
@@ -399,6 +441,70 @@ function useSfuHook(): SFUInterface {
       }
     }
   }, [servers, connectionState.serverId, isConnected, currentlyViewingServer?.host]);
+
+  // Cleanup effect for component unmount and server changes
+  useEffect(() => {
+    return () => {
+      console.log("🧹 SFU hook cleanup on unmount/change");
+      
+      // Immediate cleanup of all connections
+      if (sfuWebSocketRef.current) {
+        const ws = sfuWebSocketRef.current;
+        sfuWebSocketRef.current = null;
+        
+        try {
+          ws.onopen = null;
+          ws.onmessage = null;
+          ws.onclose = null;
+          ws.onerror = null;
+          
+          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            ws.close(1000, "Component cleanup");
+          }
+        } catch (error) {
+          console.error("❌ Error cleaning up WebSocket on unmount:", error);
+        }
+      }
+      
+      if (peerConnectionRef.current) {
+        const pc = peerConnectionRef.current;
+        peerConnectionRef.current = null;
+        
+        try {
+          pc.onicecandidate = null;
+          pc.oniceconnectionstatechange = null;
+          pc.onicegatheringstatechange = null;
+          pc.onsignalingstatechange = null;
+          pc.ontrack = null;
+          pc.onconnectionstatechange = null;
+          pc.ondatachannel = null;
+          
+          if (pc.connectionState !== 'closed') {
+            pc.close();
+          }
+        } catch (error) {
+          console.error("❌ Error cleaning up peer connection on unmount:", error);
+        }
+      }
+      
+      // Clear all timeouts
+      if (reconnectAttemptRef.current) {
+        clearTimeout(reconnectAttemptRef.current);
+        reconnectAttemptRef.current = null;
+      }
+      
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
+      
+      // Clear registered tracks
+      registeredTracksRef.current = [];
+      
+      // Clear peer tracking
+      previousRemoteStreamsRef.current.clear();
+    };
+  }, []);
 
   // Request room access from server
   const requestRoomAccess = useCallback(async (roomId: string, socket: Socket): Promise<RoomAccessData> => {
@@ -455,36 +561,20 @@ function useSfuHook(): SFUInterface {
             event: "candidate",
             data: JSON.stringify(event.candidate),
           }));
-          console.log("📤 Sent ICE candidate:", event.candidate.type);
         } catch (error) {
           console.error("❌ Error sending ICE candidate:", error);
         }
-      } else if (event.candidate === null) {
-        console.log("🧊 ICE gathering completed");
       }
     };
 
     // Enhanced ICE connection state monitoring
     pc.oniceconnectionstatechange = () => {
-      console.log("🧊 ICE connection state:", pc.iceConnectionState);
-      
       switch (pc.iceConnectionState) {
-        case 'checking':
-          console.log("🔍 ICE connectivity checks in progress");
-          break;
-        case 'connected':
-        case 'completed':
-          console.log("✅ ICE connection established");
-          break;
         case 'failed':
           console.error("❌ ICE connection failed - may need TURN server");
-          console.log("💡 Consider adding TURN servers for better connectivity");
           break;
         case 'disconnected':
           console.warn("⚠️ ICE connection disconnected - attempting to reconnect");
-          break;
-        case 'closed':
-          console.log("🔌 ICE connection closed");
           break;
       }
     };
@@ -521,17 +611,9 @@ function useSfuHook(): SFUInterface {
     };
 
     pc.ontrack = (event) => {
-      console.log("🎵 New incoming stream:", event.streams);
-            const remoteStream = event.streams[0];
+      const remoteStream = event.streams[0];
       
       if (remoteStream) {
-        console.log("🎵 Adding remote stream:", {
-          id: remoteStream.id,
-          audioTracks: remoteStream.getAudioTracks().length,
-          videoTracks: remoteStream.getVideoTracks().length,
-          tracks: remoteStream.getTracks().map(t => ({ kind: t.kind, id: t.id, enabled: t.enabled }))
-        });
-        
         setStreams(prev => ({
           ...prev,
           [remoteStream.id]: { stream: remoteStream, isLocal: false },
@@ -542,17 +624,8 @@ function useSfuHook(): SFUInterface {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log("🔗 Peer connection state:", pc.connectionState);
-      
       switch (pc.connectionState) {
-        case 'new':
-          console.log("🆕 New peer connection created");
-          break;
-        case 'connecting':
-          console.log("🔄 Peer connection connecting");
-          break;
         case 'connected':
-          console.log("✅ WebRTC peer connection established");
           // Clear any connection timeout
           if (connectionTimeoutRef.current) {
             clearTimeout(connectionTimeoutRef.current);
@@ -564,11 +637,11 @@ function useSfuHook(): SFUInterface {
           break;
         case 'failed':
         case 'closed':
-          console.log("❌ WebRTC peer connection failed/closed");
+          console.error("❌ WebRTC peer connection failed/closed");
           if (!isDisconnectingRef.current) {
             setConnectionState(prev => ({ 
               ...prev, 
-              state: ConnectionState.FAILED, 
+              state: SFUConnectionState.FAILED, 
               error: "WebRTC connection failed" 
             }));
           }
@@ -601,8 +674,8 @@ function useSfuHook(): SFUInterface {
     return pc;
   }, []);
 
-  // Enhanced SFU WebSocket setup with better error handling
-  const setupSFUWebSocket = useCallback((sfuUrl: string, joinToken: any): Promise<WebSocket> => {
+  // Setup SFU WebSocket connection with enhanced error handling and monitoring
+  const setupSFUWebSocket = useCallback(async (sfuUrl: string, joinToken: any): Promise<WebSocket> => {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(sfuUrl);
       let isResolved = false;
@@ -610,41 +683,78 @@ function useSfuHook(): SFUInterface {
       let connectionMonitor: NodeJS.Timeout | null = null;
       let reconnectAttempt = 0;
       const maxReconnectAttempts = 3;
+      
+      // Store connection ID to prevent operations on old connections
+      const connectionId = Date.now() + Math.random();
+      console.log("🔌 Creating SFU WebSocket connection:", connectionId);
 
       const timeout = setTimeout(() => {
         if (!isResolved) {
+          cleanup();
           ws.close();
           reject(new Error("SFU WebSocket connection timeout"));
         }
       }, 15000); // Increased timeout
 
+      // Enhanced cleanup function that stops all monitoring and reconnection
+      const cleanup = () => {
+        console.log("🧹 Cleaning up SFU WebSocket connection:", connectionId);
+        
+        if (connectionMonitor) {
+          clearInterval(connectionMonitor);
+          connectionMonitor = null;
+        }
+        
+        // Reset reconnect attempts to prevent further attempts
+        reconnectAttempt = maxReconnectAttempts;
+        
+        // Remove event listeners to prevent callbacks on old connections
+        try {
+          ws.onopen = null;
+          ws.onmessage = null;
+          ws.onclose = null;
+          ws.onerror = null;
+        } catch (error) {
+          console.error("❌ Error removing WebSocket event listeners:", error);
+        }
+      };
+
       // Monitor connection health and attempt recovery
       const startConnectionMonitor = () => {
         connectionMonitor = setInterval(() => {
+          // Only stop monitoring if we're disconnecting or the WebSocket is clearly old
+          if (isDisconnectingRef.current) {
+            console.log("🔄 Connection monitor stopping - disconnecting:", connectionId);
+            cleanup();
+            return;
+          }
+          
+          // Check if this WebSocket is still the current one (but only after it should be set)
+          if (isResolved && sfuWebSocketRef.current && sfuWebSocketRef.current !== ws) {
+            console.log("🔄 Connection monitor stopping - not active connection:", connectionId);
+            cleanup();
+            return;
+          }
+          
           if (ws.readyState !== WebSocket.OPEN) {
-            console.warn("⚠️ SFU WebSocket connection lost, readyState:", ws.readyState);
-            if (connectionMonitor) {
-              clearInterval(connectionMonitor);
-              connectionMonitor = null;
-            }
+            console.warn("⚠️ SFU WebSocket connection lost:", connectionId);
+            cleanup();
             
-            // Attempt to recover connection if WebRTC is still healthy
-            if (peerConnectionRef.current && 
+            // Only attempt to recover if this is still the active connection and we haven't exceeded attempts
+            if ((!sfuWebSocketRef.current || sfuWebSocketRef.current === ws) && 
+                peerConnectionRef.current && 
                 peerConnectionRef.current.connectionState === 'connected' &&
-                reconnectAttempt < maxReconnectAttempts) {
-              console.log("🔄 Attempting to recover SFU WebSocket connection...");
+                reconnectAttempt < maxReconnectAttempts &&
+                !isDisconnectingRef.current) {
               attemptReconnection();
             }
           } else {
-            console.log("📡 SFU WebSocket connection healthy");
-            
             // Send keep-alive message to prevent network timeouts
             try {
               ws.send(JSON.stringify({
                 event: "keep_alive",
                 data: JSON.stringify({ timestamp: Date.now() }),
               }));
-              console.log("💓 Sent keep-alive to SFU");
             } catch (error) {
               console.warn("⚠️ Failed to send keep-alive:", error);
             }
@@ -653,29 +763,47 @@ function useSfuHook(): SFUInterface {
       };
 
       const attemptReconnection = () => {
+        // Double-check we should still be reconnecting
+        if (isDisconnectingRef.current) {
+          console.log("🔄 Skipping reconnection - disconnecting:", connectionId);
+          return;
+        }
+        
+        // Only check WebSocket reference if it should be set and is different
+        if (sfuWebSocketRef.current && sfuWebSocketRef.current !== ws) {
+          console.log("🔄 Skipping reconnection - connection no longer active:", connectionId);
+          return;
+        }
+        
         reconnectAttempt++;
-        console.log(`🔄 SFU reconnection attempt ${reconnectAttempt}/${maxReconnectAttempts}`);
+        console.log(`🔄 SFU reconnection attempt ${reconnectAttempt}/${maxReconnectAttempts} for connection:`, connectionId);
         
         setTimeout(() => {
-          if (peerConnectionRef.current && 
-              peerConnectionRef.current.connectionState === 'connected') {
-            console.log("🔄 WebRTC still healthy, attempting SFU reconnection...");
+          // Final check before attempting reconnection
+          if ((!sfuWebSocketRef.current || sfuWebSocketRef.current === ws) && 
+              peerConnectionRef.current && 
+              peerConnectionRef.current.connectionState === 'connected' &&
+              !isDisconnectingRef.current) {
             // Note: This would require a more complex reconnection strategy
             // For now, we'll just log and let the existing reconnection handle it
+            console.log("🔄 Would attempt WebSocket reconnection, but letting existing logic handle it");
+          } else {
+            console.log("🔄 Skipping reconnection - conditions no longer met:", connectionId);
           }
         }, 1000 * reconnectAttempt); // Exponential backoff
       };
 
-      const cleanup = () => {
-        if (connectionMonitor) {
-          clearInterval(connectionMonitor);
-          connectionMonitor = null;
-        }
-      };
-
       ws.onopen = () => {
-        console.log("🔌 SFU WebSocket connected");
+        // Check if this connection is still wanted
+        if (isDisconnectingRef.current) {
+          console.log("🔄 Connection opened but disconnecting in progress, closing:", connectionId);
+          cleanup();
+          ws.close();
+          return;
+        }
+        
         reconnectAttempt = 0; // Reset reconnect attempts on successful connection
+        console.log("✅ SFU WebSocket opened:", connectionId);
         
         // Send join message immediately
         const joinMessage = {
@@ -683,7 +811,6 @@ function useSfuHook(): SFUInterface {
           data: JSON.stringify(joinToken),
         };
         
-        console.log("📤 Sending client_join message");
         try {
           ws.send(JSON.stringify(joinMessage));
         } catch (error) {
@@ -691,22 +818,29 @@ function useSfuHook(): SFUInterface {
           if (!isResolved) {
             clearTimeout(timeout);
             isResolved = true;
+            cleanup();
             reject(new Error("Failed to send join message"));
           }
         }
       };
 
       ws.onmessage = (event) => {
+        // Only ignore messages if we're disconnecting or if this is clearly an old connection
+        // Don't check sfuWebSocketRef.current here as it might not be set yet during initial connection
+        if (isDisconnectingRef.current) {
+          console.log("🔄 Ignoring message - disconnecting in progress:", connectionId);
+          return;
+        }
+        
         try {
           const message = JSON.parse(event.data);
-          console.log("📨 SFU message:", message.event);
 
           switch (message.event) {
             case "room_joined":
               if (!isResolved) {
                 clearTimeout(timeout);
                 isResolved = true;
-                console.log("✅ Successfully joined SFU room");
+                console.log("✅ Successfully joined SFU room:", connectionId);
                 // Start monitoring connection health
                 startConnectionMonitor();
                 resolve(ws);
@@ -717,6 +851,7 @@ function useSfuHook(): SFUInterface {
               if (!isResolved) {
                 clearTimeout(timeout);
                 isResolved = true;
+                cleanup();
                 reject(new Error(`SFU room error: ${message.data}`));
               }
               break;
@@ -731,7 +866,6 @@ function useSfuHook(): SFUInterface {
               const offer = JSON.parse(message.data);
               if (peerConnectionRef.current && peerConnectionRef.current.connectionState !== 'closed') {
                 offerProcessingInProgress = true;
-                console.log("📨 Processing SFU offer, signaling state:", peerConnectionRef.current.signalingState);
                 
                 // Check if we're in a valid state to process the offer
                 if (peerConnectionRef.current.signalingState !== 'stable' && 
@@ -744,7 +878,6 @@ function useSfuHook(): SFUInterface {
                 peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(offer))
                   .then(() => {
                     if (peerConnectionRef.current && peerConnectionRef.current.connectionState !== 'closed') {
-                      console.log("✅ Set remote description, creating answer");
                       return peerConnectionRef.current.createAnswer({
                         offerToReceiveAudio: true,
                         offerToReceiveVideo: false,
@@ -754,38 +887,26 @@ function useSfuHook(): SFUInterface {
                   })
                   .then((answer) => {
                     if (peerConnectionRef.current && peerConnectionRef.current.connectionState !== 'closed') {
-                      console.log("✅ Created answer, setting local description");
                       return peerConnectionRef.current.setLocalDescription(answer);
                     }
                     throw new Error("Peer connection closed during answer creation");
                   })
                   .then(() => {
-                    if (ws.readyState === WebSocket.OPEN && peerConnectionRef.current) {
+                    // Check if this WebSocket is still open and we're not disconnecting
+                    if (ws.readyState === WebSocket.OPEN && 
+                        peerConnectionRef.current && 
+                        !isDisconnectingRef.current) {
                       const answer = peerConnectionRef.current.localDescription;
                       if (answer) {
                         ws.send(JSON.stringify({
                           event: "answer",
                           data: JSON.stringify(answer),
                         }));
-                        console.log("📤 Sent answer to SFU, signaling state:", peerConnectionRef.current.signalingState);
-                        
-                        // Log WebSocket state after sending answer to debug 1006 closures
-                        setTimeout(() => {
-                          console.log("🔍 WebSocket state 1s after answer:", ws.readyState);
-                          if (ws.readyState !== WebSocket.OPEN) {
-                            console.warn("⚠️ WebSocket closed shortly after sending answer!");
-                          }
-                        }, 1000);
-                        
-                        setTimeout(() => {
-                          console.log("🔍 WebSocket state 5s after answer:", ws.readyState);
-                          if (ws.readyState !== WebSocket.OPEN) {
-                            console.warn("⚠️ WebSocket closed within 5 seconds of sending answer!");
-                          }
-                        }, 5000);
                       } else {
                         throw new Error("No local description available");
                       }
+                    } else {
+                      console.log("🔄 Skipping answer send - WebSocket no longer active or disconnecting:", connectionId);
                     }
                   })
                   .catch((error) => {
@@ -806,15 +927,10 @@ function useSfuHook(): SFUInterface {
                   peerConnectionRef.current.connectionState !== 'failed') {
                 // Add candidate regardless of remote description state for better connectivity
                 peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
-                  .then(() => {
-                    console.log("✅ Added ICE candidate:", candidate.type || 'unknown');
-                  })
                   .catch((error) => {
                     // Don't log errors for candidates that can't be added during early negotiation
                     if (error.name !== 'InvalidStateError') {
                       console.error("❌ Error adding ICE candidate:", error);
-                    } else {
-                      console.log("⏳ ICE candidate queued (will be processed when ready)");
                     }
                   });
               } else {
@@ -828,12 +944,12 @@ function useSfuHook(): SFUInterface {
       };
 
       ws.onclose = (event) => {
-        console.log("🔌 SFU WebSocket closed:", event.code, event.reason);
+        console.log("🔌 SFU WebSocket closed:", connectionId, event.code, event.reason);
         cleanup();
         
         // Enhanced logging for 1006 closures
         if (event.code === 1006) {
-          console.warn("⚠️ SFU WebSocket closed abnormally - network connection interrupted");
+          console.warn("⚠️ SFU WebSocket closed abnormally - network connection interrupted:", connectionId);
           console.log("🔍 Connection details at close:");
           console.log("  - Peer connection state:", peerConnectionRef.current?.connectionState);
           console.log("  - ICE connection state:", peerConnectionRef.current?.iceConnectionState);
@@ -854,7 +970,7 @@ function useSfuHook(): SFUInterface {
       };
 
       ws.onerror = (error) => {
-        console.error("❌ SFU WebSocket error:", error);
+        console.error("❌ SFU WebSocket error:", connectionId, error);
         cleanup();
         if (!isResolved) {
           clearTimeout(timeout);
@@ -868,6 +984,25 @@ function useSfuHook(): SFUInterface {
   // Enhanced connect function with better state management
   const connect = useCallback(async (channelID: string): Promise<void> => {
     try {
+      // Prevent multiple simultaneous connection attempts
+      if (isConnectingRef.current) {
+        console.warn("⚠️ Connection already in progress, ignoring duplicate request");
+        return;
+      }
+
+      // If cleanup is happening in background, wait briefly but don't block too long
+      if (isDisconnectingRef.current) {
+        console.log("🔄 Background cleanup in progress, waiting briefly...");
+        // Wait a short time for cleanup, but don't block indefinitely
+        for (let i = 0; i < 5; i++) { // Max 500ms wait
+          if (!isDisconnectingRef.current) break;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        // Continue even if cleanup is still running - it won't interfere
+      }
+
+      isConnectingRef.current = true;
+
       // Validation
       if (!currentlyViewingServer) {
         throw new Error("No server selected");
@@ -881,94 +1016,163 @@ function useSfuHook(): SFUInterface {
         throw new Error("SFU configuration not available");
       }
 
-      // Enhanced microphone availability check
-      console.log("🔍 SFU Connect - Starting microphone availability check");
-      console.log("🔍 microphoneBuffer:", {
-        exists: !!microphoneBuffer,
-        rawMediaStream: !!microphoneBuffer.mediaStream,
-        processedStream: !!microphoneBuffer.processedStream,
-        input: !!microphoneBuffer.input,
-        output: !!microphoneBuffer.output,
-        analyser: !!microphoneBuffer.analyser
-      });
-
-      // Use processed stream for SFU (includes mute and noise suppression)
-      const streamToUse = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
-      
-      if (!streamToUse) {
-        console.error("❌ No microphone stream available (neither processed nor raw)");
-        
-        // Check if we're in a contradictory state: we should have microphone access but don't
-        if (shouldAccessMicrophone) {
-          console.log("🔄 Contradiction detected: shouldAccessMicrophone=true but no stream");
-          console.log("🔄 Attempting to force microphone initialization...");
-          
-          // Force re-render of microphone hook to trigger initialization
-          // This is a workaround for timing/singleton issues
-          throw new Error("Microphone initializing - please wait a moment and try again");
-        }
-        
-        throw new Error("Microphone not available");
-      }
-
-      console.log("🔍 Stream details:", {
-        usingProcessedStream: !!microphoneBuffer.processedStream,
-        id: streamToUse.id,
-        active: streamToUse.active,
-        audioTracks: streamToUse.getAudioTracks().length,
-        videoTracks: streamToUse.getVideoTracks().length,
-        allTracks: streamToUse.getTracks().length
-      });
-
-      // Check if the stream has active audio tracks
-      const audioTracks = streamToUse.getAudioTracks();
-      console.log("🔍 Audio tracks analysis:");
-      audioTracks.forEach((track, index) => {
-        console.log(`  Track ${index}:`, {
-          id: track.id,
-          kind: track.kind,
-          label: track.label,
-          enabled: track.enabled,
-          muted: track.muted,
-          readyState: track.readyState,
-          constraints: track.getConstraints(),
-          settings: track.getSettings()
-        });
-      });
-
-      if (audioTracks.length === 0 || !audioTracks.some(track => track.readyState === 'live')) {
-        console.error("❌ Stream has no active audio tracks");
-        console.error("❌ Audio tracks count:", audioTracks.length);
-        console.error("❌ Live tracks:", audioTracks.filter(track => track.readyState === 'live').length);
-        console.log("❌ Stream has no active audio tracks, waiting for microphone initialization...");
-        throw new Error("Microphone not ready - please wait a moment and try again");
-      }
-
-      console.log("✅ Microphone ready with", audioTracks.length, "active audio track(s)");
-      console.log("✅ Using", microphoneBuffer.processedStream ? "processed" : "raw", "stream for SFU");
-
       // If already connected to the same room and server, just return success
       if (
-        connectionState.state === ConnectionState.CONNECTED &&
+        connectionState.state === SFUConnectionState.CONNECTED &&
         connectionState.roomId === channelID &&
         connectionState.serverId === currentlyViewingServer.host
       ) {
-        console.log("✅ Already connected to this room");
+        console.log("✅ Already connected to the same room, skipping connection");
         return;
       }
 
       // Check if already connecting to the same room
-      if (connectionState.state === ConnectionState.CONNECTING && connectionState.roomId === channelID) {
-        console.log("⏳ Already connecting to this room");
+      if (connectionState.state === SFUConnectionState.CONNECTING && connectionState.roomId === channelID) {
+        console.log("⏳ Already connecting to the same room, waiting...");
         return;
       }
 
-      // Disconnect if connected to different room/server with proper cleanup
+      // For room switching, perform quick cleanup without waiting
       if (isConnected && (connectionState.roomId !== channelID || connectionState.serverId !== currentlyViewingServer.host)) {
-        console.log("🔄 Switching rooms, disconnecting first");
-        await performCleanup(false);
-        // Add delay to ensure cleanup completes
-        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log("🔄 Switching rooms, performing immediate cleanup");
+        
+        // CRITICAL: Notify the OLD server that we're leaving BEFORE cleanup
+        if (connectionState.serverId && sockets[connectionState.serverId]) {
+          try {
+            const oldSocket = sockets[connectionState.serverId];
+            console.log("📤 Notifying old server about leaving:", connectionState.serverId);
+            // Send disconnect signals to old server immediately
+            oldSocket.emit("streamID", "");
+            oldSocket.emit("joinedChannel", false);
+            oldSocket.emit("leaveRoom"); // Explicit leave room signal
+          } catch (error) {
+            console.error("❌ Error notifying old server:", error);
+          }
+        }
+        
+        // IMMEDIATE: Clear the old WebSocket reference to stop all operations
+        if (sfuWebSocketRef.current) {
+          const oldWs = sfuWebSocketRef.current;
+          sfuWebSocketRef.current = null; // Clear reference immediately
+          
+          // Clean up old WebSocket without waiting
+          try {
+            oldWs.onopen = null;
+            oldWs.onmessage = null;
+            oldWs.onclose = null;
+            oldWs.onerror = null;
+            
+            if (oldWs.readyState === WebSocket.OPEN || oldWs.readyState === WebSocket.CONNECTING) {
+              oldWs.close(1000, "Switching rooms");
+            }
+          } catch (error) {
+            console.error("❌ Error cleaning up old WebSocket:", error);
+          }
+        }
+        
+        // IMMEDIATE: Clear old peer connection reference
+        if (peerConnectionRef.current) {
+          const oldPc = peerConnectionRef.current;
+          peerConnectionRef.current = null; // Clear reference immediately
+          
+          // Clean up old peer connection without waiting
+          try {
+            oldPc.onicecandidate = null;
+            oldPc.oniceconnectionstatechange = null;
+            oldPc.onicegatheringstatechange = null;
+            oldPc.onsignalingstatechange = null;
+            oldPc.ontrack = null;
+            oldPc.onconnectionstatechange = null;
+            oldPc.ondatachannel = null;
+            
+            if (oldPc.connectionState !== 'closed') {
+              oldPc.close();
+            }
+          } catch (error) {
+            console.error("❌ Error cleaning up old peer connection:", error);
+          }
+        }
+        
+        // Clear registered tracks
+        registeredTracksRef.current = [];
+        
+        // Brief pause to let immediate cleanup complete
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      // STEP 1: Set connecting state early to prevent UI issues
+      setConnectionState({
+        state: SFUConnectionState.CONNECTING,
+        roomId: channelID, // Temporary - will be updated with unique room ID from server
+        serverId: currentlyViewingServer.host,
+        error: null,
+      });
+
+      // Enhanced microphone availability check with better retry logic
+      let streamToUse = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
+      
+      // Check if we have a stream and if its tracks are actually live
+      if (streamToUse) {
+        const audioTracks = streamToUse.getAudioTracks();
+        const hasLiveTracks = audioTracks.length > 0 && audioTracks.some(track => track.readyState === 'live');
+        
+        if (!hasLiveTracks) {
+          console.warn("🔄 Stream exists but has no live tracks, waiting for reinitialization...");
+          streamToUse = undefined; // Force reinitialization
+        }
+      }
+      
+      if (!streamToUse) {
+        console.warn("🔄 Waiting for microphone initialization...");
+        
+        // Wait for microphone to be ready with shorter intervals
+        for (let attempt = 0; attempt < 20; attempt++) { // Increased attempts
+          await new Promise(resolve => setTimeout(resolve, 150)); // Slightly longer intervals
+          streamToUse = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
+          
+          if (streamToUse) {
+            // Double-check that tracks are live
+            const audioTracks = streamToUse.getAudioTracks();
+            const hasLiveTracks = audioTracks.length > 0 && audioTracks.some(track => track.readyState === 'live');
+            
+            if (hasLiveTracks) {
+              console.log("✅ Microphone ready after", (attempt + 1) * 150, "ms");
+              break;
+            } else {
+              console.log("⏳ Stream found but tracks not live yet, attempt", attempt + 1);
+              streamToUse = undefined; // Keep waiting
+            }
+          }
+        }
+        
+        if (!streamToUse) {
+          throw new Error("Microphone not available - please check microphone settings");
+        }
+      }
+
+      // Check if the stream has active audio tracks
+      const audioTracks = streamToUse.getAudioTracks();
+
+      if (audioTracks.length === 0 || !audioTracks.some(track => track.readyState === 'live')) {
+        console.error("❌ Stream has no active audio tracks");
+        
+        // Give audio tracks time to become live with shorter intervals
+        console.warn("🔄 Waiting for audio tracks to become active...");
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+          const currentTracks = streamToUse.getAudioTracks();
+          
+          if (currentTracks.length > 0 && currentTracks.some(track => track.readyState === 'live')) {
+            console.log("✅ Audio tracks ready after", (attempt + 1) * 150, "ms");
+            break;
+          }
+        }
+        
+        // Final check
+        const finalTracks = streamToUse.getAudioTracks();
+        if (finalTracks.length === 0 || !finalTracks.some(track => track.readyState === 'live')) {
+          throw new Error("Microphone not ready - please wait a moment and try again");
+        }
       }
 
       const socket = sockets[currentlyViewingServer.host];
@@ -976,49 +1180,39 @@ function useSfuHook(): SFUInterface {
         throw new Error("Socket connection not available");
       }
 
-      setConnectionState({
-        state: ConnectionState.REQUESTING_ACCESS,
-        roomId: channelID,
-        serverId: currentlyViewingServer.host,
-        error: null,
-      });
-
-      // Step 1: Request room access
+      // Step 2: Request room access
       const roomData = await requestRoomAccess(channelID, socket);
 
-      setConnectionState(prev => ({ ...prev, state: ConnectionState.CONNECTING }));
-
-      // Step 2: Setup WebRTC with enhanced configuration
+      // Step 3: Setup WebRTC with enhanced configuration
       const peerConnection = setupPeerConnection(stunHosts);
       peerConnectionRef.current = peerConnection;
 
-      // Set connection timeout
+      // Set connection timeout with shorter duration
       connectionTimeoutRef.current = setTimeout(() => {
-        if (connectionState.state === ConnectionState.CONNECTING) {
+        if (connectionState.state === SFUConnectionState.CONNECTING) {
           console.error("❌ Connection timeout - WebRTC failed to establish");
           disconnect(false).catch(console.error);
         }
-      }, 30000);
+      }, 20000); // Reduced from 30s to 20s
 
-      // Step 3: Add local tracks (using processed stream with mute/noise suppression)
+      // Step 4: Add local tracks (using processed stream with mute/noise suppression)
       const localStream = streamToUse;
       const tracks: RTCRtpSender[] = [];
       
       localStream.getTracks().forEach((track) => {
         const sender = peerConnection.addTrack(track, localStream);
         tracks.push(sender);
-        console.log("🎤 Added local track to SFU:", track.kind, track.id, "from", microphoneBuffer.processedStream ? "processed" : "raw", "stream");
       });
       
       registeredTracksRef.current = tracks;
 
-      // Step 4: Add local stream to state
+      // Step 5: Add local stream to state
       setStreams(prev => ({
         ...prev,
         [localStream.id]: { stream: localStream, isLocal: true },
       }));
 
-      // Step 5: Connect to SFU with retry logic
+      // Step 6: Connect to SFU with retry logic
       let sfuWebSocket: WebSocket;
       try {
         sfuWebSocket = await setupSFUWebSocket(roomData.sfu_url, roomData.join_token);
@@ -1028,13 +1222,13 @@ function useSfuHook(): SFUInterface {
         throw new Error("Failed to connect to SFU server");
       }
 
-      // Step 6: Update server socket state
+      // Step 7: Update server socket state
       socket.emit("streamID", localStream.id);
       socket.emit("joinedChannel", true);
 
       setConnectionState({
-        state: ConnectionState.CONNECTED,
-        roomId: channelID,
+        state: SFUConnectionState.CONNECTED,
+        roomId: roomData.room_id,
         serverId: currentlyViewingServer.host,
         error: null,
       });
@@ -1044,54 +1238,38 @@ function useSfuHook(): SFUInterface {
         try {
           connectSound();
         } catch (error) {
-          console.error("Error playing connect sound:", error);
+          console.error("❌ Error playing connect sound:", error);
         }
       }
       
-      console.log("🎉 Successfully connected to SFU room:", channelID);
+      console.log("✅ Successfully connected to SFU room:", roomData.room_id, "(original channel:", channelID, ")");
 
     } catch (error) {
       console.error("❌ SFU connection failed:", error);
       
       const errorMessage = error instanceof Error ? error.message : "Connection failed";
       
-      // Cleanup on failure
-      await performCleanup(false);
+      // Cleanup on failure (non-blocking)
+      performCleanup(false).catch(console.error);
       
-      // If voice service is temporarily unavailable, add delay before allowing retry
-      if (errorMessage.includes("Voice service temporarily unavailable")) {
-        console.log("⏳ Voice service unavailable, waiting 10 seconds before allowing retry");
-        
-        setConnectionState({
-          state: ConnectionState.FAILED,
-          roomId: null,
-          serverId: null,
-          error: "Voice service temporarily unavailable - please wait a moment and try again",
-        });
-
-        // Set a timeout to allow retry after 10 seconds
-        reconnectAttemptRef.current = setTimeout(() => {
-          setConnectionState(prev => ({
-            ...prev,
-            error: null,
-          }));
-        }, 10000);
-      } else {
-        setConnectionState({
-          state: ConnectionState.FAILED,
-          roomId: null,
-          serverId: null,
-          error: errorMessage,
-        });
-      }
+      // Set failed state with error
+      setConnectionState({
+        state: SFUConnectionState.FAILED,
+        roomId: null,
+        serverId: null,
+        error: errorMessage,
+      });
 
       throw error;
+    } finally {
+      isConnectingRef.current = false;
     }
   }, [
     currentlyViewingServer,
     sfuHost,
     stunHosts,
     microphoneBuffer.mediaStream,
+    microphoneBuffer.processedStream,
     connectionState,
     isConnected,
     sockets,
@@ -1103,46 +1281,39 @@ function useSfuHook(): SFUInterface {
     performCleanup,
   ]);
 
-  // Enhanced disconnect function
+  // Enhanced disconnect function - optimistic with background cleanup
   const disconnect = useCallback(async (playSound?: boolean): Promise<void> => {
-    try {
-      console.log("🚪 Disconnecting from SFU");
-      
-      const shouldPlaySound = playSound !== false && disconnectSoundEnabled; // Respect settings
+    const shouldPlaySound = playSound !== false && disconnectSoundEnabled; // Respect settings
 
-      // Perform comprehensive cleanup
-      await performCleanup(false);
+    // IMMEDIATE: Update UI state optimistically for instant feedback
+    setConnectionState({
+      state: SFUConnectionState.DISCONNECTED,
+      roomId: null,
+      serverId: null,
+      error: null,
+    });
 
-      setConnectionState({
-        state: ConnectionState.DISCONNECTED,
-        roomId: null,
-        serverId: null,
-        error: null,
-      });
-
-      if (shouldPlaySound) {
-        try {
-          disconnectSound();
-        } catch (error) {
-          console.error("Error playing disconnect sound:", error);
-        }
+    // IMMEDIATE: Play disconnect sound if enabled (don't wait)
+    if (shouldPlaySound) {
+      try {
+        disconnectSound();
+      } catch (error) {
+        console.error("❌ Error playing disconnect sound:", error);
       }
-
-      console.log("✅ Successfully disconnected from SFU");
-
-    } catch (error) {
-      console.error("❌ Error during SFU disconnect:", error);
-      // Reset state even if disconnect fails
-      setConnectionState({
-        state: ConnectionState.DISCONNECTED,
-        roomId: null,
-        serverId: null,
-        error: null,
-      });
-      // Also clear stream sources on error
-      setStreamSources({});
     }
-  }, [performCleanup, disconnectSound, disconnectSoundEnabled]);
+
+    console.log("✅ Disconnected (UI updated immediately)");
+
+    // BACKGROUND: Perform cleanup asynchronously without blocking
+    performCleanup(false).catch((error) => {
+      console.error("❌ Background cleanup error:", error);
+      // Even if cleanup fails, we've already updated the UI
+      // Clear stream sources as fallback
+      setStreamSources({});
+    });
+
+    // Return immediately - don't wait for cleanup
+  }, [disconnectSound, disconnectSoundEnabled, performCleanup]);
 
   return {
     streams,
@@ -1153,6 +1324,8 @@ function useSfuHook(): SFUInterface {
     currentServerConnected: connectionState.serverId || "",
     isConnected,
     currentChannelConnected: connectionState.roomId || "",
+    connectionState: connectionState.state,
+    isConnecting,
   };
 }
 
@@ -1165,6 +1338,8 @@ const init: SFUInterface = {
   currentChannelConnected: "",
   currentServerConnected: "",
   isConnected: false,
+  connectionState: SFUConnectionState.DISCONNECTED,
+  isConnecting: false,
 };
 
 const SFUHook = singletonHook(init, useSfuHook);

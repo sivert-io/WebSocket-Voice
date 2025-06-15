@@ -10,8 +10,12 @@ import {
   Tooltip,
 } from "@radix-ui/themes";
 import { useRef } from "react";
+import useSound from "use-sound";
+import { FiPlay } from "react-icons/fi";
 
 import { useSettings } from "@/settings";
+import connectMp3 from "@/audio/src/assets/connect.mp3";
+import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 
 export function VoiceCallSettings() {
   const {
@@ -31,6 +35,23 @@ export function VoiceCallSettings() {
 
   const connectFileInputRef = useRef<HTMLInputElement>(null);
   const disconnectFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sound hooks for testing
+  const [playConnectSound] = useSound(
+    customConnectSoundFile || connectMp3,
+    {
+      volume: connectSoundVolume / 100,
+      soundEnabled: true, // Always enabled for testing
+    }
+  );
+
+  const [playDisconnectSound] = useSound(
+    customDisconnectSoundFile || disconnectMp3,
+    {
+      volume: disconnectSoundVolume / 100,
+      soundEnabled: true, // Always enabled for testing
+    }
+  );
 
   const handleConnectFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -70,6 +91,22 @@ export function VoiceCallSettings() {
     setDisconnectSoundVolume(10);
   };
 
+  const testConnectSound = () => {
+    try {
+      playConnectSound();
+    } catch (error) {
+      console.error("Error playing connect sound:", error);
+    }
+  };
+
+  const testDisconnectSound = () => {
+    try {
+      playDisconnectSound();
+    } catch (error) {
+      console.error("Error playing disconnect sound:", error);
+    }
+  };
+
   return (
     <Flex
       direction="column"
@@ -107,17 +144,19 @@ export function VoiceCallSettings() {
                   <Text weight="medium" size="2">
                     Volume
                   </Text>
-                  <Tooltip content="Reset to default (10%)" side="top">
-                    <IconButton
-                      size="1"
-                      variant="ghost"
-                      color={connectSoundVolume !== 10 ? "red" : "gray"}
-                      onClick={resetConnectVolume}
-                      disabled={connectSoundVolume === 10}
-                    >
-                      <ReloadIcon />
-                    </IconButton>
-                  </Tooltip>
+                  <Flex gap="1">
+                    <Tooltip content="Reset to default (10%)" side="top">
+                      <IconButton
+                        size="1"
+                        variant="ghost"
+                        color={connectSoundVolume !== 10 ? "red" : "gray"}
+                        onClick={resetConnectVolume}
+                        disabled={connectSoundVolume === 10}
+                      >
+                        <ReloadIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Flex>
                 </Flex>
                 <Flex align="center" gap="2">
                   <Slider
@@ -174,6 +213,15 @@ export function VoiceCallSettings() {
                   >
                     {customConnectSoundFile ? 'Change File' : 'Choose File'}
                   </Button>
+                  <Tooltip content="Test sound" side="top">
+                    <Button
+                      variant="ghost"
+                      size="2"
+                      onClick={testConnectSound}
+                    >
+                      <FiPlay />
+                    </Button>
+                  </Tooltip>
                 </Flex>
                 {customConnectSoundFile && (
                   <Text size="1" color="green">
@@ -210,17 +258,19 @@ export function VoiceCallSettings() {
                   <Text weight="medium" size="2">
                     Volume
                   </Text>
-                  <Tooltip content="Reset to default (10%)" side="top">
-                    <IconButton
-                      size="1"
-                      variant="ghost"
-                      color={disconnectSoundVolume !== 10 ? "red" : "gray"}
-                      onClick={resetDisconnectVolume}
-                      disabled={disconnectSoundVolume === 10}
-                    >
-                      <ReloadIcon />
-                    </IconButton>
-                  </Tooltip>
+                  <Flex gap="1">
+                    <Tooltip content="Reset to default (10%)" side="top">
+                      <IconButton
+                        size="1"
+                        variant="ghost"
+                        color={disconnectSoundVolume !== 10 ? "red" : "gray"}
+                        onClick={resetDisconnectVolume}
+                        disabled={disconnectSoundVolume === 10}
+                      >
+                        <ReloadIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Flex>
                 </Flex>
                 <Flex align="center" gap="2">
                   <Slider
@@ -277,6 +327,15 @@ export function VoiceCallSettings() {
                   >
                     {customDisconnectSoundFile ? 'Change File' : 'Choose File'}
                   </Button>
+                  <Tooltip content="Test sound" side="top">
+                    <Button
+                      variant="ghost"
+                      size="2"
+                      onClick={testDisconnectSound}
+                    >
+                      <FiPlay />
+                    </Button>
+                  </Tooltip>
                 </Flex>
                 {customDisconnectSoundFile && (
                   <Text size="1" color="green">
