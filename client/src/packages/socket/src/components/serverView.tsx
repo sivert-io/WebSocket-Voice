@@ -12,6 +12,8 @@ import {
 } from "@radix-ui/themes";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
+import { MdMicOff } from "react-icons/md";
+import { BsVolumeOffFill } from "react-icons/bs";
 
 import { isSpeaking, useMicrophone } from "@/audio";
 import { useIsMobile } from "@/mobile";
@@ -323,6 +325,10 @@ export const ServerView = () => {
                                       clients[currentlyViewingServer.host][id]
                                         .isMuted
                                     }
+                                    isDeafened={
+                                      clients[currentlyViewingServer.host][id]
+                                        .isDeafened
+                                    }
                                     nickname={
                                       clients[currentlyViewingServer.host][id]
                                         .nickname
@@ -455,21 +461,46 @@ export const ServerView = () => {
                                       <Spinner size="2" />
                                     </Flex>
                                   )}
+                                  {/* Mute/Deafen icons overlay */}
+                                  {(clients[currentlyViewingServer.host][id].isMuted || 
+                                    clients[currentlyViewingServer.host][id].isDeafened) && (
+                                    <Flex
+                                      position="absolute"
+                                      bottom="-4px"
+                                      right="-4px"
+                                      gap="1"
+                                      style={{
+                                        background: "var(--color-background)",
+                                        borderRadius: "8px",
+                                        padding: "2px 4px",
+                                        border: "1px solid var(--gray-6)",
+                                      }}
+                                    >
+                                      {clients[currentlyViewingServer.host][id].isMuted && (
+                                        <MdMicOff size={12} color="var(--red-9)" />
+                                      )}
+                                      {clients[currentlyViewingServer.host][id].isDeafened && (
+                                        <BsVolumeOffFill size={10} color="var(--red-9)" />
+                                      )}
+                                    </Flex>
+                                  )}
                                 </Flex>
-                                <Text
-                                  weight={clientsSpeaking[id] ? "bold" : "regular"}
-                                  style={{
-                                    color: clientsSpeaking[id] 
-                                      ? "var(--accent-11)" 
-                                      : "inherit",
-                                    transition: "color 0.1s ease",
-                                  }}
-                                >
-                                  {
-                                    clients[currentlyViewingServer.host][id]
-                                      .nickname
-                                  }
-                                </Text>
+                                <Flex direction="column" align="center" gap="1">
+                                  <Text
+                                    weight={clientsSpeaking[id] ? "bold" : "regular"}
+                                    style={{
+                                      color: clientsSpeaking[id] 
+                                        ? "var(--accent-11)" 
+                                        : "inherit",
+                                      transition: "color 0.1s ease",
+                                    }}
+                                  >
+                                    {
+                                      clients[currentlyViewingServer.host][id]
+                                        .nickname
+                                    }
+                                  </Text>
+                                </Flex>
                               </Flex>
                             </motion.div>
                           )

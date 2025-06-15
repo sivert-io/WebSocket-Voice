@@ -1,16 +1,19 @@
 import { Avatar, Flex, Text, Spinner } from "@radix-ui/themes";
 import { motion } from "motion/react";
 import { MdMicOff } from "react-icons/md";
+import { BsVolumeOffFill } from "react-icons/bs";
 
 export function ConnectedUser({
   isSpeaking,
   isMuted,
+  isDeafened,
   nickname,
   isConnectedToVoice = true, // Default to true for backward compatibility
   isConnectingToVoice = false, // New prop for showing loading state
 }: {
   isSpeaking: boolean;
   isMuted: boolean;
+  isDeafened: boolean;
   nickname: string;
   isConnectedToVoice?: boolean;
   isConnectingToVoice?: boolean;
@@ -54,6 +57,7 @@ export function ConnectedUser({
             <Spinner size="1" />
           )}
           {isMuted && <MdMicOff color="var(--red-8)" />}
+          {isDeafened && <BsVolumeOffFill color="var(--red-8)" />}
         </Flex>
       </Flex>
     </motion.div>
