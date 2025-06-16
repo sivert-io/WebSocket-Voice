@@ -6,14 +6,14 @@ import {
   Card,
   DropdownMenu,
   Flex,
+  Spinner,
   Text,
   TextField,
-  Spinner,
 } from "@radix-ui/themes";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
-import { MdMicOff } from "react-icons/md";
 import { BsVolumeOffFill } from "react-icons/bs";
+import { MdMicOff } from "react-icons/md";
 
 import { isSpeaking, useMicrophone } from "@/audio";
 import { useIsMobile } from "@/mobile";
