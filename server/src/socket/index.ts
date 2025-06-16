@@ -46,16 +46,36 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       if (!clientsInfo[clientId]) return;
       
       const wasInChannel = clientsInfo[clientId].hasJoinedChannel;
+      const newJoinedState = streamID.length > 0;
+      
+      console.log(`🎪 SERVER streamID [${clientId}]:`, {
+        nickname: clientsInfo[clientId].nickname,
+        oldStreamID: clientsInfo[clientId].streamID,
+        newStreamID: streamID,
+        wasInChannel,
+        newJoinedState,
+        stateWillChange: wasInChannel !== newJoinedState,
+        timestamp: Date.now()
+      });
+      
       clientsInfo[clientId].streamID = streamID;
-      clientsInfo[clientId].hasJoinedChannel = streamID.length > 0;
+      clientsInfo[clientId].hasJoinedChannel = newJoinedState;
       
-      if (!wasInChannel && streamID.length > 0) {
-        consola.info(`Client ${clientId} joined voice channel`);
-      } else if (wasInChannel && streamID.length === 0) {
-        consola.info(`Client ${clientId} left voice channel`);
+      // Only sync and log if the channel join state actually changed
+      const stateChanged = wasInChannel !== newJoinedState;
+      if (stateChanged) {
+        if (!wasInChannel && newJoinedState) {
+          consola.info(`Client ${clientId} joined voice channel`);
+        } else if (wasInChannel && !newJoinedState) {
+          consola.info(`Client ${clientId} left voice channel`);
+        }
+        console.log(`📡 SERVER syncAllClients triggered by streamID [${clientId}] - STATE CHANGED`);
+        syncAllClients(io, clientsInfo);
+      } else {
+        // State didn't change, just sync silently to update streamID
+        console.log(`📡 SERVER syncAllClients triggered by streamID [${clientId}] - STREAMID ONLY`);
+        syncAllClients(io, clientsInfo);
       }
-      
-      syncAllClients(io, clientsInfo);
     },
 
     requestRoomAccess: async (roomId: string) => {
@@ -112,20 +132,40 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       if (!clientsInfo[clientId]) return;
       
       const wasInChannel = clientsInfo[clientId].hasJoinedChannel;
-      clientsInfo[clientId].hasJoinedChannel = Boolean(hasJoined);
+      const newJoinedState = Boolean(hasJoined);
+      
+      console.log(`🎪 SERVER joinedChannel [${clientId}]:`, {
+        nickname: clientsInfo[clientId].nickname,
+        hasJoined,
+        wasInChannel,
+        newJoinedState,
+        stateWillChange: wasInChannel !== newJoinedState,
+        currentStreamID: clientsInfo[clientId].streamID,
+        timestamp: Date.now()
+      });
+      
+      // Only update if state actually changed
+      if (wasInChannel === newJoinedState) {
+        console.log(`🎪 SERVER joinedChannel [${clientId}] - NO CHANGE, SKIPPING`);
+        consola.debug(`Client ${clientId} joinedChannel: no state change (${newJoinedState})`);
+        return;
+      }
+      
+      clientsInfo[clientId].hasJoinedChannel = newJoinedState;
       
       // Reset voice connection status when leaving channel
-      if (!hasJoined) {
+      if (!newJoinedState) {
         clientsInfo[clientId].isConnectedToVoice = false;
       }
       
+      console.log(`📡 SERVER syncAllClients triggered by joinedChannel [${clientId}] - STATE CHANGED`);
       syncAllClients(io, clientsInfo);
-      consola.info(`Client ${clientId} channel status: ${hasJoined ? 'joined' : 'left'}`);
+      consola.info(`Client ${clientId} channel status: ${newJoinedState ? 'joined' : 'left'}`);
       
       // Emit peer join/leave events to other clients for sound notifications
-      if (hasJoined && !wasInChannel) {
+      if (newJoinedState && !wasInChannel) {
         socket.broadcast.emit('peerJoinedRoom', { clientId, nickname: clientsInfo[clientId].nickname });
-      } else if (!hasJoined && wasInChannel) {
+      } else if (!newJoinedState && wasInChannel) {
         socket.broadcast.emit('peerLeftRoom', { clientId, nickname: clientsInfo[clientId].nickname });
       }
     },

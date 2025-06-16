@@ -1,5 +1,6 @@
 import { Avatar, Flex, Spinner,Text } from "@radix-ui/themes";
 import { motion } from "motion/react";
+import { useEffect } from "react";
 import { BsVolumeOffFill } from "react-icons/bs";
 import { MdMicOff } from "react-icons/md";
 
@@ -18,6 +19,14 @@ export function ConnectedUser({
   isConnectedToVoice?: boolean;
   isConnectingToVoice?: boolean;
 }) {
+  // Log component lifecycle (mount/unmount only to reduce noise)
+  useEffect(() => {
+    console.log(`👤 CONNECTED USER [${nickname}] MOUNTED`);
+    return () => {
+      console.log(`👤 CONNECTED USER [${nickname}] UNMOUNTED`);
+    };
+  }, [nickname]);
+
   return (
     <motion.div
       initial={{ opacity: 0, height: 0 }}

@@ -56,6 +56,35 @@ function useSfuHook(): SFUInterface {
   const [streams, setStreams] = useState<Streams>({});
   const [streamSources, setStreamSources] = useState<StreamSources>({});
 
+  // Enhanced logging for state changes
+  useEffect(() => {
+    console.log("🔗 SFU CONNECTION STATE CHANGE:", {
+      state: connectionState.state,
+      roomId: connectionState.roomId,
+      serverId: connectionState.serverId,
+      error: connectionState.error,
+      timestamp: Date.now(),
+      isConnected: connectionState.state === SFUConnectionState.CONNECTED,
+      isConnecting: connectionState.state === SFUConnectionState.CONNECTING || connectionState.state === SFUConnectionState.REQUESTING_ACCESS,
+    });
+  }, [connectionState]);
+
+  useEffect(() => {
+    console.log("📺 STREAMS STATE CHANGE:", {
+      totalStreams: Object.keys(streams).length,
+      localStreams: Object.entries(streams).filter(([_, stream]) => stream.isLocal).length,
+      remoteStreams: Object.entries(streams).filter(([_, stream]) => !stream.isLocal).length,
+      streamIds: Object.keys(streams),
+      streamDetails: Object.entries(streams).map(([id, stream]) => ({
+        id,
+        isLocal: stream.isLocal,
+        hasAudioTracks: stream.stream.getAudioTracks().length,
+        trackIds: stream.stream.getTracks().map(t => t.id)
+      })),
+      timestamp: Date.now()
+    });
+  }, [streams]);
+
   // Dependencies
   const { 
     currentlyViewingServer, 
@@ -216,9 +245,11 @@ function useSfuHook(): SFUInterface {
     if (!skipServerUpdate && connectionState.serverId && sockets[connectionState.serverId]) {
       try {
         const socket = sockets[connectionState.serverId];
-        // Send disconnect signals immediately without waiting
-        socket.emit("streamID", "");
+        // Send disconnect signals in proper sequence to prevent race conditions
         socket.emit("joinedChannel", false);
+        // Wait briefly to ensure joinedChannel is processed before streamID
+        await new Promise(resolve => setTimeout(resolve, 10));
+        socket.emit("streamID", "");
         socket.emit("leaveRoom"); // Explicit leave room signal
       } catch (error) {
         console.error("❌ Error updating server state:", error);
@@ -1041,9 +1072,11 @@ function useSfuHook(): SFUInterface {
           try {
             const oldSocket = sockets[connectionState.serverId];
             console.log("📤 Notifying old server about leaving:", connectionState.serverId);
-            // Send disconnect signals to old server immediately
-            oldSocket.emit("streamID", "");
+            // Send disconnect signals to old server in proper sequence
             oldSocket.emit("joinedChannel", false);
+            // Brief pause to ensure proper processing order
+            await new Promise(resolve => setTimeout(resolve, 10));
+            oldSocket.emit("streamID", "");
             oldSocket.emit("leaveRoom"); // Explicit leave room signal
           } catch (error) {
             console.error("❌ Error notifying old server:", error);
@@ -1222,8 +1255,10 @@ function useSfuHook(): SFUInterface {
         throw new Error("Failed to connect to SFU server");
       }
 
-      // Step 7: Update server socket state
+      // Step 7: Update server socket state (consolidated to prevent race conditions)
       socket.emit("streamID", localStream.id);
+      // Wait briefly to ensure streamID is processed before joinedChannel
+      await new Promise(resolve => setTimeout(resolve, 10));
       socket.emit("joinedChannel", true);
 
       setConnectionState({
