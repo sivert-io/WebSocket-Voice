@@ -99,11 +99,11 @@ func (m *Manager) RegisterServer(serverID, serverToken, roomID string) error {
 	})
 }
 
-// ValidateClientJoin validates that a client can join a room
+// ValidateClientJoin validates that a client can join a room and creates the room if it doesn't exist
 func (m *Manager) ValidateClientJoin(roomID, serverID, serverToken string) error {
 	return recovery.SafeExecuteWithContext("ROOM_MANAGER", "VALIDATE_CLIENT_JOIN", "", roomID, fmt.Sprintf("Server: %s", serverID), func() error {
-		m.mutex.RLock()
-		defer m.mutex.RUnlock()
+		m.mutex.Lock() // Use Lock instead of RLock since we might need to create a room
+		defer m.mutex.Unlock()
 
 		m.debugLog("Validating client join: room='%s', server='%s'", roomID, serverID)
 
@@ -119,17 +119,32 @@ func (m *Manager) ValidateClientJoin(roomID, serverID, serverToken string) error
 			return fmt.Errorf("invalid server token for server %s", serverID)
 		}
 
-		// Check if room exists
+		// Check if room exists - if not, create it automatically
 		room, exists := m.rooms[roomID]
 		if !exists {
-			m.debugLog("❌ Validation failed: room '%s' does not exist", roomID)
-			return fmt.Errorf("room %s does not exist", roomID)
-		}
+			m.debugLog("🏠 Room '%s' does not exist, creating it automatically for server '%s'", roomID, serverID)
 
-		// Check if room belongs to the server
-		if room.ServerID != serverID {
-			m.debugLog("❌ Validation failed: room '%s' belongs to server '%s', not '%s'", roomID, room.ServerID, serverID)
-			return fmt.Errorf("room %s does not belong to server %s", roomID, serverID)
+			// Create new room automatically
+			room = &Room{
+				ID:              roomID,
+				ServerID:        serverID,
+				PeerConnections: make(map[string]*webrtc.PeerConnection),
+				Connections:     make(map[string]*websocket.Conn),
+				CreatedAt:       time.Now(),
+				LastActivity:    time.Now(),
+			}
+
+			m.rooms[roomID] = room
+			m.serverToRooms[serverID] = append(m.serverToRooms[serverID], roomID)
+
+			m.debugLog("✅ Auto-created room '%s' for server '%s' (Total rooms: %d)", roomID, serverID, len(m.rooms))
+			m.logRoomStats()
+		} else {
+			// Check if room belongs to the server
+			if room.ServerID != serverID {
+				m.debugLog("❌ Validation failed: room '%s' belongs to server '%s', not '%s'", roomID, room.ServerID, serverID)
+				return fmt.Errorf("room %s does not belong to server %s", roomID, serverID)
+			}
 		}
 
 		m.debugLog("✅ Client join validation passed for room '%s'", roomID)
