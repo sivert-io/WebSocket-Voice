@@ -1,7 +1,7 @@
-import { Avatar, Flex, Text, Spinner } from "@radix-ui/themes";
+import { Avatar, Flex, Spinner,Text } from "@radix-ui/themes";
 import { motion } from "motion/react";
-import { MdMicOff } from "react-icons/md";
 import { BsVolumeOffFill } from "react-icons/bs";
+import { MdMicOff } from "react-icons/md";
 
 export function ConnectedUser({
   isSpeaking,

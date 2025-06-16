@@ -11,13 +11,13 @@ import {
   IconButton,
   Tooltip,
 } from "@radix-ui/themes";
-import { MdAdd, MdMic } from "react-icons/md";
 import { FiSettings } from "react-icons/fi";
+import { MdAdd, MdMic } from "react-icons/md";
 
 import { useAccount } from "@/common";
 import { useSettings } from "@/settings";
-import { MiniControls } from "@/webRTC/src/components/miniControls";
 import { useSFU } from "@/webRTC";
+import { MiniControls } from "@/webRTC/src/components/miniControls";
 
 export function Sidebar() {
   const { logout } = useAccount();

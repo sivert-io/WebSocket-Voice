@@ -10,10 +10,11 @@ import {
   Text,
   Tooltip,
 } from "@radix-ui/themes";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useMemo,useRef, useState } from "react";
 
 import { useMicrophone } from "@/audio";
 import { useSettings } from "@/settings";
+import { useSFU } from "@/webRTC";
 
 export function MicrophoneSettings() {
   const {
@@ -29,7 +30,11 @@ export function MicrophoneSettings() {
     loopbackEnabled,
   } = useSettings();
 
-  const { devices, microphoneBuffer, getDevices, isMuted, setMuted, getVisualizerData, audioContext } = useMicrophone(true); // Always access microphone when settings are open
+  const { isConnected } = useSFU();
+  
+  // Only create a microphone handle if we're not connected to a voice channel
+  // If connected, just access the shared buffer; if not connected, create a handle for testing
+  const { devices, microphoneBuffer, getDevices, isMuted, setMuted, getVisualizerData, audioContext } = useMicrophone(!isConnected);
 
   const [micLiveVolume, setMicLiveVolume] = useState(0); // Final processed volume for general display
   const [micRawVolume, setMicRawVolume] = useState(0); // Raw input volume for noise gate visualization

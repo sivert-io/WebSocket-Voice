@@ -3,16 +3,15 @@ import { singletonHook } from "react-singleton-hook";
 import { io, Socket } from "socket.io-client";
 import useSound from "use-sound";
 
+// Import sound files
+import connectMp3 from "@/audio/src/assets/connect.mp3";
+import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
 import {
   Server,
   serverDetails,
   serverDetailsList,
 } from "@/settings/src/types/server";
-
-// Import sound files
-import connectMp3 from "@/audio/src/assets/connect.mp3";
-import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 
 import { Clients } from "../types/clients";
 

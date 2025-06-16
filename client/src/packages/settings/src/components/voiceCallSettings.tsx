@@ -10,12 +10,12 @@ import {
   Tooltip,
 } from "@radix-ui/themes";
 import { useRef } from "react";
-import useSound from "use-sound";
 import { FiPlay } from "react-icons/fi";
+import useSound from "use-sound";
 
-import { useSettings } from "@/settings";
 import connectMp3 from "@/audio/src/assets/connect.mp3";
 import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
+import { useSettings } from "@/settings";
 
 export function VoiceCallSettings() {
   const {

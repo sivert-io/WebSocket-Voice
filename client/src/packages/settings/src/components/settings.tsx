@@ -1,4 +1,4 @@
-import { Dialog, Flex, IconButton, Tabs, Box } from "@radix-ui/themes";
+import { Box,Dialog, Flex, IconButton, Tabs } from "@radix-ui/themes";
 import { FiX } from "react-icons/fi";
 import { MdMic, MdVolumeUp } from "react-icons/md";
 

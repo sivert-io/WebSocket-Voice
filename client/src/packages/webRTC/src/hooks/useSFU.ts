@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useCallback,useEffect, useMemo, useRef, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
 import { Socket } from "socket.io-client";
 import useSound from "use-sound";
@@ -9,7 +9,7 @@ import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
 import { useSockets } from "@/socket";
 
-import { SFUInterface, Streams, StreamSources, SFUConnectionState } from "../types/SFU";
+import { SFUConnectionState,SFUInterface, Streams, StreamSources } from "../types/SFU";
 
 // Connection states for better state management
 // enum ConnectionState {
@@ -1314,6 +1314,88 @@ function useSfuHook(): SFUInterface {
 
     // Return immediately - don't wait for cleanup
   }, [disconnectSound, disconnectSoundEnabled, performCleanup]);
+
+  // Monitor processedStream changes and update WebRTC tracks
+  useEffect(() => {
+    if (!isConnected || !peerConnectionRef.current || !registeredTracksRef.current) {
+      return;
+    }
+
+    const newStream = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
+    
+    if (!newStream) {
+      console.warn("⚠️ No stream available during connection");
+      return;
+    }
+
+    // Check if the stream has changed by comparing stream IDs
+    const currentLocalStreamEntry = Object.entries(streams).find(([, stream]) => stream.isLocal);
+    const currentStreamId = currentLocalStreamEntry?.[1].stream.id;
+    
+    if (currentStreamId === newStream.id) {
+      // Stream hasn't changed, no need to update
+      return;
+    }
+
+    // Also check if we actually have audio tracks that are different
+    const currentTracks = currentLocalStreamEntry?.[1].stream.getAudioTracks() || [];
+    const newTracks = newStream.getAudioTracks();
+    
+    // Compare track IDs to see if they're actually different
+    const tracksChanged = currentTracks.length !== newTracks.length || 
+                         currentTracks.some((track, index) => track.id !== newTracks[index]?.id);
+    
+    if (!tracksChanged) {
+      console.log("🔄 Stream ID changed but tracks are the same, skipping update");
+      return;
+    }
+
+    console.log("🔄 Processed stream changed during connection, updating WebRTC tracks...");
+    console.log("🔄 Old stream ID:", currentStreamId, "New stream ID:", newStream.id);
+    console.log("🔄 Track IDs changed:", currentTracks.map(t => t.id), "->", newTracks.map(t => t.id));
+
+    if (newTracks.length === 0) {
+      console.warn("⚠️ New stream has no audio tracks");
+      return;
+    }
+
+    // Replace tracks in peer connection (using registeredTracksRef.current directly)
+    const registeredTracks = registeredTracksRef.current;
+
+    try {
+      // Remove old tracks and add new ones
+      const updatePromises = registeredTracks.map(async (sender, index) => {
+        const newTrack = newTracks[index];
+        if (newTrack && sender.track) {
+          await sender.replaceTrack(newTrack);
+          console.log(`✅ Replaced WebRTC track ${index}: ${sender.track.id} -> ${newTrack.id}`);
+        }
+      });
+
+      Promise.all(updatePromises).then(() => {
+        // Update local stream in state
+        setStreams(prev => ({
+          ...prev,
+          // Remove old local stream
+          ...Object.keys(prev).reduce((acc, id) => {
+            if (!prev[id].isLocal) {
+              acc[id] = prev[id];
+            }
+            return acc;
+          }, {} as typeof prev),
+          // Add new local stream
+          [newStream.id]: { stream: newStream, isLocal: true },
+        }));
+
+        console.log("✅ Successfully updated WebRTC tracks for new processed stream");
+      }).catch(error => {
+        console.error("❌ Error updating WebRTC tracks:", error);
+      });
+
+    } catch (error) {
+      console.error("❌ Error replacing WebRTC tracks:", error);
+    }
+  }, [microphoneBuffer.processedStream, microphoneBuffer.mediaStream, isConnected, streams]);
 
   return {
     streams,
