@@ -130,10 +130,84 @@ function useSocketsHook() {
         });
 
         socket.on("clients", (data: any) => {
-          setClients((old) => ({
-            ...old,
-            [host]: data,
-          }));
+          console.log(`📥 CLIENT RECEIVED clients update from [${host}]:`, {
+            totalClients: Object.keys(data).length,
+            clientSummary: Object.entries(data).map(([id, client]: [string, any]) => ({
+              id,
+              nickname: client.nickname,
+              hasJoinedChannel: client.hasJoinedChannel,
+              isConnectedToVoice: client.isConnectedToVoice,
+              streamID: client.streamID,
+              isMuted: client.isMuted,
+              isDeafened: client.isDeafened,
+            })),
+            timestamp: Date.now(),
+            host
+          });
+          
+          setClients((old) => {
+            const newClients = {
+              ...old,
+              [host]: data,
+            };
+            
+            // Log changes in client states
+            if (old[host]) {
+              const oldClientIds = Object.keys(old[host]);
+              const newClientIds = Object.keys(data);
+              
+              // Check for new clients
+              const addedClients = newClientIds.filter(id => !oldClientIds.includes(id));
+              const removedClients = oldClientIds.filter(id => !newClientIds.includes(id));
+              
+              if (addedClients.length > 0) {
+                console.log(`➕ CLIENTS ADDED [${host}]:`, addedClients.map(id => ({
+                  id,
+                  nickname: data[id].nickname,
+                  hasJoinedChannel: data[id].hasJoinedChannel
+                })));
+              }
+              
+              if (removedClients.length > 0) {
+                console.log(`➖ CLIENTS REMOVED [${host}]:`, removedClients.map(id => ({
+                  id,
+                  nickname: old[host][id]?.nickname,
+                  hasJoinedChannel: old[host][id]?.hasJoinedChannel
+                })));
+              }
+              
+              // Check for state changes in existing clients
+              oldClientIds.forEach(id => {
+                if (data[id] && old[host][id]) {
+                  const oldClient = old[host][id];
+                  const newClient = data[id];
+                  
+                  const stateChanges: string[] = [];
+                  if (oldClient.hasJoinedChannel !== newClient.hasJoinedChannel) {
+                    stateChanges.push(`hasJoinedChannel: ${oldClient.hasJoinedChannel} -> ${newClient.hasJoinedChannel}`);
+                  }
+                  if (oldClient.isConnectedToVoice !== newClient.isConnectedToVoice) {
+                    stateChanges.push(`isConnectedToVoice: ${oldClient.isConnectedToVoice} -> ${newClient.isConnectedToVoice}`);
+                  }
+                  if (oldClient.streamID !== newClient.streamID) {
+                    stateChanges.push(`streamID: "${oldClient.streamID}" -> "${newClient.streamID}"`);
+                  }
+                  if (oldClient.isMuted !== newClient.isMuted) {
+                    stateChanges.push(`isMuted: ${oldClient.isMuted} -> ${newClient.isMuted}`);
+                  }
+                  if (oldClient.isDeafened !== newClient.isDeafened) {
+                    stateChanges.push(`isDeafened: ${oldClient.isDeafened} -> ${newClient.isDeafened}`);
+                  }
+                  
+                  if (stateChanges.length > 0) {
+                    console.log(`🔄 CLIENT STATE CHANGE [${host}][${id}] ${newClient.nickname}:`, stateChanges);
+                  }
+                }
+              });
+            }
+            
+            return newClients;
+          });
         });
 
         // Add peer join/leave room event handlers for sound notifications

@@ -11,7 +11,7 @@ import {
   TextField,
 } from "@radix-ui/themes";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { BsVolumeOffFill } from "react-icons/bs";
 import { MdMicOff } from "react-icons/md";
 
@@ -98,6 +98,47 @@ export const ServerView = () => {
       currentlyViewingServer ? sockets[currentlyViewingServer.host] : null,
     [currentlyViewingServer, sockets]
   );
+
+  // Add detailed logging for peer states (moved to separate effect to prevent re-renders)
+  const logDataRef = useRef<any>(null);
+  const prevPeerStatesRef = useRef<{[key: string]: boolean}>({});
+  
+  useEffect(() => {
+    if (currentlyViewingServer && clients[currentlyViewingServer.host]) {
+      const clientList = clients[currentlyViewingServer.host];
+      const newLogData = {
+        server: currentlyViewingServer.host,
+        totalClients: Object.keys(clientList).length,
+        currentConnection: currentConnection?.id,
+        isConnected,
+        isConnecting,
+        currentChannelId,
+        showVoiceView,
+        clients: Object.keys(clientList).map(id => ({
+          id,
+          nickname: clientList[id].nickname,
+          hasJoinedChannel: clientList[id].hasJoinedChannel,
+          isConnectedToVoice: clientList[id].isConnectedToVoice,
+          streamID: clientList[id].streamID,
+          isMuted: clientList[id].isMuted,
+          isDeafened: clientList[id].isDeafened,
+          isCurrentUser: id === currentConnection?.id,
+          shouldShowInVoice: currentlyViewingServer.host === currentServerConnected && clientList[id].hasJoinedChannel,
+        }))
+      };
+      
+      // Only log if data actually changed (deep comparison on relevant fields)
+      const prevData = logDataRef.current;
+      if (!prevData || 
+          prevData.totalClients !== newLogData.totalClients ||
+          prevData.isConnected !== newLogData.isConnected ||
+          prevData.isConnecting !== newLogData.isConnecting ||
+          JSON.stringify(prevData.clients) !== JSON.stringify(newLogData.clients)) {
+        console.log("🔍 PEER STATE AUDIT:", newLogData);
+        logDataRef.current = newLogData;
+      }
+    }
+  }, [clients, currentlyViewingServer, currentConnection?.id, isConnected, isConnecting, currentChannelId, showVoiceView, currentServerConnected]);
 
   useEffect(() => {
     setVoiceWidth(
@@ -393,9 +434,19 @@ export const ServerView = () => {
                   <AnimatePresence>
                     {currentServerConnected === currentlyViewingServer.host &&
                       Object.keys(clients[currentlyViewingServer.host])?.map(
-                        (id, index) =>
-                          clients[currentlyViewingServer.host][id]
-                            .hasJoinedChannel && (
+                        (id) => {
+                          const client = clients[currentlyViewingServer.host][id];
+                          // Keep peer visible if they're connecting (even if hasJoinedChannel is false)
+                          const isUserConnecting = id === currentConnection?.id && isConnecting;
+                          const shouldShow = client.hasJoinedChannel || isUserConnecting;
+                          
+                          // Log individual peer rendering decisions only when shouldShow changes
+                          if (prevPeerStatesRef.current[id] !== shouldShow) {
+                            console.log(`🎭 VOICE VIEW PEER [${id}] ${client.nickname}: shouldShow ${prevPeerStatesRef.current[id]} -> ${shouldShow} (hasJoinedChannel: ${client.hasJoinedChannel}, isConnecting: ${isUserConnecting})`);
+                            prevPeerStatesRef.current[id] = shouldShow;
+                          }
+                          
+                          return shouldShow && (
                             <motion.div
                               layout
                               transition={{
@@ -405,13 +456,19 @@ export const ServerView = () => {
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
                               exit={{ opacity: 0 }}
-                              key={id + index}
+                              key={id}
+                              onAnimationStart={() => {
+                                console.log(`🎬 VOICE PEER ANIMATION START [${id}]:`, client.nickname);
+                              }}
+                              onAnimationComplete={() => {
+                                console.log(`🎬 VOICE PEER ANIMATION COMPLETE [${id}]:`, client.nickname);
+                              }}
                               style={{
                                 background: clientsSpeaking[id] 
                                   ? "var(--accent-3)" 
                                   : "var(--color-panel-translucent)",
                                 borderRadius: "12px",
-                                opacity: clients[currentlyViewingServer.host][id].isConnectedToVoice ?? true ? 1 : 0.5,
+                                opacity: client.isConnectedToVoice ?? true ? 1 : 0.5,
                                 transition: "opacity 0.3s ease, background-color 0.1s ease",
                                 border: clientsSpeaking[id] 
                                   ? "1px solid var(--accent-6)" 
@@ -428,10 +485,7 @@ export const ServerView = () => {
                               >
                                 <Flex align="center" justify="center" position="relative">
                                   <Avatar
-                                    fallback={
-                                      clients[currentlyViewingServer.host][id]
-                                        .nickname[0]
-                                    }
+                                    fallback={client.nickname[0]}
                                     style={{
                                       outline: clientsSpeaking[id] ? "3px solid" : "2px solid",
                                       outlineColor: clientsSpeaking[id]
@@ -444,7 +498,7 @@ export const ServerView = () => {
                                     }}
                                   />
                                   {/* Show spinner overlay for connecting users */}
-                                  {id === currentConnection?.id && isConnecting && (
+                                  {isUserConnecting && (
                                     <Flex
                                       position="absolute"
                                       align="center"
@@ -462,8 +516,7 @@ export const ServerView = () => {
                                     </Flex>
                                   )}
                                   {/* Mute/Deafen icons overlay */}
-                                  {(clients[currentlyViewingServer.host][id].isMuted || 
-                                    clients[currentlyViewingServer.host][id].isDeafened) && (
+                                  {(client.isMuted || client.isDeafened) && (
                                     <Flex
                                       position="absolute"
                                       bottom="-4px"
@@ -476,10 +529,10 @@ export const ServerView = () => {
                                         border: "1px solid var(--gray-6)",
                                       }}
                                     >
-                                      {clients[currentlyViewingServer.host][id].isMuted && (
+                                      {client.isMuted && (
                                         <MdMicOff size={12} color="var(--red-9)" />
                                       )}
-                                      {clients[currentlyViewingServer.host][id].isDeafened && (
+                                      {client.isDeafened && (
                                         <BsVolumeOffFill size={10} color="var(--red-9)" />
                                       )}
                                     </Flex>
@@ -495,15 +548,13 @@ export const ServerView = () => {
                                       transition: "color 0.1s ease",
                                     }}
                                   >
-                                    {
-                                      clients[currentlyViewingServer.host][id]
-                                        .nickname
-                                    }
+                                    {client.nickname}
                                   </Text>
                                 </Flex>
                               </Flex>
                             </motion.div>
-                          )
+                          );
+                        }
                       )}
                   </AnimatePresence>
 
