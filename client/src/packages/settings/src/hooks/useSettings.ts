@@ -89,8 +89,9 @@ function useSettingsHook() {
   const [showAddServer, setShowAddServer] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(true);
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isDeafened, setIsDeafened] = useState(false);
+  const [isMuted, setIsMutedState] = useState(false);
+  const [isDeafened, setIsDeafenedState] = useState(false);
+  const [preDeafenMuteState, setPreDeafenMuteState] = useState(false);
 
   // Voice call settings
   const [connectSoundEnabled, setConnectSoundEnabled] = useState(
@@ -254,6 +255,40 @@ function useSettingsHook() {
 
   function updateCurrentServer(host: string) {
     setCurrentlyViewingServer(servers[host]);
+  }
+
+  // Enhanced mute/deafen logic with state coordination
+  function setIsMuted(muted: boolean) {
+    console.log(`🔇 setIsMuted called: ${muted}, currently deafened: ${isDeafened}`);
+    
+    if (muted) {
+      // Muting: just mute, don't affect deafen state
+      setIsMutedState(true);
+    } else {
+      // Unmuting: if we're deafened, also undeafen
+      setIsMutedState(false);
+      if (isDeafened) {
+        console.log("🔇 Unmuting while deafened - also undeafening");
+        setIsDeafenedState(false);
+      }
+    }
+  }
+
+  function setIsDeafened(deafened: boolean) {
+    console.log(`🔇 setIsDeafened called: ${deafened}, currently muted: ${isMuted}`);
+    
+    if (deafened) {
+      // Deafening: store current mute state and mute
+      setPreDeafenMuteState(isMuted);
+      setIsDeafenedState(true);
+      setIsMutedState(true);
+      console.log(`🔇 Deafening - stored pre-deafen mute state: ${isMuted}`);
+    } else {
+      // Undeafening: restore previous mute state
+      setIsDeafenedState(false);
+      setIsMutedState(preDeafenMuteState);
+      console.log(`🔇 Undeafening - restored mute state to: ${preDeafenMuteState}`);
+    }
   }
 
   useEffect(() => {

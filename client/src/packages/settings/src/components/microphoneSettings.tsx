@@ -34,7 +34,7 @@ export function MicrophoneSettings() {
   
   // Only create a microphone handle if we're not connected to a voice channel
   // If connected, just access the shared buffer; if not connected, create a handle for testing
-  const { devices, microphoneBuffer, getDevices, isMuted, setMuted, getVisualizerData, audioContext } = useMicrophone(!isConnected);
+  const { devices, microphoneBuffer, getDevices, getVisualizerData, audioContext } = useMicrophone(!isConnected);
 
   const [micLiveVolume, setMicLiveVolume] = useState(0); // Final processed volume for general display
   const [micRawVolume, setMicRawVolume] = useState(0); // Raw input volume for noise gate visualization
@@ -218,24 +218,6 @@ export function MicrophoneSettings() {
           />
         </Flex>
 
-        {/* Mute Control */}
-        <Flex direction="column" gap="2">
-          <Text weight="medium" size="2">
-            Mute Control
-          </Text>
-          <Flex align="center" justify="between">
-            <Flex direction="column" gap="1">
-              <Text size="2" color="gray">
-                Mute your microphone (sends silence to others)
-              </Text>
-              <Text size="1" color="gray">
-                This prevents any audio from being transmitted
-              </Text>
-            </Flex>
-            <Switch checked={isMuted} onCheckedChange={setMuted} />
-          </Flex>
-        </Flex>
-
         {/* Enhanced Noise Gate with Real-time Audio Level */}
         <Flex direction="column" gap="2">
           <Text weight="medium" size="2">
@@ -356,7 +338,6 @@ export function MicrophoneSettings() {
             <Flex direction="column" gap="1">
               <Text size="1" color="gray">
                 Status: {audioContext ? "✅ Active" : "❌ Inactive"}
-                {isMuted && " • 🔇 MUTED"}
                 {loopbackEnabled && " • 🔊 PLAYBACK ON"}
               </Text>
               {microphoneBuffer.processedStream && (

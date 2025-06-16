@@ -23,6 +23,7 @@ class SFUClient {
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 1000;
         this.registeredRooms = new Set();
+        this.roomsToReregister = new Set();
         this.connectionHealth = {
             lastPing: 0,
             isHealthy: true,
@@ -56,6 +57,10 @@ class SFUClient {
                         this.reconnectAttempts = 0;
                         this.connectionHealth.isHealthy = true;
                         this.startHealthCheck();
+                        // Re-register rooms after successful reconnection
+                        this.reregisterRooms().catch(error => {
+                            consola_1.consola.error('Failed to re-register rooms after reconnection:', error);
+                        });
                         resolve();
                     });
                     this.ws.on('message', (data) => {
@@ -72,7 +77,10 @@ class SFUClient {
                         consola_1.consola.warn(`SFU connection closed: ${code} - ${reason}`);
                         this.ws = null;
                         this.connectionHealth.isHealthy = false;
+                        // Don't clear registered rooms, instead move them to re-registration queue
+                        this.roomsToReregister = new Set([...this.roomsToReregister, ...this.registeredRooms]);
                         this.registeredRooms.clear();
+                        consola_1.consola.info(`Marked ${this.roomsToReregister.size} rooms for re-registration on reconnect`);
                         this.scheduleReconnect();
                     });
                     this.ws.on('error', (error) => {
@@ -175,7 +183,30 @@ class SFUClient {
                 consola_1.consola.debug('SFU Message:', message.event, message.data);
         }
     }
-    registerRoom(roomId) {
+    reregisterRooms() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.roomsToReregister.size === 0) {
+                return;
+            }
+            consola_1.consola.info(`Re-registering ${this.roomsToReregister.size} rooms after reconnection...`);
+            // Create a copy to avoid modifying the set while iterating
+            const roomsToProcess = Array.from(this.roomsToReregister);
+            this.roomsToReregister.clear();
+            for (const roomId of roomsToProcess) {
+                try {
+                    yield this.internalRegisterRoom(roomId);
+                    consola_1.consola.success(`Re-registered room: ${roomId}`);
+                }
+                catch (error) {
+                    consola_1.consola.error(`Failed to re-register room ${roomId}:`, error);
+                    // If re-registration fails, add it back to the queue for next attempt
+                    this.roomsToReregister.add(roomId);
+                }
+            }
+            consola_1.consola.success('Room re-registration completed');
+        });
+    }
+    internalRegisterRoom(roomId) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.ws || this.ws.readyState !== ws_1.default.OPEN) {
                 throw new Error('SFU connection not available');
@@ -200,6 +231,22 @@ class SFUClient {
             this.ws.send(JSON.stringify(message));
             this.registeredRooms.add(roomId);
             consola_1.consola.info(`Registered room ${roomId} with SFU`);
+        });
+    }
+    registerRoom(roomId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Add to persistent storage first
+            this.roomsToReregister.add(roomId);
+            // Then perform the actual registration
+            yield this.internalRegisterRoom(roomId);
+        });
+    }
+    unregisterRoom(roomId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Remove from both current and persistent storage
+            this.registeredRooms.delete(roomId);
+            this.roomsToReregister.delete(roomId);
+            consola_1.consola.info(`Unregistered room ${roomId} from SFU client`);
         });
     }
     generateClientJoinToken(roomId, userId) {
@@ -235,6 +282,7 @@ class SFUClient {
             connected: ((_a = this.ws) === null || _a === void 0 ? void 0 : _a.readyState) === ws_1.default.OPEN || false,
             healthy: this.connectionHealth.isHealthy,
             registeredRooms: this.registeredRooms.size,
+            roomsToReregister: this.roomsToReregister.size,
             reconnectAttempts: this.reconnectAttempts,
         };
     }
@@ -245,6 +293,7 @@ class SFUClient {
             this.ws = null;
         }
         this.registeredRooms.clear();
+        this.roomsToReregister.clear();
         this.connectionHealth.isHealthy = false;
     }
 }

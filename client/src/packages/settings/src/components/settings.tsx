@@ -23,7 +23,7 @@ export function Settings() {
 
   return (
     <Dialog.Root open={showSettings} onOpenChange={handleDialogChange}>
-      <Dialog.Content maxWidth="800px" style={{ height: "600px" }}>
+      <Dialog.Content maxWidth="900px" style={{ height: "700px", minWidth: "600px" }}>
         <Dialog.Close
           style={{
             position: "absolute",
@@ -45,7 +45,7 @@ export function Settings() {
             <Tabs.Root value={settingsTab} onValueChange={setSettingsTab} orientation="vertical" style={{ flex: 1 }}>
               <Flex gap="4" height="100%">
                 {/* Vertical Tab List */}
-                <Box style={{ minWidth: "200px" }}>
+                <Box style={{ minWidth: "200px", flexShrink: 0 }}>
                   <Tabs.List 
                     style={{ 
                       flexDirection: "column", 
@@ -80,7 +80,7 @@ export function Settings() {
                 </Box>
 
                 {/* Tab Content */}
-                <Box style={{ flex: 1, overflow: "auto" }}>
+                <Box style={{ flex: 1, overflow: "auto", minWidth: 0 }}>
                   <Tabs.Content value="microphone">
                     <MicrophoneSettings />
                   </Tabs.Content>
