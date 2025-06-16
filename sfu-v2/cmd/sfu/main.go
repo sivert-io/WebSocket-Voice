@@ -133,14 +133,14 @@ func main() {
 		ticker := time.NewTicker(5 * time.Minute) // Check every 5 minutes
 		defer ticker.Stop()
 
-		log.Printf("🧹 Room cleanup routine started (check interval: 5m, cleanup threshold: 10m)")
+		log.Printf("🧹 Room cleanup routine started (check interval: 5m, cleanup threshold: 30m)")
 
 		for range ticker.C {
 			recovery.SafeExecute("ROOM_CLEANUP", "CLEANUP_CYCLE", func() error {
 				if cfg.Debug {
 					log.Printf("🧹 Running scheduled room cleanup...")
 				}
-				roomManager.CleanupEmptyRooms(10 * time.Minute) // Remove rooms empty for 10+ minutes
+				roomManager.CleanupEmptyRooms(30 * time.Minute) // Remove rooms empty for 30+ minutes
 				return nil
 			})
 		}

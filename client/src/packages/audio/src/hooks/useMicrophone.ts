@@ -13,14 +13,13 @@ function useCreateMicrophoneHook() {
     loopbackEnabled, 
     micID, 
     micVolume, 
-    isMuted: globalMuted, 
+    isMuted, 
     noiseGate
   } = useSettings();
   
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(undefined);
   const [devices, setDevices] = useState<InputDeviceInfo[]>([]);
   const [micStream, setMicStream] = useState<MediaStream | undefined>(undefined);
-  const [isLocalMuted, setIsLocalMuted] = useState(false);
   const [currentDeviceId, setCurrentDeviceId] = useState<string | undefined>(micID);
   
   // Store the current source node to prevent multiple connections
@@ -31,9 +30,6 @@ function useCreateMicrophoneHook() {
   
   const isBrowserSupported = useMemo(() => getIsBrowserSupported(), []);
   
-  // Combined mute state (local mute OR global mute)
-  const isMuted = useMemo(() => isLocalMuted || globalMuted, [isLocalMuted, globalMuted]);
-
   // Manage shared AudioContext lifecycle
   useEffect(() => {
     console.log("🎤 AudioContext lifecycle - handles:", handles.length, "context exists:", !!audioContext);
@@ -476,12 +472,6 @@ function useCreateMicrophoneHook() {
     return dataArray;
   }, [microphoneBuffer.finalAnalyser]);
 
-  // Mute control functions
-  const setMuted = useCallback((muted: boolean) => {
-    console.log("🔇 Local mute changed:", muted);
-    setIsLocalMuted(muted);
-  }, []);
-
   return {
     addHandle,
     removeHandle,
@@ -491,8 +481,6 @@ function useCreateMicrophoneHook() {
     audioContext,
     isLoaded,
     getDevices,
-    isMuted,
-    setMuted,
     getVisualizerData,
   };
 }
@@ -518,8 +506,6 @@ const init: MicrophoneInterface = {
   removeHandle: () => {},
   isLoaded: false,
   getDevices: async () => {},
-  isMuted: false,
-  setMuted: () => {},
   getVisualizerData: () => null,
 };
 

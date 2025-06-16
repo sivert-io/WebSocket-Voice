@@ -20,9 +20,6 @@ export interface MicrophoneInterface {
   audioContext?: AudioContext;
   isLoaded: boolean;
   getDevices: () => Promise<void>;
-  // New mute functionality
-  isMuted: boolean;
-  setMuted: (muted: boolean) => void;
   // Visualizer support
   getVisualizerData: () => Uint8Array | null;
 }

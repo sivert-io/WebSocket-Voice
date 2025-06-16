@@ -42,6 +42,13 @@ function socketHandler(io, socket, sfuClient) {
             (0, clients_1.syncAllClients)(io, clientsInfo);
             consola_1.default.info(`Client ${clientId} ${isMuted ? 'muted' : 'unmuted'}`);
         },
+        updateDeafen: (isDeafened) => {
+            if (!clientsInfo[clientId])
+                return;
+            clientsInfo[clientId].isDeafened = Boolean(isDeafened);
+            (0, clients_1.syncAllClients)(io, clientsInfo);
+            consola_1.default.info(`Client ${clientId} ${isDeafened ? 'deafened' : 'undeafened'}`);
+        },
         streamID: (streamID) => {
             if (!clientsInfo[clientId])
                 return;
@@ -170,6 +177,7 @@ function socketHandler(io, socket, sfuClient) {
     clientsInfo[clientId] = {
         nickname: "User",
         isMuted: false,
+        isDeafened: false,
         color: colors_1.colors[Math.floor(Math.random() * colors_1.colors.length)],
         streamID: "",
         hasJoinedChannel: false,
