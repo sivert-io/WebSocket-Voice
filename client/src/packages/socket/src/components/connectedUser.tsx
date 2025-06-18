@@ -8,6 +8,7 @@ export function ConnectedUser({
   isSpeaking,
   isMuted,
   isDeafened,
+  isAFK,
   nickname,
   isConnectedToVoice = true, // Default to true for backward compatibility
   isConnectingToVoice = false, // New prop for showing loading state
@@ -15,6 +16,7 @@ export function ConnectedUser({
   isSpeaking: boolean;
   isMuted: boolean;
   isDeafened: boolean;
+  isAFK: boolean;
   nickname: string;
   isConnectedToVoice?: boolean;
   isConnectingToVoice?: boolean;
@@ -67,6 +69,11 @@ export function ConnectedUser({
           )}
           {isMuted && <MdMicOff color="var(--red-8)" />}
           {isDeafened && <BsVolumeOffFill color="var(--red-8)" />}
+          {isAFK && (
+            <Text size="1" weight="bold" color="orange">
+              AFK
+            </Text>
+          )}
         </Flex>
       </Flex>
     </motion.div>

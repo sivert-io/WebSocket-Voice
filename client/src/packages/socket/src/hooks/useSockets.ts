@@ -25,6 +25,7 @@ function useSocketsHook() {
     nickname,
     isMuted,
     isDeafened,
+    isAFK,
     connectSoundEnabled,
     disconnectSoundEnabled,
     connectSoundVolume,
@@ -85,6 +86,15 @@ function useSocketsHook() {
     });
   }, [isDeafened, servers, sockets]);
 
+  // Update AFK state on all servers
+  useEffect(() => {
+    Object.keys(servers).forEach((host) => {
+      console.log("Sending AFK state:", isAFK);
+
+      sockets[host]?.emit("updateAFK", isAFK);
+    });
+  }, [isAFK, servers, sockets]);
+
   // Add new or update servers to the list
   useEffect(() => {
     const info = [...newServerInfo];
@@ -140,6 +150,7 @@ function useSocketsHook() {
               streamID: client.streamID,
               isMuted: client.isMuted,
               isDeafened: client.isDeafened,
+              isAFK: client.isAFK,
             })),
             timestamp: Date.now(),
             host
@@ -197,6 +208,9 @@ function useSocketsHook() {
                   }
                   if (oldClient.isDeafened !== newClient.isDeafened) {
                     stateChanges.push(`isDeafened: ${oldClient.isDeafened} -> ${newClient.isDeafened}`);
+                  }
+                  if (oldClient.isAFK !== newClient.isAFK) {
+                    stateChanges.push(`isAFK: ${oldClient.isAFK} -> ${newClient.isAFK}`);
                   }
                   
                   if (stateChanges.length > 0) {
