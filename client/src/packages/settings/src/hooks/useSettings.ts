@@ -39,6 +39,12 @@ interface Settings {
   isDeafened: boolean;
   setIsDeafened: (value: boolean) => void;
 
+  // AFK settings
+  isAFK: boolean;
+  setIsAFK: (value: boolean) => void;
+  afkTimeoutMinutes: number;
+  setAfkTimeoutMinutes: (value: number) => void;
+
   showSettings: boolean;
   setShowSettings: (value: boolean) => void;
 
@@ -154,6 +160,12 @@ function useSettingsHook() {
 
   const [showVoiceView, setShowVoiceView] = useState(true);
 
+  // AFK settings
+  const [isAFK, setIsAFK] = useState(false);
+  const [afkTimeoutMinutes, setAfkTimeoutMinutes] = useState(
+    Number(localStorage.getItem("afkTimeoutMinutes")) || 5
+  );
+
   function updateMicID(newID: string) {
     console.log("updateMicID called with:", newID, "type:", typeof newID, "length:", newID?.length);
     
@@ -185,6 +197,11 @@ function useSettingsHook() {
   function updateNoiseGate(newGate: number) {
     setNoiseGate(newGate);
     localStorage.setItem("noiseGate", newGate.toString());
+  }
+
+  function updateAfkTimeoutMinutes(newTimeout: number) {
+    setAfkTimeoutMinutes(newTimeout);
+    localStorage.setItem("afkTimeoutMinutes", newTimeout.toString());
   }
 
   // Voice call settings update functions
@@ -359,6 +376,11 @@ function useSettingsHook() {
     setCustomConnectSoundFile: updateCustomConnectSoundFile,
     customDisconnectSoundFile,
     setCustomDisconnectSoundFile: updateCustomDisconnectSoundFile,
+    // AFK settings
+    isAFK,
+    setIsAFK,
+    afkTimeoutMinutes,
+    setAfkTimeoutMinutes: updateAfkTimeoutMinutes,
   };
 }
 
@@ -422,6 +444,12 @@ const init: Settings = {
 
   settingsTab: "microphone",
   setSettingsTab: () => {},
+
+  // AFK settings
+  isAFK: false,
+  setIsAFK: () => {},
+  afkTimeoutMinutes: 5,
+  setAfkTimeoutMinutes: () => {},
 };
 
 export const useSettings = singletonHook(init, useSettingsHook);

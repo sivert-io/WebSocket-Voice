@@ -7,5 +7,6 @@ export interface Clients {
     streamID: string;
     hasJoinedChannel: boolean;
     isConnectedToVoice?: boolean;
+    isAFK: boolean;
   };
 }

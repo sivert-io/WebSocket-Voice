@@ -28,6 +28,8 @@ export function MicrophoneSettings() {
     setNoiseGate,
     setLoopbackEnabled,
     loopbackEnabled,
+    afkTimeoutMinutes,
+    setAfkTimeoutMinutes,
   } = useSettings();
 
   const { isConnected } = useSFU();
@@ -290,6 +292,23 @@ export function MicrophoneSettings() {
               {micRawVolume < noiseGate ? "🚫 GATED" : isMicLive ? "🎤 OPEN" : "🔇 QUIET"}
             </Text>
           </Flex>
+        </Flex>
+
+        {/* AFK Timeout Setting */}
+        <Flex direction="column" gap="2">
+          <Text weight="medium" size="2">
+            AFK Timeout: {afkTimeoutMinutes} minutes
+          </Text>
+          <Text size="1" color="gray">
+            You'll be marked as AFK after this many minutes of silence. Only applies when connected to voice channels.
+          </Text>
+          <Slider
+            value={[afkTimeoutMinutes]}
+            onValueChange={(value) => setAfkTimeoutMinutes(value[0])}
+            max={30}
+            min={1}
+            step={1}
+          />
         </Flex>
 
         {/* Test Microphone */}

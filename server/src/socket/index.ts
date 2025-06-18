@@ -42,6 +42,14 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       consola.info(`Client ${clientId} ${isDeafened ? 'deafened' : 'undeafened'}`);
     },
 
+    updateAFK: (isAFK: boolean) => {
+      if (!clientsInfo[clientId]) return;
+      
+      clientsInfo[clientId].isAFK = Boolean(isAFK);
+      syncAllClients(io, clientsInfo);
+      consola.info(`Client ${clientId} ${isAFK ? 'went AFK' : 'returned from AFK'}`);
+    },
+
     streamID: (streamID: string) => {
       if (!clientsInfo[clientId]) return;
       
@@ -244,6 +252,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     streamID: "",
     hasJoinedChannel: false,
     isConnectedToVoice: false,
+    isAFK: false,
   };
 
   // Send client verification and details

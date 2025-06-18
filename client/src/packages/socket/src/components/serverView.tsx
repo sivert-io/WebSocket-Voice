@@ -41,6 +41,10 @@ export const ServerView = () => {
     micID,
     setShowSettings,
     setSettingsTab,
+    isAFK,
+    setIsAFK,
+    afkTimeoutMinutes,
+    noiseGate,
   } = useSettings();
 
   const {
@@ -201,6 +205,84 @@ export const ServerView = () => {
     //Clearing the interval
     return () => clearInterval(interval);
   }, [microphoneBuffer.finalAnalyser, streamSources]);
+
+  // AFK Detection Logic
+  useEffect(() => {
+    let lastActivityTime = Date.now();
+    let afkCheckInterval: NodeJS.Timeout;
+
+    // Only run AFK detection when connected to a voice channel
+    if (
+      !currentServerConnected ||
+      !currentlyViewingServer ||
+      !currentConnection ||
+      !microphoneBuffer.analyser
+    ) {
+      // Reset AFK status when not connected
+      if (isAFK) {
+        console.log("🟢 Resetting AFK status - not connected to voice");
+        setIsAFK(false);
+      }
+      return;
+    }
+
+    const checkAFK = () => {
+      if (!microphoneBuffer.analyser) return;
+
+      // Get raw audio level (before mute/deafen processing)
+      const bufferLength = microphoneBuffer.analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      microphoneBuffer.analyser.getByteFrequencyData(dataArray);
+      
+      // Calculate RMS for noise gate threshold (raw audio)
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i] * dataArray[i];
+      }
+      const rms = Math.sqrt(sum / bufferLength);
+      const rawVolume = (rms / 255) * 100;
+      
+      // Check if audio is above noise gate threshold
+      if (rawVolume > noiseGate) {
+        lastActivityTime = Date.now();
+        // If user was AFK and they start speaking, remove AFK status
+        if (isAFK) {
+          console.log("🟢 User returned from AFK - detected audio activity");
+          setIsAFK(false);
+        }
+      }
+
+      // Check if user has been inactive for the timeout period
+      const timeSinceActivity = Date.now() - lastActivityTime;
+      const timeoutMs = afkTimeoutMinutes * 60 * 1000; // Convert minutes to milliseconds
+
+      if (timeSinceActivity >= timeoutMs && !isAFK) {
+        console.log(`🔴 User gone AFK - no audio activity for ${afkTimeoutMinutes} minutes`);
+        setIsAFK(true);
+      }
+    };
+
+    // Check AFK status every 5 seconds
+    afkCheckInterval = setInterval(checkAFK, 5000);
+
+    // Initial check
+    checkAFK();
+
+    return () => {
+      if (afkCheckInterval) {
+        clearInterval(afkCheckInterval);
+      }
+    };
+  }, [
+    currentServerConnected,
+    currentlyViewingServer,
+    currentConnection,
+    microphoneBuffer.analyser,
+    isAFK,
+    setIsAFK,
+    afkTimeoutMinutes,
+    noiseGate,
+  ]);
 
   if (!currentlyViewingServer) return null;
 
@@ -370,6 +452,10 @@ export const ServerView = () => {
                                       clients[currentlyViewingServer.host][id]
                                         .isDeafened
                                     }
+                                    isAFK={
+                                      clients[currentlyViewingServer.host][id]
+                                        .isAFK
+                                    }
                                     nickname={
                                       clients[currentlyViewingServer.host][id]
                                         .nickname
@@ -515,8 +601,8 @@ export const ServerView = () => {
                                       <Spinner size="2" />
                                     </Flex>
                                   )}
-                                  {/* Mute/Deafen icons overlay */}
-                                  {(client.isMuted || client.isDeafened) && (
+                                  {/* Mute/Deafen/AFK icons overlay */}
+                                  {(client.isMuted || client.isDeafened || client.isAFK) && (
                                     <Flex
                                       position="absolute"
                                       bottom="-4px"
@@ -534,6 +620,11 @@ export const ServerView = () => {
                                       )}
                                       {client.isDeafened && (
                                         <BsVolumeOffFill size={10} color="var(--red-9)" />
+                                      )}
+                                      {client.isAFK && (
+                                        <Text size="1" weight="bold" color="orange">
+                                          AFK
+                                        </Text>
                                       )}
                                     </Flex>
                                   )}
