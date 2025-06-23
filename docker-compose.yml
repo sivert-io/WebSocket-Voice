@@ -98,8 +98,6 @@ services:
     container_name: gryt-client
     ports:
       - "5173:80"
-    environment:
-      - VITE_GRYT_AUTH_API=https://auth.gryt.chat
     volumes:
       - ./client/.env:/app/.env:ro
     networks:

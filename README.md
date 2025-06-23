@@ -183,46 +183,30 @@ SERVER_NAME="My Brand New Server"
 # Icon of the server (filename in the public folder)
 SERVER_ICON="example.png"
 
-# Clients need invite to join
-SERVER_INVITE_ONLY="false"
-
 # Websocket allowed origins
 CORS_ORIGIN="https://gryt.chat"
 
 # Websocket secret token (also used for SFU authentication)
 SERVER_TOKEN="123"
-
-# Authentication endpoint (add this to your .env)
-GRYT_AUTH_API=https://auth.gryt.chat
 ```
 
-**Web Client** (copy `example.env` to `.env`):
-```env
-# Your websocket host url (must be secure)
-VITE_WS_HOST="wss://your-secure-websocket-host"
+**Web Client**:
+The web client does not require environment variables for basic operation. Users add servers manually through the application interface.
 
-# Authentication endpoint (add this to your .env)
-VITE_GRYT_AUTH_API=https://auth.gryt.chat
-```
-
-> **Quick Setup**: Copy the example files and add the auth configuration:
+> **Quick Setup**: Copy the example files:
 > ```bash
 > # Server
 > cd webrtc/server
 > cp example.env .env
-> echo "GRYT_AUTH_API=https://auth.gryt.chat" >> .env
 > 
 > # Client  
 > cd webrtc/client
 > cp example.env .env
-> echo "VITE_GRYT_AUTH_API=https://auth.gryt.chat" >> .env
 > ```
 
 ### Authentication Configuration
 
-Authentication is provided by the centrally hosted Gryt Auth service. Add this to your `.env` files:
-- **Server**: `GRYT_AUTH_API=https://auth.gryt.chat`
-- **Client**: `VITE_GRYT_AUTH_API=https://auth.gryt.chat`
+Authentication is provided by the centrally hosted Gryt Auth service. No additional configuration is required as the auth endpoint is automatically configured to use the official Gryt Auth API at `https://auth.gryt.chat`.
 
 ## 🎯 Key Features Deep Dive
 
