@@ -214,7 +214,6 @@ NODE_ENV=production
 #### Web Client
 ```env
 VITE_WS_HOST="wss://api.yourdomain.com"
-VITE_GRYT_AUTH_API="https://auth.gryt.chat"
 ```
 
 ### SSL/TLS Configuration

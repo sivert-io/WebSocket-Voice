@@ -4,7 +4,7 @@
 // This centralized authentication ensures a seamless user experience by eliminating the need to create separate accounts for each server.
 // Without Gryt Authentication, user verification is impossible, forcing each server to manage its own authentication—
 // a scenario that compromises user convenience and security by requiring you to share credentials with multiple server hosts.
-const grytAuthHost = import.meta.env.VITE_GRYT_AUTH_API || "https://auth.gryt.chat" as const;
+const grytAuthHost = "https://auth.gryt.chat" as const;
 
 import axios, { AxiosInstance, AxiosResponse } from "axios";
 
