@@ -1,11 +1,13 @@
 import { Box,Dialog, Flex, IconButton, Tabs } from "@radix-ui/themes";
 import { FiX } from "react-icons/fi";
 import { MdMic, MdVolumeUp } from "react-icons/md";
+import { MdPalette } from "react-icons/md";
 
 import { useSettings } from "@/settings";
 
 import { MicrophoneSettings } from "./microphoneSettings";
 import { VoiceCallSettings } from "./voiceCallSettings";
+import { AppearanceSettings } from "./theme/appearanceSettings";
 
 export function Settings() {
   const { 
@@ -76,6 +78,17 @@ export function Settings() {
                       <MdVolumeUp size={16} />
                       Voice Calls
                     </Tabs.Trigger>
+                    <Tabs.Trigger 
+                      value="appearance" 
+                      style={{ 
+                        justifyContent: "flex-start",
+                        padding: "12px 16px",
+                        gap: "8px"
+                      }}
+                    >
+                      <MdPalette size={16} />
+                      Appearance
+                    </Tabs.Trigger>
                   </Tabs.List>
                 </Box>
 
@@ -86,6 +99,9 @@ export function Settings() {
                   </Tabs.Content>
                   <Tabs.Content value="voice-calls">
                     <VoiceCallSettings />
+                  </Tabs.Content>
+                  <Tabs.Content value="appearance">
+                    <AppearanceSettings />
                   </Tabs.Content>
                 </Box>
               </Flex>
