@@ -217,12 +217,6 @@ The client implements a sophisticated audio processing pipeline:
 Create a `.env` file based on `example.env`:
 
 ```env
-# Your websocket host url (must be secure)
-VITE_WS_HOST="wss://your-secure-websocket-host"
-
-# Authentication endpoint (add this to your .env)
-VITE_GRYT_AUTH_API=https://auth.gryt.chat
-
 # Optional: Audio Configuration
 VITE_AUDIO_SAMPLE_RATE=48000
 VITE_AUDIO_BUFFER_SIZE=256

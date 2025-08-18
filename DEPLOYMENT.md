@@ -213,7 +213,7 @@ NODE_ENV=production
 
 #### Web Client
 ```env
-VITE_WS_HOST="wss://api.yourdomain.com"
+
 ```
 
 ### SSL/TLS Configuration

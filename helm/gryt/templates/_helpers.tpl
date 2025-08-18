@@ -133,16 +133,7 @@ Get the SFU WebSocket host
 {{- printf "ws://%s-sfu:%d" (include "gryt.fullname" .) (.Values.sfu.service.port | int) -}}
 {{- end }}
 
-{{/*
-Get the client WebSocket host
-*/}}
-{{- define "gryt.client.wsHost" -}}
-{{- if .Values.ingress.routing.useSubdomains -}}
-{{- printf "wss://%s.%s" .Values.ingress.routing.subdomains.api .Values.gryt.domain -}}
-{{- else -}}
-{{- printf "wss://%s%s" .Values.gryt.domain .Values.ingress.routing.paths.api -}}
-{{- end -}}
-{{- end }}
+
 
 {{/*
 Get the CORS origin

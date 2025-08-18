@@ -20,10 +20,6 @@ data:
   SERVER_ICON: {{ .Values.server.env.SERVER_ICON | quote }}
   GRYT_AUTH_API: {{ .Values.gryt.auth.apiUrl | quote }}
   
-  # Client Configuration
-  VITE_GRYT_AUTH_API: {{ .Values.gryt.auth.apiUrl | quote }}
-  VITE_WS_HOST: {{ include "gryt.client.wsHost" . | quote }}
-  
   # Nginx Configuration
   nginx.conf: |
     events {
