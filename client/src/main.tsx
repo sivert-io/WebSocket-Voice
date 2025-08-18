@@ -6,16 +6,25 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
+import { useTheme } from "@/common";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+function ThemedApp() {
+  const {
+    resolvedAppearance,
+    accentColor,
+    grayColor,
+    hasBackground,
+    panelBackground,
+    radius,
+  } = useTheme();
+  return (
     <Theme
-      appearance="dark"
-      accentColor="violet"
-      grayColor="gray"
-      radius="full"
-      hasBackground={false}
-      panelBackground="translucent"
+      appearance={resolvedAppearance}
+      accentColor={accentColor}
+      grayColor={grayColor}
+      radius={radius}
+      hasBackground={hasBackground}
+      panelBackground={panelBackground}
       style={{
         minHeight: 0,
         height: "100%",
@@ -24,5 +33,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     >
       <App />
     </Theme>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <ThemedApp />
   </React.StrictMode>
 );
