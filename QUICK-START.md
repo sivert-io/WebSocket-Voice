@@ -55,7 +55,7 @@ SERVER_TOKEN="your-secure-token"
 STUN_SERVERS="stun:stun.l.google.com:19302"
 
 # Client
-VITE_WS_HOST="ws://localhost:5000"
+
 ```
 
 ## 🆘 Troubleshooting

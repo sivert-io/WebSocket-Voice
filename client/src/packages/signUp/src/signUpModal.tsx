@@ -46,10 +46,15 @@ export function SignUpModal() {
           return;
         }
 
-        const success = await register(formData);
-        if (success) {
-          setShowVerifyEmail(true);
-          reward();
+        try {
+          const success = await register(formData);
+          if (success) {
+            setError(undefined);
+            setShowVerifyEmail(true);
+            reward();
+          }
+        } catch (e: any) {
+          setError(e?.message || "Registration failed. Please try again.");
         }
       } else {
         if (email.length > 0 && password.length > 0) {
@@ -60,7 +65,7 @@ export function SignUpModal() {
         }
       }
     } catch (error) {
-      setError("An error occurred. Please try again.");
+      // Fallthrough (should be handled in branches above)
     }
   }
 

@@ -29,8 +29,12 @@ export class AuthApi {
   }
 
   public async register(data: RegisterData): Promise<AxiosResponse<any>> {
-    const response = await this.axiosInstance.post("/auth/register", data);
-    return response;
+    try {
+      const response = await this.axiosInstance.post("/auth/register", data);
+      return response;
+    } catch (err: any) {
+      throw err;
+    }
   }
 
   public async login(data: LoginData): Promise<AxiosResponse<any>> {
