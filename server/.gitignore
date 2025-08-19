@@ -26,3 +26,10 @@ dist-ssr
 
 public/*
 !public/example.png
+
+# Generated JS in src (should not be committed)
+src/**/*.js
+src/**/*.js.map
+
+# TypeScript build info
+*.tsbuildinfo

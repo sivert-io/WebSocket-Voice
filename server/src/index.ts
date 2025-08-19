@@ -6,26 +6,45 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import express from "express"; // Import express
 import { SFUClient } from "./sfu/client"; // Import SFU client
+import { initScylla } from "./db/scylla";
+import { initS3 } from "./storage/s3";
+import { messagesRouter } from "./routes/messages";
+import { uploadsRouter } from "./routes/uploads";
 
 const app = express(); // Create an Express app
+
+// Parse JSON bodies
+app.use(express.json({ limit: "2mb" }));
+
+// Initialize storage and database
+try {
+	initS3();
+	consola.success("S3 client initialized");
+} catch (e) {
+	consola.error("S3 initialization failed", e);
+}
+
+initScylla()
+	.then(() => consola.success("ScyllaDB initialized"))
+	.catch((e) => consola.error("ScyllaDB initialization failed", e));
 
 // Initialize SFU client if host is configured
 let sfuClient: SFUClient | null = null;
 
 if (process.env.SFU_WS_HOST) {
-  const serverId = process.env.SERVER_NAME?.replace(/\s+/g, '_').toLowerCase() || 'unknown_server';
-  const serverToken = process.env.SERVER_TOKEN || 'default_token';
-  
-  sfuClient = new SFUClient(serverId, serverToken, process.env.SFU_WS_HOST);
-  
-  // Connect to SFU server
-  sfuClient.connect().catch((error) => {
-    consola.error('Failed to connect to SFU:', error);
-  });
+	const serverId = process.env.SERVER_NAME?.replace(/\s+/g, '_').toLowerCase() || 'unknown_server';
+	const serverToken = process.env.SERVER_TOKEN || 'default_token';
+	
+	sfuClient = new SFUClient(serverId, serverToken, process.env.SFU_WS_HOST);
+	
+	// Connect to SFU server
+	sfuClient.connect().catch((error) => {
+		consola.error('Failed to connect to SFU:', error);
+	});
 } else {
-  consola.error(
-    "No SFU host defined! Server will not send or retrieve streams."
-  );
+	consola.error(
+		"No SFU host defined! Server will not send or retrieve streams."
+	);
 }
 
 // Serve static files from the "public" directory
@@ -34,31 +53,41 @@ const publicFolderPath = "public"; // Adjust the path if necessary
 // Serve the file specified by the SERVER_ICON environment variable at the /icon route
 const serverIconPath = process.env.SERVER_ICON || "default-icon.png"; // Default icon if not set
 app.get("/icon", (req, res) => {
-  res.sendFile(serverIconPath, { root: publicFolderPath }, (err) => {
-    if (err) {
-      console.error("Error serving the icon:", err.message);
-      res.status(404).send("Icon not found");
-    }
-  });
+	res.sendFile(serverIconPath, { root: publicFolderPath }, (err) => {
+		if (err) {
+			console.error("Error serving the icon:", err.message);
+			res.status(404).send("Icon not found");
+		}
+	});
+});
+
+// API routes
+app.use("/api/messages", messagesRouter);
+app.use("/api/uploads", uploadsRouter);
+
+// Basic error handler
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+	consola.error(err);
+	res.status(500).json({ error: err?.message || "Internal Server Error" });
 });
 
 const httpServer = createServer(app); // Pass the Express app to createServer
 const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.CORS_ORIGIN || "https://app.gryt.chat",
-  },
+	cors: {
+		origin: process.env.CORS_ORIGIN || "https://app.gryt.chat",
+	},
 });
 
 io.on("connection", (socket) => {
-  socketHandler(io, socket, sfuClient);
+	socketHandler(io, socket, sfuClient);
 });
 
 const PORT = process.env.PORT || 5000;
 
 httpServer.listen(PORT, () => {
-  consola.start(`Starting ${process.env.SERVER_NAME}...`);
-  consola.info("Using icon", serverIconPath);
-  if (process.env.SFU_WS_HOST)
-    consola.info("SFU host set to " + process.env.SFU_WS_HOST);
-  consola.success("Signaling server started at port", PORT);
+	consola.start(`Starting ${process.env.SERVER_NAME}...`);
+	consola.info("Using icon", serverIconPath);
+	if (process.env.SFU_WS_HOST)
+		consola.info("SFU host set to " + process.env.SFU_WS_HOST);
+	consola.success("Signaling server started at port", PORT);
 });
