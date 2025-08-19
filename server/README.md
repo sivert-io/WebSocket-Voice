@@ -127,9 +127,53 @@ SERVER_TOKEN="123"
 # Authentication endpoint (add this to your .env)
 GRYT_AUTH_API=https://auth.gryt.chat
 
+# ScyllaDB (Cassandra-compatible) configuration
+SCYLLA_CONTACT_POINTS=127.0.0.1
+SCYLLA_LOCAL_DATACENTER=datacenter1
+SCYLLA_KEYSPACE=gryt
+# SCYLLA_USERNAME=
+# SCYLLA_PASSWORD=
+
+# S3 / Object storage (AWS S3, Cloudflare R2, Wasabi, MinIO)
+S3_REGION=auto
+# For AWS, endpoint can be omitted
+# For MinIO/R2, set a custom endpoint like http://localhost:9000
+# S3_ENDPOINT=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_BUCKET=gryt-bucket
+# For MinIO/self-hosted set to true
+S3_FORCE_PATH_STYLE=false
+
 # Development
 NODE_ENV=development
 DEBUG=gryt:*
+```
+
+#### Example: MinIO (self-hosted S3)
+
+```env
+S3_ENDPOINT=http://localhost:9000
+S3_ACCESS_KEY_ID=admin
+S3_SECRET_ACCESS_KEY=change-me-please
+S3_BUCKET=gryt-bucket
+S3_FORCE_PATH_STYLE=true
+```
+
+#### MinIO Docker (single node)
+
+```bash
+# MinIO server
+docker run -d --name minio \
+  -p 9000:9000 -p 9001:9001 \
+  -v /srv/minio/data:/data \
+  -e MINIO_ROOT_USER=admin \
+  -e MINIO_ROOT_PASSWORD=change-me-please \
+  quay.io/minio/minio server /data --console-address ":9001"
+
+# Create bucket
+docker run --rm --network host -e MC_HOST_minio=http://admin:change-me-please@localhost:9000 \
+  quay.io/minio/mc mb --ignore-existing minio/gryt-bucket
 ```
 
 ## 🎯 API Reference
@@ -160,6 +204,21 @@ DEBUG=gryt:*
 | `offer` | `RTCSessionDescription` | WebRTC offer from SFU |
 | `answer` | `RTCSessionDescription` | WebRTC answer to SFU |
 | `ice-candidate` | `RTCIceCandidate` | ICE candidate from SFU |
+
+### REST Endpoints
+
+#### Messages
+- `GET /api/messages/:conversationId?limit=50&before=<ISO>`
+  - Returns `{ items: Message[] }` sorted by `created_at` ascending
+- `POST /api/messages/:conversationId`
+  - Body: `{ senderId: string, text?: string, attachments?: string[] }`
+  - Returns created `Message`
+
+#### Uploads
+- `POST /api/uploads` (multipart/form-data)
+  - Field `file`: the file to upload
+  - Stores file in S3-compatible storage; if image, generates a 320px JPEG thumbnail
+  - Returns `{ fileId, key, thumbnailKey }`
 
 ### Data Structures
 

@@ -5,6 +5,7 @@ import { Server, Socket } from "socket.io";
 import { syncAllClients, verifyClient } from "./utils/clients";
 import { sendInfo, sendServerDetails } from "./utils/server";
 import { SFUClient } from "../sfu/client";
+import { insertMessage } from "../db/scylla";
 
 const clientsInfo: Clients = {};
 
@@ -201,6 +202,33 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         clientsInfo[clientWithStream].isConnectedToVoice = false;
         syncAllClients(io, clientsInfo);
         consola.info(`Client ${clientWithStream} voice connection lost`);
+      }
+    },
+
+    // Real-time chat: persist and broadcast
+    'chat:send': async (payload: { conversationId: string; senderId: string; text?: string; attachments?: string[] }) => {
+      try {
+        if (!payload || typeof payload.conversationId !== 'string' || typeof payload.senderId !== 'string') {
+          socket.emit('chat:error', 'Invalid payload');
+          return;
+        }
+        const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+        const attachments = Array.isArray(payload.attachments) ? payload.attachments : null;
+        if (!text && (!attachments || attachments.length === 0)) {
+          socket.emit('chat:error', 'Message is empty');
+          return;
+        }
+        const created = await insertMessage({
+          conversation_id: payload.conversationId,
+          sender_id: payload.senderId,
+          text: text || null,
+          attachments: attachments && attachments.length > 0 ? attachments : null,
+        });
+        // Broadcast to all clients for now; clients can filter by conversationId
+        io.emit('chat:new', created);
+      } catch (err) {
+        consola.error('chat:send failed', err);
+        socket.emit('chat:error', 'Failed to send message');
       }
     },
   };
