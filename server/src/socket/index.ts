@@ -5,9 +5,25 @@ import { Server, Socket } from "socket.io";
 import { syncAllClients, verifyClient } from "./utils/clients";
 import { sendInfo, sendServerDetails } from "./utils/server";
 import { SFUClient } from "../sfu/client";
-import { insertMessage } from "../db/scylla";
+import { insertMessage, listMessages, MessageRecord } from "../db/scylla";
+import { randomUUID } from "crypto";
 
 const clientsInfo: Clients = {};
+
+// Simple in-memory message cache with TTL
+const MESSAGE_CACHE_TTL_MS = parseInt(process.env.MESSAGE_CACHE_TTL_MS || "30000");
+const messageCache: { [conversationId: string]: { items: MessageRecord[]; fetchedAt: number } } = {};
+
+async function getMessagesCached(conversationId: string, limit = 50): Promise<MessageRecord[]> {
+  const now = Date.now();
+  const cached = messageCache[conversationId];
+  if (cached && now - cached.fetchedAt < MESSAGE_CACHE_TTL_MS) {
+    return cached.items.slice(0, limit);
+  }
+  const items = await listMessages(conversationId, limit);
+  messageCache[conversationId] = { items, fetchedAt: now };
+  return items;
+}
 
 export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient | null) {
   const clientId = socket.id;
@@ -208,6 +224,12 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     // Real-time chat: persist and broadcast
     'chat:send': async (payload: { conversationId: string; senderId: string; text?: string; attachments?: string[] }) => {
       try {
+        consola.info(`💬 chat:send from ${clientId}`, {
+          conversationId: payload?.conversationId,
+          senderId: payload?.senderId,
+          textLen: typeof payload?.text === 'string' ? payload.text.length : 0,
+          hasAttachments: Array.isArray(payload?.attachments) && payload.attachments.length > 0,
+        });
         if (!payload || typeof payload.conversationId !== 'string' || typeof payload.senderId !== 'string') {
           socket.emit('chat:error', 'Invalid payload');
           return;
@@ -224,11 +246,49 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           text: text || null,
           attachments: attachments && attachments.length > 0 ? attachments : null,
         });
+        consola.success(`💾 chat:send persisted`, { conversation_id: created.conversation_id, message_id: created.message_id });
+        // Update cache with new message (front-append; DB returns asc, but cache order isn't strict)
+        const existing = messageCache[created.conversation_id];
+        const items = existing?.items ? [...existing.items, created] : [created];
+        messageCache[created.conversation_id] = { items, fetchedAt: Date.now() };
         // Broadcast to all clients for now; clients can filter by conversationId
         io.emit('chat:new', created);
       } catch (err) {
-        consola.error('chat:send failed', err);
-        socket.emit('chat:error', 'Failed to send message');
+        consola.error('chat:send failed (DB issue?)', err);
+        // Fallback: still broadcast an ephemeral message so chat remains responsive
+        try {
+          const now = new Date();
+          const fallback = {
+            conversation_id: payload?.conversationId || 'unknown',
+            sender_id: payload?.senderId || clientId,
+            text: (payload?.text || '').toString(),
+            attachments: Array.isArray(payload?.attachments) && payload!.attachments!.length > 0 ? payload!.attachments! : null,
+            message_id: randomUUID(),
+            created_at: now,
+            ephemeral: true,
+          } as any;
+          io.emit('chat:new', fallback);
+          socket.emit('chat:error', 'Message not persisted (temporary server storage issue)');
+        } catch (emitErr) {
+          consola.error('chat:send fallback emit failed', emitErr);
+          socket.emit('chat:error', 'Failed to send message');
+        }
+      }
+    },
+
+    // Fetch recent messages for a conversation (served from cache when fresh)
+    'chat:fetch': async (payload: { conversationId: string; limit?: number }) => {
+      try {
+        if (!payload || typeof payload.conversationId !== 'string') {
+          socket.emit('chat:error', 'Invalid fetch payload');
+          return;
+        }
+        const limit = typeof payload.limit === 'number' ? payload.limit : 50;
+        const items = await getMessagesCached(payload.conversationId, limit);
+        socket.emit('chat:history', { conversation_id: payload.conversationId, items });
+      } catch (err) {
+        consola.error('chat:fetch failed', err);
+        socket.emit('chat:error', 'Failed to fetch messages');
       }
     },
   };
