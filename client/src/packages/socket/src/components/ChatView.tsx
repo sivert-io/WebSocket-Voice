@@ -44,7 +44,7 @@ export const ChatView = ({
       overflow="hidden"
       flexGrow="1"
       style={{
-        background: "var(--color-panel-translucent)",
+        background: "var(--color-panel)",
         borderRadius: "12px",
       }}
     >

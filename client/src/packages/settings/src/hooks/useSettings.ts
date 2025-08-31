@@ -72,6 +72,7 @@ interface Settings {
 
   settingsTab: string;
   setSettingsTab: (value: string) => void;
+  openSettings: (tab?: string) => void;
 }
 
 function updateStorage(key: string, value: string, state: (d: any) => void) {
@@ -90,7 +91,7 @@ function updateStorageJson(
 
 function useSettingsHook() {
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsTab, setSettingsTab] = useState("microphone");
+  const [settingsTab, setSettingsTab] = useState("appearance");
   const [showNickname, setShowNickname] = useState(false);
   const [showAddServer, setShowAddServer] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(true);
@@ -270,6 +271,12 @@ function useSettingsHook() {
     }
   }
 
+  // Convenience function to open settings and optionally select a tab
+  function openSettings(tab: string = "appearance") {
+    setSettingsTab(tab);
+    setShowSettings(true);
+  }
+
   function updateCurrentServer(host: string) {
     setCurrentlyViewingServer(servers[host]);
   }
@@ -348,6 +355,7 @@ function useSettingsHook() {
     setShowSettings,
     settingsTab,
     setSettingsTab,
+    openSettings,
     showNickname,
     setShowNickname,
     servers,
@@ -442,8 +450,9 @@ const init: Settings = {
   customDisconnectSoundFile: localStorage.getItem("customDisconnectSoundFile") || null,
   setCustomDisconnectSoundFile: () => {},
 
-  settingsTab: "microphone",
+  settingsTab: "appearance",
   setSettingsTab: () => {},
+  openSettings: () => {},
 
   // AFK settings
   isAFK: false,

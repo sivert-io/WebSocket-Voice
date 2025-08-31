@@ -1,5 +1,6 @@
 import { Box, Flex } from "@radix-ui/themes";
 import { useEffect, useMemo, useState, useRef } from "react";
+import toast from "react-hot-toast";
 import { v4 as uuidv4 } from "uuid";
 
 import { isSpeaking, useMicrophone } from "@/audio";
@@ -67,8 +68,9 @@ export const ServerView = () => {
   }, [currentChannelId]);
 
   const shouldAccessMic = useMemo(() => {
-    return !!micID && !!currentlyViewingServer;
-  }, [micID, currentlyViewingServer]);
+    // Only request mic when actively connecting or connected to a voice channel
+    return isConnecting || isConnected;
+  }, [isConnecting, isConnected]);
 
   const { microphoneBuffer } = useMicrophone(shouldAccessMic);
 
@@ -257,7 +259,7 @@ export const ServerView = () => {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [microphoneBuffer.finalAnalyser, streamSources]);
+  }, [microphoneBuffer.finalAnalyser, streamSources, clients, currentlyViewingServer, currentConnection?.id, currentServerConnected]);
 
   useEffect(() => {
     let lastActivityTime = Date.now();
@@ -326,14 +328,6 @@ export const ServerView = () => {
 
     switch (channel.type) {
       case "voice":
-        if (!micID) {
-          console.log("No micID, opening settings", "micID:", micID);
-          setPendingChannelId(channel.id);
-          setSettingsTab("microphone");
-          setShowSettings(true);
-          return;
-        }
-
         const isAlreadyConnectedToThisChannel = 
           isConnected &&
           channel.id === currentChannelId &&
@@ -356,6 +350,11 @@ export const ServerView = () => {
             setPendingChannelId(channel.id);
             setSettingsTab("microphone");
             setShowSettings(true);
+            toast.error("No microphone selected. Please choose a device in Settings → Microphone.");
+          } else if (error instanceof Error) {
+            toast.error(error.message);
+          } else {
+            toast.error("Failed to connect to voice channel");
           }
         }
         break;

@@ -39,7 +39,7 @@ export const VoiceView = ({
     >
       <Flex
         style={{
-          background: "var(--color-panel-translucent)",
+          background: "var(--color-panel)",
           borderRadius: "12px",
         }}
         height="100%"
@@ -90,7 +90,7 @@ export const VoiceView = ({
                       style={{
                         background: clientsSpeaking[id]
                           ? "var(--accent-3)"
-                          : "var(--color-panel-translucent)",
+                          : "var(--color-panel)",
                         borderRadius: "12px",
                         opacity: client.isConnectedToVoice ?? true ? 1 : 0.5,
                         transition: "opacity 0.3s ease, background-color 0.1s ease",
@@ -134,14 +134,17 @@ export const VoiceView = ({
                               right="-4px"
                               gap="1"
                               style={{
-                                background: "var(--color-background)",
+                                background: "var(--color-panel)",
                                 borderRadius: "8px",
                                 padding: "2px 4px",
                                 border: "1px solid var(--gray-6)",
                               }}
                             >
-                              {client.isMuted && <MdMicOff size={12} color="var(--red-9)" />}
-                              {client.isDeafened && <BsVolumeOffFill size={10} color="var(--red-9)" />}
+                              {client.isDeafened ? (
+                                <BsVolumeOffFill size={10} color="var(--red-9)" />
+                              ) : client.isMuted ? (
+                                <MdMicOff size={12} color="var(--red-9)" />
+                              ) : null}
                               {client.isAFK && (
                                 <Text size="1" weight="bold" color="orange">
                                   AFK

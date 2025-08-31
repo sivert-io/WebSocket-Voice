@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { singletonHook } from "react-singleton-hook";
 import { io, Socket } from "socket.io-client";
 import useSound from "use-sound";
@@ -59,41 +60,37 @@ function useSocketsHook() {
     return serverDetailsList[host]?.channels.find((c) => c.id === channel);
   }
 
-  // Update nickname on all servers
+  // Update nickname on connected sockets only
   useEffect(() => {
-    Object.keys(servers).forEach((host) => {
+    Object.keys(sockets).forEach((host) => {
       console.log("Sending nickname");
-
       sockets[host]?.emit("updateNickname", nickname);
     });
-  }, [nickname, servers]);
+  }, [nickname, sockets]);
 
-  // Update mute state on all servers
+  // Update mute state on connected sockets only
   useEffect(() => {
-    Object.keys(servers).forEach((host) => {
+    Object.keys(sockets).forEach((host) => {
       console.log("Sending mute state:", isMuted);
-
       sockets[host]?.emit("updateMute", isMuted);
     });
-  }, [isMuted, servers, sockets]);
+  }, [isMuted, sockets]);
 
-  // Update deafen state on all servers
+  // Update deafen state on connected sockets only
   useEffect(() => {
-    Object.keys(servers).forEach((host) => {
+    Object.keys(sockets).forEach((host) => {
       console.log("Sending deafen state:", isDeafened);
-
       sockets[host]?.emit("updateDeafen", isDeafened);
     });
-  }, [isDeafened, servers, sockets]);
+  }, [isDeafened, sockets]);
 
-  // Update AFK state on all servers
+  // Update AFK state on connected sockets only
   useEffect(() => {
-    Object.keys(servers).forEach((host) => {
+    Object.keys(sockets).forEach((host) => {
       console.log("Sending AFK state:", isAFK);
-
       sockets[host]?.emit("updateAFK", isAFK);
     });
-  }, [isAFK, servers, sockets]);
+  }, [isAFK, sockets]);
 
   // Add new or update servers to the list
   useEffect(() => {
@@ -108,6 +105,7 @@ function useSocketsHook() {
   // Create sockets for all servers
   useEffect(() => {
     const newSockets = { ...sockets };
+    let changed = false;
 
     Object.keys(servers).forEach((host) => {
       if (!newSockets[host]) {
@@ -117,6 +115,7 @@ function useSocketsHook() {
           },
         });
         newSockets[host] = socket;
+        changed = true;
 
         socket.on("info", (data: Server) => {
           setNewServerInfo((old) => [
@@ -137,6 +136,7 @@ function useSocketsHook() {
 
         socket.on("disconnect", () => {
           delete newSockets[host];
+          toast.error(`Disconnected from ${host}`);
         });
 
         socket.on("clients", (data: any) => {
@@ -238,6 +238,10 @@ function useSocketsHook() {
 
         socket.on("peerLeftRoom", (data: { clientId: string; nickname: string }) => {
           console.log("🔇 Peer left room:", data.nickname);
+        socket.on("error", (msg: any) => {
+          const text = typeof msg === "string" ? msg : (msg?.message || "Unknown socket error");
+          toast.error(`[${host}] ${text}`);
+        });
           if (disconnectSoundEnabled) {
             try {
               disconnectSound();
@@ -249,7 +253,9 @@ function useSocketsHook() {
       }
     });
 
-    setSockets(newSockets);
+    if (changed) {
+      setSockets(newSockets);
+    }
   }, [servers, connectSound, disconnectSound, connectSoundEnabled, disconnectSoundEnabled]);
 
   return { sockets, serverDetailsList, clients, getChannelDetails };

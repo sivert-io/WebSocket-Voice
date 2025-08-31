@@ -7,6 +7,7 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { useTheme } from "@/common";
+import { Toaster } from "react-hot-toast";
 
 function ThemedApp() {
   const {
@@ -32,6 +33,7 @@ function ThemedApp() {
       }}
     >
       <App />
+      <Toaster position="bottom-right" />
     </Theme>
   );
 }

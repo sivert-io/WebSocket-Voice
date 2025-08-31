@@ -177,6 +177,14 @@ function useCreateMicrophoneHook() {
     }
   }, [isBrowserSupported, currentDeviceId]);
 
+  // When a microphone handle is requested (e.g., connecting to voice), but no device is selected yet,
+  // enumerate devices and auto-select one on demand. This will prompt for mic permission only at this time.
+  useEffect(() => {
+    if (handles.length > 0 && !currentDeviceId) {
+      getDevices();
+    }
+  }, [handles.length, currentDeviceId, getDevices]);
+
   // Enhanced device management with localStorage integration
   useEffect(() => {
     console.log("🎤 Device management effect:", {

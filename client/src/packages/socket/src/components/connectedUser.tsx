@@ -67,8 +67,11 @@ export function ConnectedUser({
           {isConnectingToVoice && (
             <Spinner size="1" />
           )}
-          {isMuted && <MdMicOff color="var(--red-8)" />}
-          {isDeafened && <BsVolumeOffFill color="var(--red-8)" />}
+          {isDeafened ? (
+            <BsVolumeOffFill color="var(--red-8)" />
+          ) : isMuted ? (
+            <MdMicOff color="var(--red-8)" />
+          ) : null}
           {isAFK && (
             <Text size="1" weight="bold" color="orange">
               AFK

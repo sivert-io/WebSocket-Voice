@@ -151,7 +151,8 @@ const init: ThemeSettings = {
   setPanelBackground: () => {},
   radius: ((localStorage.getItem("theme.radius") as any) || "full"),
   setRadius: () => {},
-  resolvedAppearance: "dark",
+  // Resolve initial appearance from system preference to avoid initial flash
+  resolvedAppearance: (typeof window !== "undefined" && (window.matchMedia?.("(prefers-color-scheme: dark)").matches)) ? "dark" : "light",
 };
 
 export const useTheme = singletonHook(init, useThemeHook);

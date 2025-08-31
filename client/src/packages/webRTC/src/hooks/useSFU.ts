@@ -1,4 +1,5 @@
 import { useCallback,useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { singletonHook } from "react-singleton-hook";
 import { Socket } from "socket.io-client";
 import useSound from "use-sound";
@@ -1142,6 +1143,7 @@ function useSfuHook(): SFUInterface {
       });
 
       // Enhanced microphone availability check with better retry logic
+      // If no mic selected yet, request devices and auto-select before waiting
       let streamToUse = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
       
       // Check if we have a stream and if its tracks are actually live
@@ -1224,6 +1226,7 @@ function useSfuHook(): SFUInterface {
       connectionTimeoutRef.current = setTimeout(() => {
         if (connectionState.state === SFUConnectionState.CONNECTING) {
           console.error("❌ Connection timeout - WebRTC failed to establish");
+          toast.error("Connection timed out. Please try again.");
           disconnect(false).catch(console.error);
         }
       }, 20000); // Reduced from 30s to 20s
@@ -1239,11 +1242,15 @@ function useSfuHook(): SFUInterface {
       
       registeredTracksRef.current = tracks;
 
-      // Step 5: Add local stream to state
-      setStreams(prev => ({
-        ...prev,
-        [localStream.id]: { stream: localStream, isLocal: true },
-      }));
+      // Step 5: Replace any existing local streams with the current local stream
+      setStreams(prev => {
+        const nonLocalEntries = Object.entries(prev).filter(([, s]) => !s.isLocal);
+        const nonLocal = Object.fromEntries(nonLocalEntries);
+        return {
+          ...nonLocal,
+          [localStream.id]: { stream: localStream, isLocal: true },
+        };
+      });
 
       // Step 6: Connect to SFU with retry logic
       let sfuWebSocket: WebSocket;
@@ -1283,6 +1290,7 @@ function useSfuHook(): SFUInterface {
       console.error("❌ SFU connection failed:", error);
       
       const errorMessage = error instanceof Error ? error.message : "Connection failed";
+      toast.error(errorMessage || "Failed to connect to voice server");
       
       // Cleanup on failure (non-blocking)
       performCleanup(false).catch(console.error);
@@ -1408,19 +1416,15 @@ function useSfuHook(): SFUInterface {
       });
 
       Promise.all(updatePromises).then(() => {
-        // Update local stream in state
-        setStreams(prev => ({
-          ...prev,
-          // Remove old local stream
-          ...Object.keys(prev).reduce((acc, id) => {
-            if (!prev[id].isLocal) {
-              acc[id] = prev[id];
-            }
-            return acc;
-          }, {} as typeof prev),
-          // Add new local stream
-          [newStream.id]: { stream: newStream, isLocal: true },
-        }));
+        // Replace local stream in state (remove all existing locals, keep non-locals)
+        setStreams(prev => {
+          const nonLocalEntries = Object.entries(prev).filter(([, s]) => !s.isLocal);
+          const nonLocal = Object.fromEntries(nonLocalEntries);
+          return {
+            ...nonLocal,
+            [newStream.id]: { stream: newStream, isLocal: true },
+          };
+        });
 
         console.log("✅ Successfully updated WebRTC tracks for new processed stream");
       }).catch(error => {

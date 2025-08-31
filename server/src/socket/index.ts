@@ -83,6 +83,15 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         timestamp: Date.now()
       });
       
+      const prevStreamID = clientsInfo[clientId].streamID;
+      const prevJoinedState = wasInChannel;
+
+      // No-op guard: if neither streamID nor join state changed, skip sync
+      if (prevStreamID === streamID && prevJoinedState === newJoinedState) {
+        consola.debug(`streamID handler no-op for ${clientId} (unchanged)`);
+        return;
+      }
+
       clientsInfo[clientId].streamID = streamID;
       clientsInfo[clientId].hasJoinedChannel = newJoinedState;
       
@@ -97,8 +106,8 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         console.log(`📡 SERVER syncAllClients triggered by streamID [${clientId}] - STATE CHANGED`);
         syncAllClients(io, clientsInfo);
       } else {
-        // State didn't change, just sync silently to update streamID
-        console.log(`📡 SERVER syncAllClients triggered by streamID [${clientId}] - STREAMID ONLY`);
+        // Only streamID changed; avoid spamming by not broadcasting if identical
+        console.log(`📡 SERVER streamID changed only [${clientId}] - broadcasting`);
         syncAllClients(io, clientsInfo);
       }
     },

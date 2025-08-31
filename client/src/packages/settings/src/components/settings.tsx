@@ -57,15 +57,15 @@ export function Settings() {
                     }}
                   >
                     <Tabs.Trigger 
-                      value="microphone" 
+                      value="appearance" 
                       style={{ 
                         justifyContent: "flex-start",
                         padding: "12px 16px",
                         gap: "8px"
                       }}
                     >
-                      <MdMic size={16} />
-                      Microphone
+                      <MdPalette size={16} />
+                      Appearance
                     </Tabs.Trigger>
                     <Tabs.Trigger 
                       value="voice-calls" 
@@ -79,29 +79,29 @@ export function Settings() {
                       Voice Calls
                     </Tabs.Trigger>
                     <Tabs.Trigger 
-                      value="appearance" 
+                      value="microphone" 
                       style={{ 
                         justifyContent: "flex-start",
                         padding: "12px 16px",
                         gap: "8px"
                       }}
                     >
-                      <MdPalette size={16} />
-                      Appearance
+                      <MdMic size={16} />
+                      Microphone
                     </Tabs.Trigger>
                   </Tabs.List>
                 </Box>
 
                 {/* Tab Content */}
                 <Box style={{ flex: 1, overflow: "auto", minWidth: 0 }}>
-                  <Tabs.Content value="microphone">
-                    <MicrophoneSettings />
-                  </Tabs.Content>
                   <Tabs.Content value="voice-calls">
                     <VoiceCallSettings />
                   </Tabs.Content>
                   <Tabs.Content value="appearance">
                     <AppearanceSettings />
+                  </Tabs.Content>
+                  <Tabs.Content value="microphone">
+                    <MicrophoneSettings />
                   </Tabs.Content>
                 </Box>
               </Flex>
