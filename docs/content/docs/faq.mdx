@@ -1,0 +1,312 @@
+---
+title: ❓ FAQ
+description: Frequently asked questions about Gryt voice chat
+icon: HelpCircle
+---
+
+# ❓ Frequently Asked Questions
+
+Common questions and answers about Gryt voice chat platform.
+
+## 🚀 Getting Started
+
+### What is Gryt?
+
+Gryt is a modern WebRTC-based voice chat platform that provides Discord-like voice communication with enterprise-grade audio quality. It features real-time voice activity detection, advanced audio processing, and a beautiful modern interface.
+
+### How do I get started with Gryt?
+
+The easiest way to get started is with Docker:
+
+```bash
+git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && docker-compose up -d
+```
+
+Then open http://localhost:5173 in your browser.
+
+### What are the system requirements?
+
+**Client Requirements:**
+- Modern browser with WebRTC support (Chrome, Firefox, Safari, Edge)
+- Microphone and speakers/headphones
+- Stable internet connection
+
+**Server Requirements:**
+- Node.js 18+ and Bun (for client/server)
+- Go 1.21+ (for SFU)
+- Docker 20.10+ (for containerized deployment)
+- Kubernetes 1.24+ (for K8s deployment)
+
+### Do I need to set up authentication?
+
+No! Authentication is provided as a centrally hosted service by the Gryt team. Your servers automatically connect to the official Gryt Auth API at `https://auth.gryt.chat`.
+
+## 🎙️ Audio and Voice
+
+### Why isn't my microphone working?
+
+Common causes and solutions:
+
+1. **Browser permissions**: Check that your browser has microphone access
+2. **HTTPS required**: WebRTC requires HTTPS in production
+3. **Device selection**: Ensure the correct microphone is selected
+4. **Browser compatibility**: Try a different browser
+
+### How do I improve audio quality?
+
+1. **Use headphones**: Avoid echo and feedback
+2. **Adjust noise gate**: Fine-tune the noise gate threshold
+3. **Check microphone levels**: Ensure proper input levels
+4. **Use quality equipment**: Better microphones provide better results
+
+### Can I use push-to-talk?
+
+Push-to-talk is coming soon! Currently, Gryt uses voice activation with configurable thresholds.
+
+### How does the noise gate work?
+
+The noise gate filters out background noise below a configurable threshold. It uses:
+- **Threshold**: -50dB to -10dB (configurable)
+- **Attack Time**: 10ms (fast response to speech)
+- **Release Time**: 100ms (smooth fade-out)
+
+## 🌐 Multi-Server
+
+### How do I add multiple servers?
+
+You can add servers through the client interface:
+
+1. Click the "+" button in the server list
+2. Enter the server URL
+3. The client will validate and connect to the server
+
+### Can I switch between servers without losing connection?
+
+Yes! Gryt maintains connections to multiple servers simultaneously, allowing seamless switching without losing your voice connection.
+
+### How are rooms isolated between servers?
+
+Each server uses unique room IDs with server prefixes (e.g., `techial_voice`, `gryta_general`) to prevent cross-server interference.
+
+## 🔧 Configuration
+
+### How do I configure STUN/TURN servers?
+
+For production deployments, configure STUN/TURN servers in your SFU environment:
+
+```bash
+# In sfu-v2/.env
+STUN_SERVERS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
+TURN_SERVERS=turn:your-turn-server.com:3478
+TURN_USERNAME=your-username
+TURN_PASSWORD=your-password
+```
+
+### Can I customize the server name and icon?
+
+Yes! Configure these in your server environment:
+
+```bash
+# In server/.env
+SERVER_NAME="My Custom Server"
+SERVER_ICON="my-icon.png"
+```
+
+### How do I set up SSL/TLS?
+
+For production, you need SSL certificates. Configure them in your reverse proxy or load balancer:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
+    
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    location / {
+        proxy_pass http://localhost:5173;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+## 🐳 Deployment
+
+### What's the difference between Docker and Kubernetes deployment?
+
+**Docker Compose:**
+- Easier setup for small deployments
+- Good for development and testing
+- Single machine deployment
+
+**Kubernetes:**
+- Better for production and scaling
+- High availability and load balancing
+- Multi-node deployment
+
+### How do I scale Gryt?
+
+**Horizontal Scaling:**
+- Deploy multiple SFU server instances
+- Use load balancer for signaling servers
+- Scale client instances as needed
+
+**Vertical Scaling:**
+- Increase CPU and memory resources
+- Optimize container resource limits
+- Use faster storage for databases
+
+### Can I deploy Gryt on cloud providers?
+
+Yes! Gryt works on all major cloud providers:
+
+- **AWS**: ECS, EKS, EC2
+- **Google Cloud**: GKE, Cloud Run
+- **Azure**: AKS, Container Instances
+- **DigitalOcean**: Kubernetes, Droplets
+
+## 🔒 Security
+
+### Is Gryt secure?
+
+Yes! Gryt implements multiple security layers:
+
+- **Authentication**: JWT-based with refresh tokens
+- **Encryption**: TLS for all communications
+- **Rate Limiting**: Protection against abuse
+- **Input Validation**: Comprehensive sanitization
+
+### How is user data handled?
+
+- **Minimal Data**: Only necessary data is collected
+- **GDPR Compliant**: Full compliance with data protection regulations
+- **Data Encryption**: All data encrypted at rest and in transit
+- **Right to Deletion**: Users can request complete data deletion
+
+### Can I self-host the authentication service?
+
+Currently, authentication is centrally hosted by the Gryt team. Self-hosting options may be available in the future.
+
+## 🎨 Customization
+
+### Can I customize the UI theme?
+
+Yes! Gryt supports:
+- **Dark/Light themes**: Automatic system preference detection
+- **Custom themes**: Support for custom color schemes
+- **High contrast**: Accessibility-friendly mode
+
+### Can I add custom features?
+
+Gryt is open source! You can:
+- Fork the repository
+- Add custom features
+- Submit pull requests
+- Create custom builds
+
+### Is there an API for integration?
+
+Yes! Gryt provides:
+- **WebSocket API**: Real-time communication
+- **REST API**: Message and file handling
+- **Webhook support**: Authentication events
+- **SDK support**: Official SDKs for popular languages
+
+## 🐛 Troubleshooting
+
+### My audio is choppy or cutting out
+
+Try these solutions:
+
+1. **Check network**: Ensure stable internet connection
+2. **Reduce quality**: Lower audio quality settings
+3. **Close other apps**: Free up system resources
+4. **Use wired connection**: Avoid WiFi if possible
+
+### I can't connect to the server
+
+Check these:
+
+1. **Server status**: Verify server is running
+2. **Firewall**: Ensure ports are open
+3. **DNS**: Check domain resolution
+4. **SSL**: Verify certificate validity
+
+### The client won't load
+
+Try these steps:
+
+1. **Clear cache**: Clear browser cache and cookies
+2. **Disable extensions**: Try with extensions disabled
+3. **Different browser**: Test with another browser
+4. **Check console**: Look for JavaScript errors
+
+## 💰 Pricing and Licensing
+
+### Is Gryt free to use?
+
+Yes! Gryt is open source and free to use under the MIT License.
+
+### Are there any usage limits?
+
+No usage limits for self-hosted deployments. The centrally hosted auth service has reasonable rate limits to prevent abuse.
+
+### Can I use Gryt commercially?
+
+Yes! The MIT License allows commercial use, modification, and distribution.
+
+## 🤝 Contributing
+
+### How can I contribute to Gryt?
+
+1. **Fork the repository**
+2. **Create a feature branch**
+3. **Make your changes**
+4. **Add tests**
+5. **Submit a pull request**
+
+### What should I contribute?
+
+We welcome contributions in:
+- **Bug fixes**: Report and fix issues
+- **New features**: Add requested functionality
+- **Documentation**: Improve docs and guides
+- **Testing**: Add test coverage
+- **Performance**: Optimize code and resources
+
+### How do I report bugs?
+
+1. **Check existing issues**: Search for similar reports
+2. **Create new issue**: Provide detailed information
+3. **Include logs**: Attach relevant log files
+4. **Describe steps**: Provide reproduction steps
+
+## 📞 Support
+
+### Where can I get help?
+
+- **Documentation**: [docs.gryt.chat](https://docs.gryt.chat)
+- **GitHub Issues**: [Report bugs](https://github.com/sivert-io/WebSocket-Voice/issues)
+- **Discord**: [Join our community](https://discord.gg/gryt)
+- **Email**: support@gryt.chat
+
+### Is there enterprise support?
+
+Yes! Contact us at enterprise@gryt.chat for:
+- **Priority support**: Faster response times
+- **Custom features**: Tailored functionality
+- **Training**: Team training and onboarding
+- **Consulting**: Architecture and deployment help
+
+### How do I stay updated?
+
+- **GitHub**: Watch the repository for updates
+- **Discord**: Join our community server
+- **Newsletter**: Subscribe to our updates
+- **Twitter**: Follow @GrytChat for news
+
+---
+
+**Still have questions?** Check our [Troubleshooting Guide](/docs/troubleshooting) or [open an issue](https://github.com/sivert-io/WebSocket-Voice/issues) for personalized help!

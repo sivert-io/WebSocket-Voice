@@ -9,6 +9,8 @@ export type serverDetails = {
   channels: Channel[];
   sfu_host: string;
   stun_hosts: string[];
+  error?: string;
+  message?: string;
 };
 
 export type serverDetailsList = {

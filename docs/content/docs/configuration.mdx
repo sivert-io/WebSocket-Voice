@@ -1,0 +1,421 @@
+---
+title: 🔧 Configuration
+description: Customize your Gryt installation with environment variables and settings
+icon: Settings
+---
+
+# 🔧 Configuration
+
+Customize your Gryt installation with environment variables and settings for each component.
+
+## 🌐 Web Client Configuration
+
+The web client requires minimal configuration and works out-of-the-box.
+
+### Environment Variables
+
+Create a `.env` file in the `client/` directory:
+
+```bash
+# Optional: Audio Configuration
+VITE_AUDIO_SAMPLE_RATE=48000
+VITE_AUDIO_BUFFER_SIZE=256
+```
+
+### Audio Settings
+
+The client provides real-time audio configuration through the UI:
+
+- **Microphone Volume**: 0-200% with real-time adjustment
+- **Output Volume**: 0-200% with deafen control
+- **Noise Gate**: Configurable threshold and timing
+- **Device Selection**: Automatic detection and manual override
+
+## 🖥️ Gryt Server Configuration
+
+The signaling server handles WebRTC signaling, user sessions, and room coordination.
+
+### Environment Variables
+
+Create a `.env` file in the `server/` directory based on `example.env`:
+
+```bash
+# Port clients connect to
+PORT=5000
+
+# Your secure SFU host
+SFU_WS_HOST="wss://sfu_host.com"
+
+# Comma separated list of URLs
+STUN_SERVERS="stun:stun.l.google.com:19302"
+
+# Name of the server
+SERVER_NAME="My Brand New Server"
+
+# Icon of the server (filename in the public folder)
+SERVER_ICON="example.png"
+
+# Clients need invite to join
+SERVER_INVITE_ONLY="false"
+
+# Websocket allowed origins
+CORS_ORIGIN="https://gryt.chat"
+
+# Websocket secret token (also used for SFU authentication)
+SERVER_TOKEN="123"
+
+# Authentication endpoint (add this to your .env)
+GRYT_AUTH_API=https://auth.gryt.chat
+
+# ScyllaDB (Cassandra-compatible) configuration
+SCYLLA_CONTACT_POINTS=127.0.0.1
+SCYLLA_LOCAL_DATACENTER=datacenter1
+SCYLLA_KEYSPACE=gryt
+# SCYLLA_USERNAME=
+# SCYLLA_PASSWORD=
+
+# S3 / Object storage (AWS S3, Cloudflare R2, Wasabi, MinIO)
+S3_REGION=auto
+# For AWS, endpoint can be omitted
+# For MinIO/R2, set a custom endpoint like http://localhost:9000
+# S3_ENDPOINT=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_BUCKET=gryt-bucket
+# For MinIO/self-hosted set to true
+S3_FORCE_PATH_STYLE=false
+
+# Development
+NODE_ENV=development
+DEBUG=gryt:*
+```
+
+### Example: MinIO (self-hosted S3)
+
+```bash
+S3_ENDPOINT=http://localhost:9000
+S3_ACCESS_KEY_ID=admin
+S3_SECRET_ACCESS_KEY=change-me-please
+S3_BUCKET=gryt-bucket
+S3_FORCE_PATH_STYLE=true
+```
+
+### MinIO Docker Setup
+
+```bash
+# MinIO server
+docker run -d --name minio \
+  -p 9000:9000 -p 9001:9001 \
+  -v /srv/minio/data:/data \
+  -e MINIO_ROOT_USER=admin \
+  -e MINIO_ROOT_PASSWORD=change-me-please \
+  quay.io/minio/minio server /data --console-address ":9001"
+
+# Create bucket
+docker run --rm --network host -e MC_HOST_minio=http://admin:change-me-please@localhost:9000 \
+  quay.io/minio/mc mb --ignore-existing minio/gryt-bucket
+```
+
+## 🚀 SFU Server Configuration
+
+The SFU (Selective Forwarding Unit) handles media forwarding and WebRTC connections.
+
+### Environment Variables
+
+Create a `.env` file in the `sfu-v2/` directory:
+
+```bash
+# HTTP server port
+PORT=5005
+
+# Comma-separated STUN servers
+STUN_SERVERS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
+
+# Comma-separated TURN servers (optional)
+TURN_SERVERS=turn:your-turn-server.com:3478
+TURN_USERNAME=your-username
+TURN_PASSWORD=your-password
+
+# Logging level (debug, info, warn, error)
+LOG_LEVEL=info
+
+# Maximum concurrent connections
+MAX_CONNECTIONS=1000
+```
+
+### Production Configuration
+
+```bash
+# Production settings
+PORT=5005
+LOG_LEVEL=info
+MAX_CONNECTIONS=5000
+
+# STUN/TURN Configuration
+STUN_SERVERS=stun:your-stun1.com:3478,stun:your-stun2.com:3478
+TURN_SERVERS=turn:your-turn1.com:3478,turn:your-turn2.com:3478
+TURN_USERNAME=production-user
+TURN_PASSWORD=secure-password
+
+# Security
+CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW=60s
+```
+
+## 🔐 Authentication Configuration
+
+Authentication is provided by the centrally hosted Gryt Auth service. No additional configuration is required as the auth endpoint is automatically configured to use the official Gryt Auth API at `https://auth.gryt.chat`.
+
+### Auth Service Features
+
+- **User Authentication**: Secure login and registration
+- **Session Management**: Persistent user sessions
+- **Security**: Enterprise-grade security measures
+- **Scalability**: Handles high-volume authentication requests
+
+## 🌐 STUN/TURN Server Configuration
+
+For production deployments, you'll need STUN/TURN servers for NAT traversal.
+
+### Using Coturn (Recommended)
+
+```bash
+# Install coturn
+sudo apt-get install coturn
+
+# Configure /etc/turnserver.conf
+listening-port=3478
+tls-listening-port=5349
+listening-ip=0.0.0.0
+external-ip=YOUR_PUBLIC_IP
+realm=yourdomain.com
+server-name=yourdomain.com
+userdb=/etc/turnuserdb.conf
+cert=/etc/ssl/certs/yourdomain.com.pem
+pkey=/etc/ssl/private/yourdomain.com.key
+log-file=/var/log/turn.log
+verbose
+```
+
+### Docker Coturn Setup
+
+```bash
+docker run -d --name coturn \
+  -p 3478:3478 -p 3478:3478/udp \
+  -p 5349:5349 -p 5349:5349/udp \
+  -p 49152-65535:49152-65535/udp \
+  -e TURN_USERNAME=user \
+  -e TURN_PASSWORD=password \
+  -e TURN_REALM=yourdomain.com \
+  -e TURN_EXTERNAL_IP=YOUR_PUBLIC_IP \
+  coturn/coturn
+```
+
+## 🔧 Advanced Configuration
+
+### Server Settings
+
+```typescript
+interface ServerConfig {
+  port: number;
+  serverName: string;
+  serverIcon: string;
+  sfuWsHost: string;
+  stunHosts: string[];
+  maxConnections: number;
+  rateLimitWindow: number;
+  rateLimitMax: number;
+}
+```
+
+### Room Configuration
+
+```typescript
+interface RoomConfig {
+  maxUsers: number;
+  autoCleanup: boolean;
+  cleanupDelay: number;
+  roomPrefix: string; // Server name prefix
+}
+```
+
+### Audio Processing Configuration
+
+```typescript
+interface AudioConfig {
+  sampleRate: number;
+  bufferSize: number;
+  noiseGateThreshold: number;
+  volumeBoost: number;
+  echoCancellation: boolean;
+  noiseSuppression: boolean;
+}
+```
+
+## 🐳 Docker Configuration
+
+### Docker Compose Environment
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  sfu:
+    build:
+      context: .
+      dockerfile: Dockerfile.sfu
+    ports:
+      - "5005:5005"
+    env_file:
+      - sfu-v2/.env
+    environment:
+      - NODE_ENV=production
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - "5000:5000"
+    env_file:
+      - server/.env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - sfu
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+```
+
+### Kubernetes Configuration
+
+```yaml
+# values.yaml
+global:
+  imageRegistry: "myregistry.com"
+
+sfu:
+  image:
+    repository: gryt/sfu
+    tag: "v1.0.0"
+  env:
+    PORT: "5005"
+    STUN_SERVERS: "stun:stun.l.google.com:19302"
+
+server:
+  image:
+    repository: gryt/server
+    tag: "v1.0.0"
+  env:
+    PORT: "5000"
+    SFU_WS_HOST: "ws://gryt-sfu:5005"
+    SERVER_NAME: "My Gryt Server"
+
+client:
+  image:
+    repository: gryt/client
+    tag: "v1.0.0"
+```
+
+## 🔍 Configuration Validation
+
+### Health Checks
+
+All services expose health check endpoints:
+
+```bash
+# SFU Health Check
+curl http://localhost:5005/health
+
+# Server Health Check
+curl http://localhost:5000/health
+
+# Client Health Check
+curl http://localhost/health
+```
+
+### Configuration Testing
+
+```bash
+# Test STUN server connectivity
+dig stun.l.google.com
+
+# Test WebSocket connections
+wscat -c ws://localhost:5000
+wscat -c ws://localhost:5005
+
+# Test SFU connectivity
+curl http://localhost:5005/debug/peers
+```
+
+## 🚨 Security Best Practices
+
+### Environment Variables
+
+- Never commit `.env` files to version control
+- Use strong, unique tokens for `SERVER_TOKEN`
+- Rotate secrets regularly
+- Use environment-specific configurations
+
+### Network Security
+
+- Use HTTPS/WSS in production
+- Configure proper CORS origins
+- Implement rate limiting
+- Use firewall rules to restrict access
+
+### Container Security
+
+- Run containers as non-root users
+- Use minimal base images
+- Keep images updated
+- Scan for vulnerabilities
+
+## 🆘 Troubleshooting Configuration
+
+### Common Issues
+
+**Configuration not loading?**
+```bash
+# Check file permissions
+ls -la .env
+
+# Verify environment variables
+env | grep GRYT
+
+# Check service logs
+docker-compose logs server
+```
+
+**STUN/TURN not working?**
+```bash
+# Test STUN connectivity
+stunclient stun.l.google.com 19302
+
+# Check firewall rules
+sudo ufw status
+
+# Verify TURN credentials
+turnutils_stunclient -u username -w password turn.server.com
+```
+
+**Audio quality issues?**
+```bash
+# Check audio configuration
+# Verify sample rate compatibility
+# Test with different browsers
+# Check network latency
+```
+
+---
+
+**Need help with configuration?** Check our [Troubleshooting Guide](/docs/troubleshooting) or open an issue.

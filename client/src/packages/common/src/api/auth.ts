@@ -14,6 +14,12 @@ interface RefreshData {
   refreshToken: string;
 }
 
+interface JoinTokenResponse {
+  joinToken: string;
+  userId: string;
+  nickname: string;
+}
+
 export class AuthApi {
   private axiosInstance: AxiosInstance;
   private baseURL: string;
@@ -44,6 +50,11 @@ export class AuthApi {
 
   public async refresh(data: RefreshData): Promise<AxiosResponse<any>> {
     const response = await this.axiosInstance.post("/refresh", data);
+    return response;
+  }
+
+  public async getJoinToken(token: string): Promise<AxiosResponse<JoinTokenResponse>> {
+    const response = await this.axiosInstance.post("/api/joinToken", { token });
     return response;
   }
 }

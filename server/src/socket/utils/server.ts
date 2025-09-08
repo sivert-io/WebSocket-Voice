@@ -24,12 +24,34 @@ export function sendInfo(socket: Socket) {
 }
 
 export function sendServerDetails(socket: Socket, clientsInfo: Clients) {
+  // Check if client has valid server token
+  const clientId = socket.id;
+  const client = clientsInfo[clientId];
+  const expectedServerToken = process.env.SERVER_TOKEN;
+  
+  // Only check token if the client has already attempted to join
+  // This allows initial connection and server info to be sent
+  if (expectedServerToken && client && (!client.serverToken || client.serverToken !== expectedServerToken)) {
+    consola.warn(`🚫 Client ${clientId} requested server details without valid token`);
+    socket.emit("details", {
+      error: "token_required",
+      message: "Server token required to access details"
+    });
+    return;
+  }
+
   const channels = [
     {
       name: "General",
       type: "text",
       id: "general",
       description: "General text chat",
+    },
+    {
+      name: "Random",
+      type: "text",
+      id: "random",
+      description: "Random discussions and off-topic chat",
     },
     {
       name: process.env.VOICE_CHANNEL_NAME || "Voice Chat",

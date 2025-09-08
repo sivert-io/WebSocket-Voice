@@ -1,0 +1,804 @@
+---
+title: 🏗️ Architecture
+description: Deep dive into Gryt's system architecture and design decisions
+icon: Building
+---
+
+# 🏗️ System Architecture
+
+Gryt is built with a modern, scalable architecture that separates concerns across multiple specialized components. This document provides a deep dive into the system design, data flow, and architectural decisions.
+
+## 🎯 Architecture Overview
+
+Gryt follows a microservices architecture with clear separation of concerns:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Web Client    │    │  Gryt Servers   │    │   SFU Server    │
+│   (React/TS)    │◄──►│   (Node.js)     │◄──►│     (Go)        │
+│                 │    │                 │    │                 │
+│ • Voice UI      │    │ • Signaling     │    │ • Media Relay   │
+│ • Audio Proc.   │    │ • User Mgmt     │    │ • WebRTC        │
+│ • Server Mgmt   │    │ • Room Mgmt     │    │ • Track Mgmt    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                       ┌─────────────────┐
+                       │  Auth Service   │
+                       │ (Hosted by Gryt)│
+                       │                 │
+                       │ • Authentication│
+                       │ • User Sessions │
+                       │ • Security      │
+                       └─────────────────┘
+```
+
+## 🌐 Web Client Architecture
+
+### Component Structure
+
+The React client is organized into modular packages:
+
+```
+client/
+├── src/
+│   ├── packages/
+│   │   ├── audio/          # Audio processing and device management
+│   │   │   ├── hooks/      # useMicrophone, useAudioDevices
+│   │   │   ├── processors/ # Noise gate, volume control
+│   │   │   └── visualization/ # Audio level meters, spectrum
+│   │   ├── webRTC/         # SFU connection and WebRTC handling
+│   │   │   ├── hooks/      # useSFU, usePeerConnection
+│   │   │   ├── connection/ # Connection management
+│   │   │   └── signaling/  # WebRTC signaling
+│   │   ├── socket/         # Server communication and UI
+│   │   │   ├── hooks/      # useSockets, useServerState
+│   │   │   ├── components/ # Server list, user list
+│   │   │   └── types/      # WebSocket message types
+│   │   ├── settings/       # Configuration and preferences
+│   │   │   ├── hooks/      # useSettings, useTheme
+│   │   │   ├── storage/    # Local storage management
+│   │   │   └── validation/ # Settings validation
+│   │   └── mobile/         # Mobile-specific utilities
+│   │       ├── gestures/   # Touch gesture handling
+│   │       ├── responsive/ # Responsive design helpers
+│   │       └── performance/ # Mobile optimization
+│   ├── components/         # Shared UI components
+│   │   ├── ui/            # Radix UI components
+│   │   ├── voice/         # Voice control components
+│   │   └── layout/        # Layout components
+│   ├── hooks/             # Global React hooks
+│   ├── utils/             # Utility functions
+│   └── types/             # TypeScript type definitions
+├── public/                # Static assets
+└── package.json          # Dependencies and scripts
+```
+
+### Audio Processing Pipeline
+
+The client implements a sophisticated audio processing pipeline:
+
+```typescript
+// Audio processing architecture
+class AudioProcessor {
+  private audioContext: AudioContext;
+  private microphoneStream: MediaStream;
+  private processingChain: AudioNode[];
+  
+  constructor() {
+    this.audioContext = new AudioContext();
+    this.processingChain = this.createProcessingChain();
+  }
+  
+  private createProcessingChain(): AudioNode[] {
+    const source = this.audioContext.createMediaStreamSource(this.microphoneStream);
+    const noiseGate = this.createNoiseGate();
+    const volumeControl = this.createVolumeControl();
+    const muteControl = this.createMuteControl();
+    const analyser = this.audioContext.createAnalyser();
+    
+    // Connect the processing chain
+    source
+      .connect(noiseGate)
+      .connect(volumeControl)
+      .connect(muteControl)
+      .connect(analyser);
+    
+    return [source, noiseGate, volumeControl, muteControl, analyser];
+  }
+  
+  // Real-time audio processing
+  processAudio(buffer: AudioBuffer): AudioBuffer {
+    // Apply noise gate
+    const noiseFiltered = this.applyNoiseGate(buffer);
+    
+    // Apply volume control
+    const volumeAdjusted = this.applyVolumeControl(noiseFiltered);
+    
+    // Apply mute control
+    const muted = this.applyMuteControl(volumeAdjusted);
+    
+    return muted;
+  }
+}
+```
+
+### State Management
+
+The client uses a combination of React hooks and context for state management:
+
+```typescript
+// Global state management
+interface GlobalState {
+  // User state
+  user: {
+    id: string;
+    nickname: string;
+    isMuted: boolean;
+    isDeafened: boolean;
+  };
+  
+  // Server state
+  servers: ServerInfo[];
+  currentServer: string | null;
+  
+  // Audio state
+  audio: {
+    microphoneVolume: number;
+    outputVolume: number;
+    noiseGateThreshold: number;
+    deviceId: string;
+  };
+  
+  // UI state
+  ui: {
+    theme: 'light' | 'dark' | 'system';
+    sidebarOpen: boolean;
+    mobile: boolean;
+  };
+}
+
+// State management hook
+const useGlobalState = () => {
+  const [state, setState] = useState<GlobalState>(initialState);
+  
+  const updateState = useCallback((updates: Partial<GlobalState>) => {
+    setState(prev => ({ ...prev, ...updates }));
+  }, []);
+  
+  return { state, updateState };
+};
+```
+
+## 🖥️ Server Architecture
+
+### Signaling Server Design
+
+The Node.js signaling server handles WebRTC signaling and user management:
+
+```
+server/
+├── src/
+│   ├── websocket/         # WebSocket connection handling
+│   │   ├── handler.ts     # WebSocket message handler
+│   │   ├── connection.ts  # Connection management
+│   │   └── middleware.ts  # Authentication middleware
+│   ├── signaling/         # WebRTC signaling coordination
+│   │   ├── coordinator.ts # Signaling coordinator
+│   │   ├── offer.ts       # Offer handling
+│   │   └── answer.ts      # Answer handling
+│   ├── room/              # Room management
+│   │   ├── manager.ts     # Room lifecycle management
+│   │   ├── state.ts       # Room state synchronization
+│   │   └── isolation.ts   # Room isolation logic
+│   ├── user/              # User management
+│   │   ├── manager.ts     # User state management
+│   │   ├── presence.ts    # Presence tracking
+│   │   └── validation.ts  # User validation
+│   ├── auth/              # Authentication
+│   │   ├── middleware.ts  # Auth middleware
+│   │   ├── validation.ts  # Token validation
+│   │   └── integration.ts # Auth service integration
+│   └── api/               # REST API endpoints
+│       ├── messages.ts    # Message handling
+│       ├── uploads.ts     # File upload handling
+│       └── health.ts      # Health check endpoints
+├── public/                # Static assets
+└── package.json          # Dependencies and scripts
+```
+
+### Room Management System
+
+```typescript
+// Room management architecture
+class RoomManager {
+  private rooms: Map<string, Room> = new Map();
+  private userRooms: Map<string, string> = new Map();
+  
+  // Create or join a room
+  async joinRoom(userId: string, channelId: string, serverName: string): Promise<Room> {
+    const roomId = this.generateRoomId(serverName, channelId);
+    
+    if (!this.rooms.has(roomId)) {
+      this.rooms.set(roomId, new Room(roomId, serverName));
+    }
+    
+    const room = this.rooms.get(roomId)!;
+    await room.addUser(userId);
+    
+    this.userRooms.set(userId, roomId);
+    return room;
+  }
+  
+  // Leave a room
+  async leaveRoom(userId: string): Promise<void> {
+    const roomId = this.userRooms.get(userId);
+    if (!roomId) return;
+    
+    const room = this.rooms.get(roomId);
+    if (room) {
+      await room.removeUser(userId);
+      
+      // Clean up empty rooms
+      if (room.isEmpty()) {
+        this.rooms.delete(roomId);
+      }
+    }
+    
+    this.userRooms.delete(userId);
+  }
+  
+  // Generate unique room ID
+  private generateRoomId(serverName: string, channelId: string): string {
+    const prefix = serverName.split('.')[0].toLowerCase();
+    return `${prefix}_${channelId}`;
+  }
+}
+
+// Room state management
+class Room {
+  private id: string;
+  private serverName: string;
+  private users: Map<string, UserState> = new Map();
+  private lastActivity: Date;
+  
+  constructor(id: string, serverName: string) {
+    this.id = id;
+    this.serverName = serverName;
+    this.lastActivity = new Date();
+  }
+  
+  // Add user to room
+  async addUser(userId: string): Promise<void> {
+    const userState = await this.getUserState(userId);
+    this.users.set(userId, userState);
+    this.lastActivity = new Date();
+    
+    // Notify other users
+    this.broadcast('user-joined', userState);
+  }
+  
+  // Remove user from room
+  async removeUser(userId: string): Promise<void> {
+    const userState = this.users.get(userId);
+    if (userState) {
+      this.users.delete(userId);
+      this.lastActivity = new Date();
+      
+      // Notify other users
+      this.broadcast('user-left', userState);
+    }
+  }
+  
+  // Broadcast message to all users in room
+  private broadcast(event: string, data: any): void {
+    this.users.forEach((_, userId) => {
+      this.sendToUser(userId, event, data);
+    });
+  }
+}
+```
+
+### WebSocket Message Handling
+
+```typescript
+// WebSocket message handler
+class WebSocketHandler {
+  private connections: Map<string, WebSocket> = new Map();
+  private roomManager: RoomManager;
+  private userManager: UserManager;
+  
+  constructor() {
+    this.roomManager = new RoomManager();
+    this.userManager = new UserManager();
+  }
+  
+  // Handle incoming WebSocket messages
+  handleMessage(ws: WebSocket, message: WebSocketMessage): void {
+    const { event, data } = message;
+    
+    switch (event) {
+      case 'join':
+        this.handleJoin(ws, data);
+        break;
+      case 'leave':
+        this.handleLeave(ws, data);
+        break;
+      case 'updateMute':
+        this.handleUpdateMute(ws, data);
+        break;
+      case 'offer':
+        this.handleOffer(ws, data);
+        break;
+      case 'answer':
+        this.handleAnswer(ws, data);
+        break;
+      case 'ice-candidate':
+        this.handleIceCandidate(ws, data);
+        break;
+      default:
+        console.warn(`Unknown event: ${event}`);
+    }
+  }
+  
+  // Handle room join
+  private async handleJoin(ws: WebSocket, data: { channelID: string }): Promise<void> {
+    const userId = this.getUserId(ws);
+    const serverName = this.getServerName(ws);
+    
+    try {
+      const room = await this.roomManager.joinRoom(userId, data.channelID, serverName);
+      
+      // Send room information to client
+      this.sendToClient(ws, 'joined', {
+        roomId: room.id,
+        users: Array.from(room.getUsers())
+      });
+      
+      // Notify other users
+      room.broadcast('user-joined', this.userManager.getUser(userId));
+    } catch (error) {
+      this.sendToClient(ws, 'error', { message: error.message });
+    }
+  }
+}
+```
+
+## 🚀 SFU Architecture
+
+### Go SFU Design
+
+The Go-based SFU server handles media forwarding:
+
+```
+sfu-v2/
+├── cmd/sfu/                    # Main application entry point
+│   └── main.go
+├── internal/                   # Private application packages
+│   ├── config/                 # Configuration management
+│   │   └── config.go
+│   ├── websocket/              # WebSocket connection handling
+│   │   ├── connection.go       # Thread-safe WebSocket wrapper
+│   │   └── handler.go          # WebSocket message handling
+│   ├── webrtc/                 # WebRTC peer connection management
+│   │   └── peer.go
+│   ├── track/                  # Media track lifecycle management
+│   │   └── manager.go
+│   └── signaling/              # WebRTC signaling coordination
+│       └── coordinator.go
+├── pkg/types/                  # Public shared types
+│   └── messages.go             # WebSocket message structures
+├── go.mod                      # Go module definition
+└── README.md
+```
+
+### Media Forwarding Architecture
+
+```go
+// Media forwarding architecture
+type SFUServer struct {
+    rooms      map[string]*Room
+    peers      map[string]*Peer
+    config     *Config
+    websocket  *WebSocketHandler
+    trackMgr   *TrackManager
+    signaling  *SignalingCoordinator
+}
+
+// Room management
+type Room struct {
+    ID      string
+    Peers   map[string]*Peer
+    Tracks  map[string]*Track
+    mutex   sync.RWMutex
+}
+
+// Peer connection management
+type Peer struct {
+    ID           string
+    Connection   *webrtc.PeerConnection
+    Tracks       map[string]*webrtc.TrackLocalStaticRTP
+    Room         *Room
+    mutex        sync.RWMutex
+}
+
+// Track management
+type Track struct {
+    ID        string
+    PeerID    string
+    Track     *webrtc.TrackRemote
+    Forwarder *TrackForwarder
+    mutex     sync.RWMutex
+}
+
+// Selective forwarding algorithm
+func (r *Room) ForwardTrack(track *Track) {
+    r.mutex.RLock()
+    defer r.mutex.RUnlock()
+    
+    for peerID, peer := range r.Peers {
+        if peerID != track.PeerID {
+            // Forward track to other peers
+            peer.ForwardTrack(track)
+        }
+    }
+}
+```
+
+### WebRTC Connection Management
+
+```go
+// WebRTC peer connection management
+type PeerManager struct {
+    peers    map[string]*Peer
+    config   *webrtc.Configuration
+    mutex    sync.RWMutex
+}
+
+// Create new peer connection
+func (pm *PeerManager) CreatePeer(peerID string) (*Peer, error) {
+    config := webrtc.Configuration{
+        ICEServers: pm.config.ICEServers,
+    }
+    
+    peerConnection, err := webrtc.NewPeerConnection(config)
+    if err != nil {
+        return nil, err
+    }
+    
+    peer := &Peer{
+        ID:         peerID,
+        Connection: peerConnection,
+        Tracks:     make(map[string]*webrtc.TrackLocalStaticRTP),
+    }
+    
+    // Set up event handlers
+    peerConnection.OnTrack(peer.handleTrack)
+    peerConnection.OnICEConnectionStateChange(peer.handleICEConnectionStateChange)
+    
+    pm.mutex.Lock()
+    pm.peers[peerID] = peer
+    pm.mutex.Unlock()
+    
+    return peer, nil
+}
+
+// Handle incoming track
+func (p *Peer) handleTrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+    // Create track forwarder
+    forwarder := NewTrackForwarder(track, p.Room)
+    
+    // Add track to room
+    p.Room.AddTrack(&Track{
+        ID:        track.ID(),
+        PeerID:    p.ID,
+        Track:     track,
+        Forwarder: forwarder,
+    })
+    
+    // Start forwarding
+    go forwarder.Start()
+}
+```
+
+## 🔐 Authentication Architecture
+
+### Auth Service Integration
+
+The authentication system is designed as a centrally hosted service:
+
+```typescript
+// Authentication architecture
+class AuthService {
+  private apiUrl: string;
+  private tokenCache: Map<string, UserInfo> = new Map();
+  
+  constructor(apiUrl: string) {
+    this.apiUrl = apiUrl;
+  }
+  
+  // Validate authentication token
+  async validateToken(token: string): Promise<UserInfo> {
+    // Check cache first
+    if (this.tokenCache.has(token)) {
+      return this.tokenCache.get(token)!;
+    }
+    
+    try {
+      const response = await fetch(`${this.apiUrl}/api/validate`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Invalid token');
+      }
+      
+      const userInfo = await response.json();
+      
+      // Cache the result
+      this.tokenCache.set(token, userInfo);
+      
+      return userInfo;
+    } catch (error) {
+      throw new Error('Authentication failed');
+    }
+  }
+  
+  // Refresh authentication token
+  async refreshToken(refreshToken: string): Promise<{ token: string; refreshToken: string }> {
+    const response = await fetch(`${this.apiUrl}/api/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refreshToken })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Token refresh failed');
+    }
+    
+    return await response.json();
+  }
+}
+```
+
+## 📊 Data Flow Architecture
+
+### Message Flow
+
+The system follows a clear message flow pattern:
+
+```
+Client → Server → SFU → Other Clients
+  ↓        ↓       ↓
+Auth    Room    Media
+Service Manager  Relay
+```
+
+### State Synchronization
+
+```typescript
+// State synchronization architecture
+class StateSynchronizer {
+  private clients: Map<string, WebSocket> = new Map();
+  private state: Map<string, any> = new Map();
+  
+  // Update state and broadcast to clients
+  updateState(key: string, value: any): void {
+    this.state.set(key, value);
+    this.broadcastStateUpdate(key, value);
+  }
+  
+  // Broadcast state update to all clients
+  private broadcastStateUpdate(key: string, value: any): void {
+    const message = {
+      type: 'state-update',
+      key,
+      value,
+      timestamp: Date.now()
+    };
+    
+    this.clients.forEach((ws, clientId) => {
+      this.sendToClient(ws, message);
+    });
+  }
+  
+  // Handle client state updates
+  handleClientStateUpdate(clientId: string, key: string, value: any): void {
+    // Validate state update
+    if (this.validateStateUpdate(key, value)) {
+      this.updateState(key, value);
+    }
+  }
+}
+```
+
+## 🔧 Configuration Architecture
+
+### Environment-based Configuration
+
+```typescript
+// Configuration architecture
+interface Config {
+  // Server configuration
+  server: {
+    port: number;
+    host: string;
+    cors: string[];
+  };
+  
+  // SFU configuration
+  sfu: {
+    host: string;
+    port: number;
+    stunServers: string[];
+    turnServers?: TurnServer[];
+  };
+  
+  // Authentication configuration
+  auth: {
+    apiUrl: string;
+    tokenValidation: boolean;
+    sessionTimeout: number;
+  };
+  
+  // Database configuration
+  database: {
+    type: 'scylla' | 'postgres' | 'mongodb';
+    connectionString: string;
+    keyspace?: string;
+  };
+  
+  // Storage configuration
+  storage: {
+    type: 's3' | 'local' | 'gcs';
+    bucket: string;
+    region: string;
+    accessKey?: string;
+    secretKey?: string;
+  };
+}
+
+// Configuration loader
+class ConfigLoader {
+  static load(): Config {
+    return {
+      server: {
+        port: parseInt(process.env.PORT || '5000'),
+        host: process.env.HOST || 'localhost',
+        cors: process.env.CORS_ORIGIN?.split(',') || ['*']
+      },
+      sfu: {
+        host: process.env.SFU_WS_HOST || 'ws://localhost:5005',
+        port: parseInt(process.env.SFU_PORT || '5005'),
+        stunServers: process.env.STUN_SERVERS?.split(',') || []
+      },
+      auth: {
+        apiUrl: process.env.GRYT_AUTH_API || 'https://auth.gryt.chat',
+        tokenValidation: process.env.TOKEN_VALIDATION !== 'false',
+        sessionTimeout: parseInt(process.env.SESSION_TIMEOUT || '3600')
+      }
+    };
+  }
+}
+```
+
+## 🚀 Deployment Architecture
+
+### Container Architecture
+
+```yaml
+# Docker Compose architecture
+version: '3.8'
+services:
+  sfu:
+    build: ./sfu-v2
+    ports:
+      - "5005:5005"
+    environment:
+      - PORT=5005
+      - STUN_SERVERS=stun:stun.l.google.com:19302
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  server:
+    build: ./server
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - SFU_WS_HOST=ws://sfu:5005
+      - GRYT_AUTH_API=https://auth.gryt.chat
+    depends_on:
+      - sfu
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  client:
+    build: ./client
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+```
+
+### Kubernetes Architecture
+
+```yaml
+# Kubernetes deployment architecture
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gryt-sfu
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: gryt-sfu
+  template:
+    metadata:
+      labels:
+        app: gryt-sfu
+    spec:
+      containers:
+      - name: sfu
+        image: gryt/sfu:latest
+        ports:
+        - containerPort: 5005
+        env:
+        - name: PORT
+          value: "5005"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5005
+          initialDelaySeconds: 30
+          periodSeconds: 10
+```
+
+## 📈 Scalability Considerations
+
+### Horizontal Scaling
+
+The architecture supports horizontal scaling:
+
+- **SFU Servers**: Multiple SFU instances with load balancing
+- **Signaling Servers**: Multiple server instances with session affinity
+- **Database**: Distributed database with replication
+- **Storage**: Object storage with CDN integration
+
+### Performance Optimization
+
+- **Connection Pooling**: Efficient WebSocket connection management
+- **Caching**: Redis for session and state caching
+- **CDN**: Static asset delivery optimization
+- **Compression**: Gzip compression for API responses
+
+## 🔒 Security Architecture
+
+### Security Layers
+
+- **Authentication**: JWT-based authentication with refresh tokens
+- **Authorization**: Role-based access control
+- **Encryption**: TLS for all communications
+- **Rate Limiting**: Protection against abuse
+- **Input Validation**: Comprehensive input sanitization
+
+---
+
+**Ready to dive deeper into the architecture?** Check out our [API Reference](/docs/development/api-reference) for detailed API documentation!

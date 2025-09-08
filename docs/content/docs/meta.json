@@ -1,0 +1,27 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "quick-start",
+    "deployment", 
+    "configuration",
+    "---Components---",
+    "components/client",
+    "components/server", 
+    "components/sfu",
+    "components/auth",
+    "---Features---",
+    "features/voice-communication",
+    "features/audio-processing",
+    "features/multi-server",
+    "features/user-interface",
+    "---Development---",
+    "development/architecture",
+    "development/api-reference",
+    "development/contributing",
+    "---Support---",
+    "troubleshooting",
+    "faq"
+  ]
+}

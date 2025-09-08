@@ -10,6 +10,7 @@ import { initScylla } from "./db/scylla";
 import { initS3 } from "./storage/s3";
 import { messagesRouter } from "./routes/messages";
 import { uploadsRouter } from "./routes/uploads";
+import { usersRouter } from "./routes/users";
 
 const app = express(); // Create an Express app
 
@@ -64,6 +65,7 @@ app.get("/icon", (req, res) => {
 // API routes
 app.use("/api/messages", messagesRouter);
 app.use("/api/uploads", uploadsRouter);
+app.use("/api/users", usersRouter);
 
 // Basic error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

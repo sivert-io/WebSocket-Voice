@@ -1,10 +1,20 @@
 import { Client, auth } from "cassandra-driver";
 import { randomUUID } from "crypto";
 
+export interface UserRecord {
+  gryt_user_id: string; // Internal Gryt Auth user ID (never exposed)
+  server_user_id: string; // Secret server user ID (never exposed to clients)
+  nickname: string;
+  created_at: Date;
+  last_seen: Date;
+  last_token_refresh?: Date; // Track when token was last refreshed
+}
+
 export interface MessageRecord {
   conversation_id: string;
   message_id: string; // uuid string
-  sender_id: string;
+  sender_server_id: string; // Secret server user ID (never exposed)
+  sender_nickname: string;
   text: string | null;
   created_at: Date;
   attachments: string[] | null; // file_id uuid strings
@@ -57,11 +67,32 @@ export async function initScylla(): Promise<void> {
   await client.connect();
 
   await client.execute(
+    `CREATE TABLE IF NOT EXISTS users_by_gryt_id (
+      gryt_user_id text PRIMARY KEY,
+      server_user_id text,
+      nickname text,
+      created_at timestamp,
+      last_seen timestamp
+    )`
+  );
+
+  await client.execute(
+    `CREATE TABLE IF NOT EXISTS users_by_server_id (
+      server_user_id text PRIMARY KEY,
+      gryt_user_id text,
+      nickname text,
+      created_at timestamp,
+      last_seen timestamp
+    )`
+  );
+
+  await client.execute(
     `CREATE TABLE IF NOT EXISTS messages_by_conversation (
       conversation_id text,
       created_at timestamp,
       message_id uuid,
-      sender_id text,
+      sender_server_id text,
+      sender_nickname text,
       text text,
       attachments list<text>,
       PRIMARY KEY ((conversation_id), created_at, message_id)
@@ -82,48 +113,165 @@ export async function initScylla(): Promise<void> {
   );
 }
 
+export async function upsertUser(grytUserId: string, nickname: string): Promise<UserRecord> {
+  const c = getScyllaClient();
+  const now = new Date();
+  const serverUserId = `user_${randomUUID()}`; // Generate unique server user ID
+  
+  console.log(`👤 Upserting user:`, { grytUserId, serverUserId, nickname });
+  
+  try {
+    // Insert into both tables for efficient lookups
+    await c.execute(
+      `INSERT INTO users_by_gryt_id (gryt_user_id, server_user_id, nickname, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
+      [grytUserId, serverUserId, nickname, now, now],
+      { prepare: true }
+    );
+    
+    await c.execute(
+      `INSERT INTO users_by_server_id (server_user_id, gryt_user_id, nickname, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
+      [serverUserId, grytUserId, nickname, now, now],
+      { prepare: true }
+    );
+    
+    console.log(`✅ User successfully upserted:`, { grytUserId, serverUserId });
+    return { 
+      gryt_user_id: grytUserId, 
+      server_user_id: serverUserId, 
+      nickname,
+      created_at: now, 
+      last_seen: now 
+    };
+  } catch (error) {
+    console.error(`❌ Failed to upsert user:`, error);
+    throw error;
+  }
+}
+
+export async function getUserByGrytId(grytUserId: string): Promise<UserRecord | null> {
+  const c = getScyllaClient();
+  
+  try {
+    const rs = await c.execute(
+      `SELECT gryt_user_id, server_user_id, nickname, created_at, last_seen FROM users_by_gryt_id WHERE gryt_user_id = ?`,
+      [grytUserId],
+      { prepare: true }
+    );
+    const r = rs.first();
+    if (!r) return null;
+    return {
+      gryt_user_id: r["gryt_user_id"],
+      server_user_id: r["server_user_id"],
+      nickname: r["nickname"],
+      created_at: r["created_at"],
+      last_seen: r["last_seen"],
+    };
+  } catch (error) {
+    console.error(`❌ Failed to get user by Gryt ID:`, error);
+    throw error;
+  }
+}
+
+export async function getUserByServerId(serverUserId: string): Promise<UserRecord | null> {
+  const c = getScyllaClient();
+  
+  try {
+    const rs = await c.execute(
+      `SELECT server_user_id, gryt_user_id, nickname, created_at, last_seen FROM users_by_server_id WHERE server_user_id = ?`,
+      [serverUserId],
+      { prepare: true }
+    );
+    const r = rs.first();
+    if (!r) return null;
+    return {
+      gryt_user_id: r["gryt_user_id"],
+      server_user_id: r["server_user_id"],
+      nickname: r["nickname"],
+      created_at: r["created_at"],
+      last_seen: r["last_seen"],
+    };
+  } catch (error) {
+    console.error(`❌ Failed to get user by server ID:`, error);
+    throw error;
+  }
+}
+
 export async function insertMessage(record: Omit<MessageRecord, "message_id" | "created_at"> & { created_at?: Date; message_id?: string }): Promise<MessageRecord> {
   const c = getScyllaClient();
   const created_at = record.created_at ?? new Date();
   const message_id = record.message_id ?? randomUUID();
-  await c.execute(
-    `INSERT INTO messages_by_conversation (conversation_id, created_at, message_id, sender_id, text, attachments) VALUES (?, ?, ?, ?, ?, ?)`,
-    [record.conversation_id, created_at, message_id, record.sender_id, record.text ?? null, record.attachments ?? null],
-    { prepare: true }
-  );
-  return { ...record, created_at, message_id } as MessageRecord;
+  
+  console.log(`💾 Inserting message to ScyllaDB:`, {
+    conversation_id: record.conversation_id,
+    message_id,
+    sender_server_id: record.sender_server_id,
+    sender_nickname: record.sender_nickname,
+    text_length: record.text?.length || 0,
+    has_attachments: !!record.attachments?.length
+  });
+  
+  try {
+    await c.execute(
+      `INSERT INTO messages_by_conversation (conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [record.conversation_id, created_at, message_id, record.sender_server_id, record.sender_nickname, record.text ?? null, record.attachments ?? null],
+      { prepare: true }
+    );
+    console.log(`✅ Message successfully inserted to ScyllaDB:`, { message_id });
+    return { ...record, created_at, message_id } as MessageRecord;
+  } catch (error) {
+    console.error(`❌ Failed to insert message to ScyllaDB:`, error);
+    throw error;
+  }
 }
 
 export async function listMessages(conversationId: string, limit = 50, before?: Date): Promise<MessageRecord[]> {
   const c = getScyllaClient();
-  if (before) {
+  
+  console.log(`📖 Fetching messages from ScyllaDB:`, {
+    conversation_id: conversationId,
+    limit,
+    before: before?.toISOString()
+  });
+  
+  try {
+    if (before) {
+      const rs = await c.execute(
+        `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments FROM messages_by_conversation WHERE conversation_id = ? AND created_at < ? LIMIT ?`,
+        [conversationId, before, limit],
+        { prepare: true }
+      );
+      const messages = rs.rows.map((r) => ({
+        conversation_id: r["conversation_id"],
+        created_at: r["created_at"],
+        message_id: r["message_id"].toString(),
+        sender_server_id: r["sender_server_id"],
+        sender_nickname: r["sender_nickname"],
+        text: r["text"],
+        attachments: r["attachments"] ?? null,
+      }));
+      console.log(`✅ Fetched ${messages.length} messages from ScyllaDB (with before filter)`);
+      return messages;
+    }
     const rs = await c.execute(
-      `SELECT conversation_id, created_at, message_id, sender_id, text, attachments FROM messages_by_conversation WHERE conversation_id = ? AND created_at < ? LIMIT ?`,
-      [conversationId, before, limit],
+      `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments FROM messages_by_conversation WHERE conversation_id = ? LIMIT ?`,
+      [conversationId, limit],
       { prepare: true }
     );
-    return rs.rows.map((r) => ({
+    const messages = rs.rows.map((r) => ({
       conversation_id: r["conversation_id"],
       created_at: r["created_at"],
       message_id: r["message_id"].toString(),
-      sender_id: r["sender_id"],
+      sender_server_id: r["sender_server_id"],
+      sender_nickname: r["sender_nickname"],
       text: r["text"],
       attachments: r["attachments"] ?? null,
     }));
+    console.log(`✅ Fetched ${messages.length} messages from ScyllaDB`);
+    return messages;
+  } catch (error) {
+    console.error(`❌ Failed to fetch messages from ScyllaDB:`, error);
+    throw error;
   }
-  const rs = await c.execute(
-    `SELECT conversation_id, created_at, message_id, sender_id, text, attachments FROM messages_by_conversation WHERE conversation_id = ? LIMIT ?`,
-    [conversationId, limit],
-    { prepare: true }
-  );
-  return rs.rows.map((r) => ({
-    conversation_id: r["conversation_id"],
-    created_at: r["created_at"],
-    message_id: r["message_id"].toString(),
-    sender_id: r["sender_id"],
-    text: r["text"],
-    attachments: r["attachments"] ?? null,
-  }));
 }
 
 export async function insertFile(record: Omit<FileRecord, "created_at"> & { created_at?: Date }): Promise<FileRecord> {

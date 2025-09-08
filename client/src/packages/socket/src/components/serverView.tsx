@@ -10,6 +10,8 @@ import { Channel } from "@/settings/src/types/server";
 import { useSFU } from "@/webRTC";
 
 import { useSockets } from "../hooks/useSockets";
+import { useUserId, isUserAuthenticated } from "@/common";
+import { shouldRefreshToken } from "../utils/tokenManager";
 import { ServerHeader } from "./ServerHeader";
 import { ChannelList } from "./ChannelList";
 import { VoiceView } from "./VoiceView";
@@ -75,6 +77,7 @@ export const ServerView = () => {
   const { microphoneBuffer } = useMicrophone(shouldAccessMic);
 
   const { sockets, serverDetailsList, clients } = useSockets();
+  const userId = useUserId();
 
   // When viewing a server, default to the first text channel if none selected
   useEffect(() => {
@@ -96,35 +99,64 @@ export const ServerView = () => {
 
   const [chatText, setChatText] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-
   // Active conversation derives from selected channel first, then SFU-derived channel
   const activeConversationId = selectedChannelId || currentChannelId || "";
 
   useEffect(() => {
     if (!currentConnection) return;
+    
+
+    
     const onNew = (msg: any) => {
-      if (!msg || !msg.conversation_id) return;
+      console.log(`📨 Received chat:new message:`, msg);
+      if (!msg || !msg.conversation_id) {
+        console.log(`❌ Invalid message received:`, msg);
+        return;
+      }
+      console.log(`🔍 Checking if message belongs to active conversation:`, {
+        message_conversation_id: msg.conversation_id,
+        active_conversation_id: activeConversationId,
+        matches: msg.conversation_id === activeConversationId
+      });
       if (msg.conversation_id === activeConversationId) {
         setChatMessages((prev) => {
           // Remove matching pending optimistic message (same sender and text)
           const filtered = prev.filter(
-            (m) => !(m.pending && m.sender_id === msg.sender_id && m.text === msg.text && m.conversation_id === msg.conversation_id)
+            (m) => !(m.pending && m.sender_server_id === msg.sender_server_id && m.text === msg.text && m.conversation_id === msg.conversation_id)
           );
-          return [...filtered, msg];
+          const newMessages = [...filtered, msg];
+          console.log(`✅ Updated chat messages:`, { 
+            previous_count: prev.length, 
+            new_count: newMessages.length,
+            message_id: msg.message_id 
+          });
+          return newMessages;
         });
+      } else {
+        console.log(`⏭️ Message not for current conversation, skipping`);
       }
     };
     const onHistory = (payload: { conversation_id: string; items: any[] }) => {
-      if (!payload || payload.conversation_id !== activeConversationId) return;
+      console.log(`📚 Received chat:history:`, payload);
+      if (!payload || payload.conversation_id !== activeConversationId) {
+        console.log(`⏭️ History not for current conversation, skipping`);
+        return;
+      }
       setChatMessages((prev) => {
         const existingIds = new Set(prev.map((m) => m.message_id));
         const merged = [...prev];
         for (const it of payload.items) {
           if (!existingIds.has(it.message_id)) merged.push(it);
         }
+        console.log(`✅ Loaded chat history:`, { 
+          previous_count: prev.length, 
+          history_count: payload.items.length,
+          final_count: merged.length 
+        });
         return merged;
       });
     };
+    console.log(`🎧 Setting up event listeners for connection:`, currentConnection.id);
     currentConnection.on("chat:new", onNew);
     currentConnection.on("chat:history", onHistory);
     return () => {
@@ -133,23 +165,58 @@ export const ServerView = () => {
     };
   }, [currentConnection, activeConversationId]);
 
-  // Reset chat list when conversation changes
+  // Reset chat list when conversation changes and load history
   useEffect(() => {
+    console.log(`🔄 Conversation changed, resetting chat:`, {
+      activeConversationId,
+      hasConnection: !!currentConnection
+    });
     setChatMessages([]);
     if (!currentConnection || !activeConversationId) return;
-  }, [activeConversationId]);
+    
+    // Load chat history for the selected conversation
+    const fetchPayload = {
+      conversationId: activeConversationId,
+      limit: 50
+    };
+    console.log(`📥 Fetching chat history:`, fetchPayload);
+    currentConnection.emit("chat:fetch", fetchPayload);
+  }, [activeConversationId, currentConnection]);
 
-  const canSend = chatText.trim().length > 0 && !!currentConnection && !!currentConnection.id && !!activeConversationId;
+  const canSend = chatText.trim().length > 0 && !!currentConnection && !!activeConversationId && !!localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`) && isUserAuthenticated();
+  
+  // Debug canSend conditions
+  useEffect(() => {
+    const hasAccessToken = !!localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`);
+    const isAuthenticated = isUserAuthenticated();
+    console.log("🔍 canSend Debug:", {
+      chatTextLength: chatText.trim().length,
+      hasCurrentConnection: !!currentConnection,
+      hasActiveConversationId: !!activeConversationId,
+      hasAccessToken: hasAccessToken,
+      isAuthenticated: isAuthenticated,
+      activeConversationId: activeConversationId,
+      canSend: canSend
+    });
+  }, [chatText, currentConnection, activeConversationId, canSend, currentlyViewingServer]);
 
   const sendChat = () => {
     const body = chatText.trim();
     if (!canSend) return;
+    
+    console.log(`📤 Sending chat message:`, {
+      conversationId: activeConversationId,
+      text: body,
+      canSend
+    });
+    
     // Add optimistic pending message
     const pendingId = `pending-${uuidv4()}`;
     const optimistic: ChatMessage = {
       conversation_id: activeConversationId,
       message_id: pendingId,
-      sender_id: currentConnection?.id || "",
+      sender_server_id: "temp", // Will be replaced with actual server ID when server responds
+      sender_nickname: "You", // Will be replaced with actual nickname when server responds
       text: body,
       attachments: null,
       created_at: new Date(),
@@ -157,11 +224,41 @@ export const ServerView = () => {
     };
     setChatMessages((prev) => [...prev, optimistic]);
     setChatText("");
-    currentConnection!.emit("chat:send", {
+    
+    // Send message with access token
+    let accessToken = localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`);
+    
+    if (!accessToken) {
+      toast.error("Not authenticated for this server - please try joining again");
+      return;
+    }
+    
+    // Check if token needs refresh
+    if (shouldRefreshToken(accessToken)) {
+      console.log("🔄 Token needs refresh, requesting new token...");
+      currentConnection!.emit("token:refresh", { accessToken });
+      // Wait a bit for the refresh response
+      setTimeout(() => {
+        accessToken = localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`);
+        if (accessToken) {
+          sendMessageWithToken(accessToken, body);
+        }
+      }, 100);
+      return;
+    }
+    
+    sendMessageWithToken(accessToken, body);
+  };
+
+  const sendMessageWithToken = (accessToken: string, messageText: string) => {
+    const payload = {
       conversationId: activeConversationId,
-      senderId: currentConnection?.id || "",
-      text: body,
-    });
+      accessToken,
+      text: messageText
+    };
+    
+    console.log(`🚀 Emitting chat:send with payload:`, payload);
+    currentConnection!.emit("chat:send", payload);
   };
 
   const logDataRef = useRef<any>(null);
@@ -418,7 +515,7 @@ export const ServerView = () => {
               setChatText={setChatText}
               canSend={canSend}
               sendChat={sendChat}
-              currentUserId={currentConnection?.id}
+              currentUserId={userId || undefined}
             />
           </Flex>
         )}

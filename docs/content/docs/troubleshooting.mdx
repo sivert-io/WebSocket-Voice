@@ -1,0 +1,623 @@
+---
+title: 🐛 Troubleshooting
+description: Common issues and solutions for Gryt voice chat
+icon: Bug
+---
+
+# 🐛 Troubleshooting
+
+This guide covers common issues you might encounter when using or deploying Gryt, along with their solutions and debugging techniques.
+
+## 🚨 Common Issues
+
+### 🔌 Connection Issues
+
+#### WebSocket Connection Failures
+
+**Symptoms:**
+- Client can't connect to server
+- "Connection failed" error messages
+- Server appears offline
+
+**Solutions:**
+
+1. **Check server status**
+   ```bash
+   # Check if server is running
+   curl http://localhost:5000/health
+   
+   # Check server logs
+   docker-compose logs server
+   ```
+
+2. **Verify WebSocket connectivity**
+   ```bash
+   # Test WebSocket connection
+   wscat -c ws://localhost:5000
+   
+   # Test with SSL
+   wscat -c wss://yourdomain.com
+   ```
+
+3. **Check firewall settings**
+   ```bash
+   # Check if ports are open
+   sudo ufw status
+   
+   # Open required ports
+   sudo ufw allow 5000
+   sudo ufw allow 5005
+   ```
+
+4. **Verify CORS configuration**
+```bash
+# In server/.env
+CORS_ORIGIN=https://yourdomain.com
+```
+
+#### SFU Communication Issues
+
+**Symptoms:**
+- Audio not working
+- "SFU connection failed" errors
+- WebRTC connection timeouts
+
+**Solutions:**
+
+1. **Check SFU server status**
+   ```bash
+   # Verify SFU is running
+   curl http://localhost:5005/health
+   
+   # Check SFU logs
+   docker-compose logs sfu
+   ```
+
+2. **Test SFU WebSocket connection**
+   ```bash
+   # Test SFU WebSocket
+   wscat -c ws://localhost:5005
+   
+   # Send test message
+   {"event": "ping", "data": {}}
+   ```
+
+3. **Verify STUN/TURN configuration**
+```bash
+# In sfu-v2/.env
+STUN_SERVERS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
+TURN_SERVERS=turn:your-turn-server.com:3478
+TURN_USERNAME=your-username
+TURN_PASSWORD=your-password
+```
+
+4. **Check network connectivity**
+   ```bash
+   # Test STUN server connectivity
+   dig stun.l.google.com
+   
+   # Test TURN server connectivity
+   telnet your-turn-server.com 3478
+   ```
+
+### 🎙️ Audio Issues
+
+#### Microphone Not Working
+
+**Symptoms:**
+- No audio input detected
+- Microphone permission denied
+- Audio levels showing zero
+
+**Solutions:**
+
+1. **Check browser permissions**
+   ```javascript
+   // Check microphone permissions
+   navigator.permissions.query({name: 'microphone'}).then(result => {
+     console.log('Microphone permission:', result.state);
+   });
+   ```
+
+2. **Verify HTTPS in production**
+   ```bash
+   # WebRTC requires HTTPS in production
+   # Ensure SSL certificates are properly configured
+   curl -I https://yourdomain.com
+   ```
+
+3. **Test with different browsers**
+   - Chrome: Check chrome://settings/content/microphone
+   - Firefox: Check about:preferences#privacy
+   - Safari: Check System Preferences > Security & Privacy
+
+4. **Check audio device selection**
+   ```javascript
+   // List available audio devices
+   navigator.mediaDevices.enumerateDevices().then(devices => {
+     const audioInputs = devices.filter(d => d.kind === 'audioinput');
+     console.log('Available microphones:', audioInputs);
+   });
+   ```
+
+#### Audio Quality Problems
+
+**Symptoms:**
+- Poor audio quality
+- Echo or feedback
+- Audio cutting out
+- High latency
+
+**Solutions:**
+
+1. **Adjust noise gate threshold**
+   ```typescript
+   // In client audio settings
+   const audioConfig = {
+     noiseGateThreshold: -30, // Adjust from -50 to -10
+     volume: 100,
+     boost: false
+   };
+   ```
+
+2. **Check microphone input levels**
+   - Ensure microphone is not too close to speakers
+   - Use headphones instead of speakers
+   - Adjust microphone sensitivity
+
+3. **Verify sample rate compatibility**
+```bash
+# In client/.env
+VITE_AUDIO_SAMPLE_RATE=48000
+VITE_AUDIO_BUFFER_SIZE=256
+```
+
+4. **Test with different audio devices**
+   - Try different microphones
+   - Test with USB vs built-in microphones
+   - Check audio driver updates
+
+#### Echo and Feedback Issues
+
+**Symptoms:**
+- Echo in voice chat
+- Feedback loops
+- Audio distortion
+
+**Solutions:**
+
+1. **Enable echo cancellation**
+   ```typescript
+   // In audio processing pipeline
+   const audioConstraints = {
+     echoCancellation: true,
+     noiseSuppression: true,
+     autoGainControl: true
+   };
+   ```
+
+2. **Use headphones**
+   - Avoid using speakers with microphone
+   - Use closed-back headphones for better isolation
+
+3. **Adjust room acoustics**
+   - Reduce background noise
+   - Use acoustic treatment
+   - Position microphone away from speakers
+
+4. **Check audio device settings**
+   - Disable microphone boost
+   - Adjust input levels
+   - Use noise-canceling microphones
+
+### 🌐 Multi-Server Issues
+
+#### Server Switching Problems
+
+**Symptoms:**
+- Can't switch between servers
+- State not preserved across servers
+- Connection lost when switching
+
+**Solutions:**
+
+1. **Check server availability**
+   ```bash
+   # Test server connectivity
+   curl -f https://server1.example.com/health
+   curl -f https://server2.example.com/health
+   ```
+
+2. **Verify room isolation**
+   ```typescript
+   // Check room ID generation
+   const roomId = generateRoomId(serverName, channelId);
+   console.log('Generated room ID:', roomId);
+   ```
+
+3. **Check state synchronization**
+   ```bash
+   # Enable debug logging
+   DEBUG=gryt:multiserver:* npm run dev
+   ```
+
+4. **Verify WebSocket connections**
+   ```bash
+   # Check active connections
+   netstat -an | grep :5000
+   ```
+
+#### Room State Synchronization Issues
+
+**Symptoms:**
+- User states not updating
+- Mute state not syncing
+- Users appearing offline
+
+**Solutions:**
+
+1. **Check WebSocket message flow**
+   ```bash
+   # Monitor WebSocket messages
+   DEBUG=gryt:websocket:* npm run dev
+   ```
+
+2. **Verify state persistence**
+   ```typescript
+   // Check state storage
+   const state = localStorage.getItem('gryt-state');
+   console.log('Stored state:', JSON.parse(state));
+   ```
+
+3. **Test state synchronization**
+   ```bash
+   # Check room state
+   curl http://localhost:5000/debug/rooms
+   ```
+
+4. **Verify user presence tracking**
+   ```bash
+   # Check user states
+   curl http://localhost:5000/debug/users
+   ```
+
+### 🐳 Docker Issues
+
+#### Container Startup Failures
+
+**Symptoms:**
+- Containers failing to start
+- Port conflicts
+- Volume mount issues
+
+**Solutions:**
+
+1. **Check port availability**
+   ```bash
+   # Check if ports are in use
+   netstat -tulpn | grep :5000
+   netstat -tulpn | grep :5005
+   
+   # Kill processes using ports
+   sudo fuser -k 5000/tcp
+   sudo fuser -k 5005/tcp
+   ```
+
+2. **Verify Docker configuration**
+   ```bash
+   # Check Docker status
+   docker --version
+   docker-compose --version
+   
+   # Check container logs
+   docker-compose logs
+   ```
+
+3. **Check volume mounts**
+   ```bash
+   # Verify volume permissions
+   ls -la ./data
+   sudo chown -R 1000:1000 ./data
+   ```
+
+4. **Rebuild containers**
+   ```bash
+   # Rebuild all containers
+   docker-compose down
+   docker-compose build --no-cache
+   docker-compose up -d
+   ```
+
+#### Resource Issues
+
+**Symptoms:**
+- High CPU usage
+- Memory leaks
+- Slow performance
+
+**Solutions:**
+
+1. **Monitor resource usage**
+   ```bash
+   # Check container resource usage
+   docker stats
+   
+   # Check system resources
+   htop
+   ```
+
+2. **Optimize container resources**
+   ```yaml
+   # In docker-compose.yml
+   services:
+     server:
+       deploy:
+         resources:
+           limits:
+             memory: 512M
+             cpus: '0.5'
+   ```
+
+3. **Check for memory leaks**
+   ```bash
+   # Monitor memory usage over time
+   docker stats --no-stream
+   ```
+
+4. **Restart containers**
+   ```bash
+   # Restart specific service
+   docker-compose restart server
+   
+   # Restart all services
+   docker-compose restart
+   ```
+
+### ☸️ Kubernetes Issues
+
+#### Pod Startup Failures
+
+**Symptoms:**
+- Pods stuck in Pending state
+- CrashLoopBackOff errors
+- Image pull failures
+
+**Solutions:**
+
+1. **Check pod status**
+   ```bash
+   # Check pod status
+   kubectl get pods -l app.kubernetes.io/name=gryt
+   
+   # Describe pod for details
+   kubectl describe pod <pod-name>
+   ```
+
+2. **Check pod logs**
+   ```bash
+   # View pod logs
+   kubectl logs <pod-name>
+   
+   # Follow logs
+   kubectl logs -f <pod-name>
+   ```
+
+3. **Verify image availability**
+   ```bash
+   # Check image pull secrets
+   kubectl get secrets
+   
+   # Test image pull
+   docker pull gryt/server:latest
+   ```
+
+4. **Check resource constraints**
+   ```bash
+   # Check node resources
+   kubectl describe nodes
+   
+   # Check resource quotas
+   kubectl describe quota
+   ```
+
+#### Service Discovery Issues
+
+**Symptoms:**
+- Services not accessible
+- DNS resolution failures
+- Load balancing problems
+
+**Solutions:**
+
+1. **Check service status**
+   ```bash
+   # Check services
+   kubectl get services -l app.kubernetes.io/name=gryt
+   
+   # Check endpoints
+   kubectl get endpoints
+   ```
+
+2. **Verify DNS resolution**
+   ```bash
+   # Test DNS from within cluster
+   kubectl run test-pod --image=busybox --rm -it -- nslookup gryt-server
+   ```
+
+3. **Check ingress configuration**
+   ```bash
+   # Check ingress
+   kubectl get ingress
+   
+   # Describe ingress
+   kubectl describe ingress gryt-ingress
+   ```
+
+4. **Verify network policies**
+   ```bash
+   # Check network policies
+   kubectl get networkpolicies
+   ```
+
+## 🔍 Debugging Techniques
+
+### Enable Debug Logging
+
+```bash
+# Enable comprehensive debug logging
+DEBUG=gryt:* npm run dev
+
+# Enable specific component logging
+DEBUG=gryt:audio:* npm run dev
+DEBUG=gryt:websocket:* npm run dev
+DEBUG=gryt:multiserver:* npm run dev
+```
+
+### Browser Developer Tools
+
+1. **Console Logging**
+   ```javascript
+   // Enable audio debug mode
+   localStorage.setItem('debug', 'gryt:audio:*');
+   
+   // Check WebSocket connections
+   console.log('WebSocket connections:', window.grytConnections);
+   
+   // Monitor audio levels
+   setInterval(() => {
+     console.log('Audio levels:', {
+       input: getMicrophoneLevel(),
+       output: getSpeakerLevel()
+     });
+   }, 1000);
+   ```
+
+2. **Network Tab**
+   - Monitor WebSocket connections
+   - Check API requests
+   - Verify CORS headers
+   - Monitor WebRTC connections
+
+3. **Application Tab**
+   - Check localStorage for state
+   - Verify service worker registration
+   - Monitor IndexedDB usage
+
+### Server Debug Endpoints
+
+```bash
+# Health check endpoints
+curl http://localhost:5000/health
+curl http://localhost:5005/health
+
+# Debug endpoints (development only)
+curl http://localhost:5000/debug/rooms
+curl http://localhost:5000/debug/users
+curl http://localhost:5000/debug/connections
+
+curl http://localhost:5005/debug/peers
+curl http://localhost:5005/debug/tracks
+curl http://localhost:5005/metrics
+```
+
+### Performance Monitoring
+
+```bash
+# Monitor system resources
+htop
+iotop
+nethogs
+
+# Monitor Docker resources
+docker stats
+
+# Monitor Kubernetes resources
+kubectl top pods
+kubectl top nodes
+```
+
+## 📊 Diagnostic Commands
+
+### Network Diagnostics
+
+```bash
+# Check network connectivity
+ping google.com
+traceroute yourdomain.com
+
+# Check DNS resolution
+nslookup yourdomain.com
+dig yourdomain.com
+
+# Check SSL certificates
+openssl s_client -connect yourdomain.com:443
+```
+
+### Audio Diagnostics
+
+```bash
+# Check audio devices (Linux)
+arecord -l
+aplay -l
+
+# Test audio input
+arecord -f cd -d 5 test.wav
+
+# Test audio output
+aplay test.wav
+```
+
+### WebRTC Diagnostics
+
+```bash
+# Check WebRTC connectivity
+# Use browser developer tools > Network > WebRTC
+
+# Test STUN servers
+stunclient stun.l.google.com 19302
+
+# Test TURN servers
+turnutils_stunclient -u username -w password turn.server.com
+```
+
+## 🆘 Getting Help
+
+### Community Support
+
+- **GitHub Issues**: [Report bugs and request features](https://github.com/sivert-io/WebSocket-Voice/issues)
+- **Discord Server**: [Join our community](https://discord.gg/gryt)
+- **Documentation**: [Check our docs](https://docs.gryt.chat)
+
+### Professional Support
+
+- **Email Support**: support@gryt.chat
+- **Enterprise Support**: enterprise@gryt.chat
+- **Status Page**: [Check service status](https://status.gryt.chat)
+
+### Reporting Issues
+
+When reporting issues, please include:
+
+1. **System Information**
+   - Operating system and version
+   - Browser and version
+   - Docker/Kubernetes version (if applicable)
+
+2. **Configuration**
+   - Environment variables (sanitized)
+   - Server configuration
+   - Network setup
+
+3. **Logs**
+   - Server logs
+   - Browser console logs
+   - Network logs
+
+4. **Steps to Reproduce**
+   - Detailed steps to reproduce the issue
+   - Expected vs actual behavior
+   - Screenshots or videos if applicable
+
+---
+
+**Still having issues?** Check our [FAQ](/docs/faq) or [open an issue](https://github.com/sivert-io/WebSocket-Voice/issues) for personalized help!

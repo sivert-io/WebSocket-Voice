@@ -1,6 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import { insertMessage, listMessages } from "../db/scylla";
+import { insertMessage, listMessages, getUserByServerId } from "../db/scylla";
 
 export const messagesRouter = express.Router();
 
@@ -21,24 +21,31 @@ messagesRouter.post(
 	"/:conversationId",
 	(req: Request, res: Response, next: NextFunction): void => {
 		const { conversationId } = req.params as { conversationId: string };
-		const { senderId, text, attachments } = (req.body || {}) as {
-			senderId?: string;
+		const { senderServerId, text, attachments } = (req.body || {}) as {
+			senderServerId?: string;
 			text?: string;
 			attachments?: string[];
 		};
-		if (!senderId) {
-			res.status(400).json({ error: "senderId is required" });
+		if (!senderServerId) {
+			res.status(400).json({ error: "senderServerId is required" });
 			return;
 		}
 		Promise.resolve()
-			.then(() =>
-				insertMessage({
+			.then(async () => {
+				// Get user info for the sender
+				const user = await getUserByServerId(senderServerId);
+				if (!user) {
+					throw new Error("User not registered. Please register first.");
+				}
+				
+				return insertMessage({
 					conversation_id: conversationId,
-					sender_id: senderId,
+					sender_server_id: senderServerId,
+					sender_nickname: user.nickname,
 					text: text ?? null,
 					attachments: attachments ?? null,
-				})
-			)
+				});
+			})
 			.then((created) => res.status(201).json(created))
 			.catch(next);
 	}

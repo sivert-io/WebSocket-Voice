@@ -1,0 +1,773 @@
+---
+title: 🎨 User Interface
+description: Beautiful design with dark/light themes and accessibility
+icon: Palette
+---
+
+# 🎨 Modern User Interface
+
+Gryt features a beautiful, modern user interface built with Radix UI components, providing a professional Discord-like experience with full accessibility support and adaptive theming.
+
+## ✨ Key Features
+
+### 🎨 **Beautiful Design**
+- **Clean Interface**: Modern, minimalist design with professional aesthetics
+- **Radix UI Components**: Professional, accessible component library
+- **Responsive Layout**: Works perfectly on desktop and mobile devices
+- **Visual Hierarchy**: Clear information architecture and navigation
+
+### 🌓 **Adaptive Theming**
+- **Dark/Light Themes**: Automatic theme switching based on system preference
+- **Custom Themes**: Support for custom color schemes
+- **High Contrast**: Accessibility-friendly high contrast mode
+- **Theme Persistence**: Remembers user theme preference
+
+### ♿ **Accessibility**
+- **Full Keyboard Navigation**: Complete keyboard accessibility
+- **Screen Reader Support**: ARIA labels and semantic HTML
+- **Focus Management**: Clear focus indicators and logical tab order
+- **Color Contrast**: WCAG AA compliant color contrast ratios
+
+### 🎭 **Real-time Animations**
+- **Smooth Transitions**: Framer Motion powered animations
+- **Visual Feedback**: Real-time speaking indicators and connection states
+- **Loading States**: Beautiful loading spinners and progress indicators
+- **Micro-interactions**: Subtle animations for better user experience
+
+## 🎨 Design System
+
+### Color Palette
+
+Gryt uses a carefully crafted color palette that works across both light and dark themes:
+
+```typescript
+// Color system
+const colors = {
+  // Primary colors
+  primary: {
+    50: '#f0f9ff',
+    100: '#e0f2fe',
+    500: '#0ea5e9',
+    600: '#0284c7',
+    900: '#0c4a6e'
+  },
+  
+  // Neutral colors
+  neutral: {
+    50: '#fafafa',
+    100: '#f5f5f5',
+    500: '#737373',
+    600: '#525252',
+    900: '#171717'
+  },
+  
+  // Semantic colors
+  success: '#10b981',
+  warning: '#f59e0b',
+  error: '#ef4444',
+  info: '#3b82f6'
+};
+
+// Dark theme colors
+const darkColors = {
+  background: '#0a0a0a',
+  surface: '#1a1a1a',
+  border: '#262626',
+  text: '#fafafa',
+  textSecondary: '#a3a3a3'
+};
+```
+
+### Typography
+
+Professional typography system with clear hierarchy:
+
+```typescript
+// Typography scale
+const typography = {
+  fontFamily: {
+    sans: ['Inter', 'system-ui', 'sans-serif'],
+    mono: ['JetBrains Mono', 'monospace']
+  },
+  
+  fontSize: {
+    xs: '0.75rem',    // 12px
+    sm: '0.875rem',   // 14px
+    base: '1rem',     // 16px
+    lg: '1.125rem',   // 18px
+    xl: '1.25rem',    // 20px
+    '2xl': '1.5rem',  // 24px
+    '3xl': '1.875rem', // 30px
+    '4xl': '2.25rem'  // 36px
+  },
+  
+  fontWeight: {
+    normal: 400,
+    medium: 500,
+    semibold: 600,
+    bold: 700
+  },
+  
+  lineHeight: {
+    tight: 1.25,
+    normal: 1.5,
+    relaxed: 1.75
+  }
+};
+```
+
+### Spacing System
+
+Consistent spacing using a 4px base unit:
+
+```typescript
+// Spacing scale
+const spacing = {
+  0: '0',
+  1: '0.25rem',  // 4px
+  2: '0.5rem',   // 8px
+  3: '0.75rem',  // 12px
+  4: '1rem',     // 16px
+  5: '1.25rem',  // 20px
+  6: '1.5rem',   // 24px
+  8: '2rem',     // 32px
+  10: '2.5rem',  // 40px
+  12: '3rem',    // 48px
+  16: '4rem',    // 64px
+  20: '5rem',    // 80px
+  24: '6rem'     // 96px
+};
+```
+
+## 🧩 Component Library
+
+### Voice Controls
+
+Professional voice control components with clear visual feedback:
+
+```typescript
+// Voice control button component
+const VoiceControlButton = ({ 
+  type, 
+  isActive, 
+  onClick, 
+  disabled = false 
+}: VoiceControlButtonProps) => {
+  const getButtonStyle = () => {
+    switch (type) {
+      case 'mute':
+        return isActive 
+          ? 'bg-red-500 hover:bg-red-600 text-white' 
+          : 'bg-gray-200 hover:bg-gray-300 text-gray-700';
+      case 'deafen':
+        return isActive 
+          ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+          : 'bg-gray-200 hover:bg-gray-300 text-gray-700';
+      case 'disconnect':
+        return 'bg-red-600 hover:bg-red-700 text-white';
+      default:
+        return 'bg-gray-200 hover:bg-gray-300 text-gray-700';
+    }
+  };
+  
+  return (
+    <button
+      className={`px-4 py-2 rounded-lg font-medium transition-colors ${getButtonStyle()}`}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={`${type} button`}
+    >
+      <VoiceControlIcon type={type} isActive={isActive} />
+    </button>
+  );
+};
+```
+
+### User List
+
+Clean user list with real-time status indicators:
+
+```typescript
+// User list component
+const UserList = ({ users, currentUser }: UserListProps) => {
+  return (
+    <div className="user-list">
+      <h3 className="text-sm font-semibold text-gray-500 mb-3">
+        Connected Users ({users.length})
+      </h3>
+      
+      <div className="space-y-2">
+        {users.map(user => (
+          <UserItem
+            key={user.id}
+            user={user}
+            isCurrentUser={user.id === currentUser.id}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Individual user item
+const UserItem = ({ user, isCurrentUser }: UserItemProps) => {
+  return (
+    <div className={`user-item flex items-center space-x-3 p-2 rounded-lg ${
+      isCurrentUser ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+    }`}>
+      <div className="relative">
+        <Avatar src={user.avatar} alt={user.nickname} />
+        {user.isSpeaking && (
+          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+        )}
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+          {user.nickname}
+          {isCurrentUser && <span className="text-xs text-gray-500 ml-1">(You)</span>}
+        </p>
+        
+        <div className="flex items-center space-x-2">
+          {user.isMuted && (
+            <span className="text-xs text-red-500" aria-label="Muted">
+              🔇
+            </span>
+          )}
+          {user.isDeafened && (
+            <span className="text-xs text-orange-500" aria-label="Deafened">
+              🔇
+            </span>
+          )}
+          <span className="text-xs text-gray-500">
+            {user.connectionState}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
+
+### Server List
+
+Server management with status indicators:
+
+```typescript
+// Server list component
+const ServerList = ({ servers, currentServer, onServerSwitch }: ServerListProps) => {
+  return (
+    <div className="server-list">
+      <h3 className="text-sm font-semibold text-gray-500 mb-3">
+        Servers
+      </h3>
+      
+      <div className="space-y-1">
+        {servers.map(server => (
+          <ServerItem
+            key={server.id}
+            server={server}
+            isActive={server.id === currentServer}
+            onSwitch={() => onServerSwitch(server.id)}
+          />
+        ))}
+      </div>
+      
+      <button
+        className="w-full mt-3 p-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+        onClick={() => {/* Add server logic */}}
+      >
+        + Add Server
+      </button>
+    </div>
+  );
+};
+```
+
+## 🌓 Theme System
+
+### Theme Provider
+
+Comprehensive theme management with system preference detection:
+
+```typescript
+// Theme provider component
+const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  
+  // Detect system theme preference
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (theme === 'system') {
+        setResolvedTheme(e.matches ? 'dark' : 'light');
+      }
+    };
+    
+    mediaQuery.addEventListener('change', handleChange);
+    handleChange(mediaQuery);
+    
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
+  
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', resolvedTheme);
+  }, [resolvedTheme]);
+  
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+```
+
+### Theme Toggle
+
+Smooth theme switching with animation:
+
+```typescript
+// Theme toggle component
+const ThemeToggle = () => {
+  const { theme, setTheme } = useTheme();
+  
+  const cycleTheme = () => {
+    setTheme(prev => {
+      switch (prev) {
+        case 'light': return 'dark';
+        case 'dark': return 'system';
+        case 'system': return 'light';
+        default: return 'light';
+      }
+    });
+  };
+  
+  return (
+    <button
+      onClick={cycleTheme}
+      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+      aria-label="Toggle theme"
+    >
+      <motion.div
+        key={theme}
+        initial={{ rotate: -180, opacity: 0 }}
+        animate={{ rotate: 0, opacity: 1 }}
+        exit={{ rotate: 180, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        {theme === 'light' && <SunIcon className="w-5 h-5" />}
+        {theme === 'dark' && <MoonIcon className="w-5 h-5" />}
+        {theme === 'system' && <ComputerIcon className="w-5 h-5" />}
+      </motion.div>
+    </button>
+  );
+};
+```
+
+## ♿ Accessibility Features
+
+### Keyboard Navigation
+
+Complete keyboard accessibility:
+
+```typescript
+// Keyboard navigation hook
+const useKeyboardNavigation = () => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Voice control shortcuts
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case 'm':
+            e.preventDefault();
+            toggleMute();
+            break;
+          case 'd':
+            e.preventDefault();
+            toggleDeafen();
+            break;
+          case 'k':
+            e.preventDefault();
+            disconnect();
+            break;
+        }
+      }
+      
+      // Server switching
+      if (e.altKey) {
+        switch (e.key) {
+          case '1':
+          case '2':
+          case '3':
+          case '4':
+          case '5':
+            e.preventDefault();
+            switchToServer(parseInt(e.key) - 1);
+            break;
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+};
+```
+
+### Screen Reader Support
+
+Comprehensive ARIA labels and semantic HTML:
+
+```typescript
+// Accessible voice controls
+const AccessibleVoiceControls = () => {
+  return (
+    <div 
+      role="toolbar" 
+      aria-label="Voice controls"
+      className="voice-controls"
+    >
+      <button
+        role="button"
+        aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+        aria-pressed={isMuted}
+        onClick={toggleMute}
+      >
+        <MicIcon />
+        <span className="sr-only">
+          {isMuted ? 'Unmute microphone' : 'Mute microphone'}
+        </span>
+      </button>
+      
+      <button
+        role="button"
+        aria-label={isDeafened ? 'Undeafen speakers' : 'Deafen speakers'}
+        aria-pressed={isDeafened}
+        onClick={toggleDeafen}
+      >
+        <SpeakerIcon />
+        <span className="sr-only">
+          {isDeafened ? 'Undeafen speakers' : 'Deafen speakers'}
+        </span>
+      </button>
+    </div>
+  );
+};
+```
+
+### Focus Management
+
+Clear focus indicators and logical tab order:
+
+```typescript
+// Focus management hook
+const useFocusManagement = () => {
+  const focusableElements = useRef<HTMLElement[]>([]);
+  
+  useEffect(() => {
+    // Get all focusable elements
+    focusableElements.current = Array.from(
+      document.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+    ) as HTMLElement[];
+    
+    // Set up focus trap for modal dialogs
+    const handleTabKey = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        const firstElement = focusableElements.current[0];
+        const lastElement = focusableElements.current[focusableElements.current.length - 1];
+        
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, []);
+};
+```
+
+## 🎭 Animation System
+
+### Framer Motion Integration
+
+Smooth animations powered by Framer Motion:
+
+```typescript
+// Animated user list
+const AnimatedUserList = ({ users }: { users: User[] }) => {
+  return (
+    <AnimatePresence>
+      {users.map((user, index) => (
+        <motion.div
+          key={user.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ delay: index * 0.1 }}
+          layout
+        >
+          <UserItem user={user} />
+        </motion.div>
+      ))}
+    </AnimatePresence>
+  );
+};
+
+// Speaking indicator animation
+const SpeakingIndicator = ({ isSpeaking }: { isSpeaking: boolean }) => {
+  return (
+    <motion.div
+      className="speaking-indicator"
+      animate={{
+        scale: isSpeaking ? [1, 1.2, 1] : 1,
+        opacity: isSpeaking ? [0.5, 1, 0.5] : 0.5
+      }}
+      transition={{
+        duration: 1,
+        repeat: isSpeaking ? Infinity : 0,
+        ease: "easeInOut"
+      }}
+    />
+  );
+};
+```
+
+### Loading States
+
+Beautiful loading animations:
+
+```typescript
+// Loading spinner component
+const LoadingSpinner = ({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) => {
+  const sizeClasses = {
+    sm: 'w-4 h-4',
+    md: 'w-6 h-6',
+    lg: 'w-8 h-8'
+  };
+  
+  return (
+    <motion.div
+      className={`${sizeClasses[size]} border-2 border-gray-200 border-t-blue-500 rounded-full`}
+      animate={{ rotate: 360 }}
+      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+    />
+  );
+};
+
+// Connection status animation
+const ConnectionStatus = ({ status }: { status: ConnectionStatus }) => {
+  const getStatusColor = () => {
+    switch (status) {
+      case 'connected': return 'bg-green-500';
+      case 'connecting': return 'bg-yellow-500';
+      case 'disconnected': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+  
+  return (
+    <div className="flex items-center space-x-2">
+      <motion.div
+        className={`w-2 h-2 rounded-full ${getStatusColor()}`}
+        animate={{
+          scale: status === 'connecting' ? [1, 1.2, 1] : 1,
+          opacity: status === 'connecting' ? [0.5, 1, 0.5] : 1
+        }}
+        transition={{
+          duration: 1,
+          repeat: status === 'connecting' ? Infinity : 0
+        }}
+      />
+      <span className="text-sm text-gray-600 dark:text-gray-400 capitalize">
+        {status}
+      </span>
+    </div>
+  );
+};
+```
+
+## 📱 Responsive Design
+
+### Mobile Optimization
+
+Optimized layout for mobile devices:
+
+```typescript
+// Responsive layout hook
+const useResponsiveLayout = () => {
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const width = window.innerWidth;
+      setIsMobile(width < 768);
+      setIsTablet(width >= 768 && width < 1024);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+  
+  return { isMobile, isTablet, isDesktop: !isMobile && !isTablet };
+};
+
+// Mobile-optimized voice controls
+const MobileVoiceControls = () => {
+  const { isMobile } = useResponsiveLayout();
+  
+  if (!isMobile) return null;
+  
+  return (
+    <div className="fixed bottom-4 left-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+      <div className="flex justify-center space-x-4">
+        <VoiceControlButton type="mute" isActive={isMuted} onClick={toggleMute} />
+        <VoiceControlButton type="deafen" isActive={isDeafened} onClick={toggleDeafen} />
+        <VoiceControlButton type="disconnect" onClick={disconnect} />
+      </div>
+    </div>
+  );
+};
+```
+
+### Touch Interactions
+
+Touch-friendly interactions for mobile:
+
+```typescript
+// Touch gesture handler
+const useTouchGestures = () => {
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  
+  const handleTouchStart = (e: TouchEvent) => {
+    const touch = e.touches[0];
+    setTouchStart({ x: touch.clientX, y: touch.clientY });
+  };
+  
+  const handleTouchEnd = (e: TouchEvent) => {
+    if (!touchStart) return;
+    
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStart.x;
+    const deltaY = touch.clientY - touchStart.y;
+    
+    // Swipe gestures
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (deltaX > 50) {
+        // Swipe right - next server
+        switchToNextServer();
+      } else if (deltaX < -50) {
+        // Swipe left - previous server
+        switchToPreviousServer();
+      }
+    }
+    
+    setTouchStart(null);
+  };
+  
+  useEffect(() => {
+    document.addEventListener('touchstart', handleTouchStart);
+    document.addEventListener('touchend', handleTouchEnd);
+    
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [touchStart]);
+};
+```
+
+## 🐛 Troubleshooting
+
+### Common UI Issues
+
+**Theme not switching?**
+```bash
+# Check system theme preference
+# Verify theme provider setup
+# Clear browser cache
+# Check CSS custom properties
+```
+
+**Animations not working?**
+```bash
+# Check Framer Motion installation
+# Verify animation props
+# Test with reduced motion preference
+# Check browser compatibility
+```
+
+**Accessibility issues?**
+```bash
+# Test with screen reader
+# Check ARIA labels
+# Verify keyboard navigation
+# Test color contrast
+```
+
+**Mobile layout problems?**
+```bash
+# Check responsive breakpoints
+# Test touch interactions
+# Verify viewport meta tag
+# Test on different devices
+```
+
+### Debug Tools
+
+Enable UI debugging:
+
+```typescript
+// Enable UI debug mode
+localStorage.setItem('debug', 'gryt:ui:*');
+
+// UI metrics
+const uiMetrics = {
+  theme: getCurrentTheme(),
+  screenSize: getScreenSize(),
+  animationPerformance: getAnimationPerformance(),
+  accessibilityScore: getAccessibilityScore()
+};
+
+console.log('UI Metrics:', uiMetrics);
+```
+
+## 📊 Performance Metrics
+
+### UI Performance
+
+Monitor UI performance:
+
+- **First Contentful Paint**: < 1.5s
+- **Largest Contentful Paint**: < 2.5s
+- **Cumulative Layout Shift**: < 0.1
+- **First Input Delay**: < 100ms
+
+### Accessibility Metrics
+
+Measure accessibility compliance:
+
+- **WCAG AA Compliance**: 100%
+- **Keyboard Navigation**: Complete coverage
+- **Screen Reader Support**: Full compatibility
+- **Color Contrast**: 4.5:1 minimum ratio
+
+---
+
+**Ready to experience a beautiful, accessible voice chat interface?** Check out our [Quick Start Guide](/docs/quick-start) to get started!

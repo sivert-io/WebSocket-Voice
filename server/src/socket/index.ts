@@ -5,7 +5,10 @@ import { Server, Socket } from "socket.io";
 import { syncAllClients, verifyClient } from "./utils/clients";
 import { sendInfo, sendServerDetails } from "./utils/server";
 import { SFUClient } from "../sfu/client";
-import { insertMessage, listMessages, MessageRecord } from "../db/scylla";
+import { insertMessage, listMessages, MessageRecord, upsertUser, getUserByGrytId, getUserByServerId } from "../db/scylla";
+import { generateAccessToken, verifyAccessToken, refreshToken, TokenPayload } from "../utils/jwt";
+import { verifyJoinToken } from "../services/grytAuth";
+
 import { randomUUID } from "crypto";
 
 const clientsInfo: Clients = {};
@@ -31,6 +34,83 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
 
   // Enhanced event handlers with better error handling and validation
   const eventHandlers: { [event: string]: (...args: any[]) => void } = {
+    // Join server with join token
+    'server:join': async (payload: { joinToken: string; nickname?: string; serverToken?: string }) => {
+      try {
+        consola.info(`📥 Received server:join from client ${clientId}:`, {
+          hasJoinToken: !!payload?.joinToken,
+          hasNickname: !!payload?.nickname,
+          hasServerToken: !!payload?.serverToken
+        });
+        
+        if (!payload || typeof payload.joinToken !== 'string') {
+          socket.emit('server:error', 'Invalid join payload - joinToken required');
+          return;
+        }
+        
+        // Validate server token if provided
+        const expectedServerToken = process.env.SERVER_TOKEN;
+        if (expectedServerToken && (!payload.serverToken || payload.serverToken !== expectedServerToken)) {
+          consola.warn(`❌ Invalid server token from client ${clientId}`);
+          socket.emit('server:error', 'token_invalid');
+          return;
+        }
+        
+        // Verify the join token with Gryt Auth
+        const verification = await verifyJoinToken(payload.joinToken, socket.handshake.headers.host);
+        
+        if (!verification.valid || !verification.user) {
+          consola.warn(`❌ Invalid join token from client ${clientId}`);
+          socket.emit('server:error', verification.error || 'Invalid join token');
+          return;
+        }
+        
+        const grytUserId = verification.user.userId;
+        const nickname = payload.nickname || verification.user.nickname || 'Anonymous';
+        
+        if (nickname.length > 50) {
+          socket.emit('server:error', 'Nickname too long (max 50 characters)');
+          return;
+        }
+        
+        // Register or update user in database
+        const user = await upsertUser(grytUserId, nickname.trim());
+        consola.success(`👤 User joined: ${user.gryt_user_id} as "${user.nickname}" with server ID ${user.server_user_id}`);
+        
+        // Generate access token for this server
+        const tokenPayload: TokenPayload = {
+          grytUserId: user.gryt_user_id,
+          serverUserId: user.server_user_id,
+          nickname: user.nickname,
+          serverHost: socket.handshake.headers.host || 'unknown'
+        };
+        
+        const accessToken = generateAccessToken(tokenPayload);
+        
+        // Update client info
+        if (clientsInfo[clientId]) {
+          clientsInfo[clientId].grytUserId = user.gryt_user_id;
+          clientsInfo[clientId].serverUserId = user.server_user_id;
+          clientsInfo[clientId].nickname = user.nickname;
+          clientsInfo[clientId].accessToken = accessToken;
+          clientsInfo[clientId].serverToken = payload.serverToken; // Store server token
+        }
+        
+        // Send back access token and user info
+        const joinResponse = {
+          accessToken,
+          nickname: user.nickname
+        };
+        
+        consola.info(`📤 Emitting server:joined to client ${clientId}`);
+        socket.emit('server:joined', joinResponse);
+        syncAllClients(io, clientsInfo);
+      } catch (err) {
+        consola.error('server:join failed', err);
+        socket.emit('server:error', 'Failed to join server');
+      }
+    },
+
     updateNickname: (newNickName: string) => {
       if (!clientsInfo[clientId]) return;
       if (typeof newNickName !== 'string' || newNickName.length > 50) {
@@ -231,27 +311,55 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     },
 
     // Real-time chat: persist and broadcast
-    'chat:send': async (payload: { conversationId: string; senderId: string; text?: string; attachments?: string[] }) => {
+    'chat:send': async (payload: { conversationId: string; accessToken: string; text?: string; attachments?: string[] }) => {
       try {
         consola.info(`💬 chat:send from ${clientId}`, {
           conversationId: payload?.conversationId,
-          senderId: payload?.senderId,
           textLen: typeof payload?.text === 'string' ? payload.text.length : 0,
           hasAttachments: Array.isArray(payload?.attachments) && payload.attachments.length > 0,
+          hasToken: !!payload?.accessToken,
         });
-        if (!payload || typeof payload.conversationId !== 'string' || typeof payload.senderId !== 'string') {
-          socket.emit('chat:error', 'Invalid payload');
+        
+        if (!payload || typeof payload.conversationId !== 'string' || typeof payload.accessToken !== 'string') {
+          socket.emit('chat:error', 'Invalid payload - accessToken required');
           return;
         }
+        
+        // Verify the access token
+        const tokenPayload = verifyAccessToken(payload.accessToken);
+        if (!tokenPayload) {
+          consola.warn(`❌ Invalid access token from client ${clientId}`);
+          socket.emit('chat:error', 'Invalid access token');
+          return;
+        }
+        
+        // Check if token is for this server
+        if (tokenPayload.serverHost !== socket.handshake.headers.host) {
+          consola.warn(`❌ Token server mismatch: ${tokenPayload.serverHost} vs ${socket.handshake.headers.host}`);
+          socket.emit('chat:error', 'Invalid access token for this server');
+          return;
+        }
+        
         const text = typeof payload.text === 'string' ? payload.text.trim() : '';
         const attachments = Array.isArray(payload.attachments) ? payload.attachments : null;
         if (!text && (!attachments || attachments.length === 0)) {
           socket.emit('chat:error', 'Message is empty');
           return;
         }
+        
+        // Get user info for the sender
+        const user = await getUserByServerId(tokenPayload.serverUserId);
+        if (!user) {
+          socket.emit('chat:error', 'User not found. Please rejoin the server.');
+          return;
+        }
+        
+        consola.info(`✅ Message from user ${user.nickname} (verified via JWT)`);
+        
         const created = await insertMessage({
           conversation_id: payload.conversationId,
-          sender_id: payload.senderId,
+          sender_server_id: tokenPayload.serverUserId,
+          sender_nickname: user.nickname,
           text: text || null,
           attachments: attachments && attachments.length > 0 ? attachments : null,
         });
@@ -261,6 +369,11 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         const items = existing?.items ? [...existing.items, created] : [created];
         messageCache[created.conversation_id] = { items, fetchedAt: Date.now() };
         // Broadcast to all clients for now; clients can filter by conversationId
+        consola.info(`📢 Broadcasting chat:new to all clients`, { 
+          message_id: created.message_id, 
+          conversation_id: created.conversation_id,
+          totalClients: io.engine.clientsCount 
+        });
         io.emit('chat:new', created);
       } catch (err) {
         consola.error('chat:send failed (DB issue?)', err);
@@ -269,7 +382,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           const now = new Date();
           const fallback = {
             conversation_id: payload?.conversationId || 'unknown',
-            sender_id: payload?.senderId || clientId,
+            sender_server_id: clientId, // Use client ID as fallback
             text: (payload?.text || '').toString(),
             attachments: Array.isArray(payload?.attachments) && payload!.attachments!.length > 0 ? payload!.attachments! : null,
             message_id: randomUUID(),
@@ -300,6 +413,33 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         socket.emit('chat:error', 'Failed to fetch messages');
       }
     },
+
+    // Refresh access token
+    'token:refresh': async (payload: { accessToken: string }) => {
+      try {
+        if (!payload || typeof payload.accessToken !== 'string') {
+          socket.emit('token:error', 'Invalid refresh payload');
+          return;
+        }
+        
+        const newToken = refreshToken(payload.accessToken);
+        if (!newToken) {
+          socket.emit('token:error', 'Invalid access token');
+          return;
+        }
+        
+        // Update client info with new token
+        if (clientsInfo[clientId]) {
+          clientsInfo[clientId].accessToken = newToken;
+        }
+        
+        consola.info(`🔄 Token refreshed for client ${clientId}`);
+        socket.emit('token:refreshed', { accessToken: newToken });
+      } catch (err) {
+        consola.error('token:refresh failed', err);
+        socket.emit('token:error', 'Failed to refresh token');
+      }
+    },
   };
 
   // Set up base socket event handlers
@@ -323,6 +463,12 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
   // Authenticate client
   const clientToken = socket.handshake.auth?.token;
   const expectedToken = process.env.SERVER_TOKEN;
+  
+  consola.info(`🔐 Auth check for ${clientId}:`, {
+    clientToken: clientToken ? 'present' : 'missing',
+    expectedToken: expectedToken ? 'configured' : 'missing',
+    authObject: socket.handshake.auth
+  });
 
   if (!expectedToken) {
     consola.error("SERVER_TOKEN not configured!");
@@ -331,7 +477,11 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
   }
 
   if (clientToken !== expectedToken) {
-    consola.warn(`Authentication failed for ${clientId}`);
+    consola.warn(`❌ Authentication failed for ${clientId}:`, {
+      clientToken,
+      expectedToken,
+      match: clientToken === expectedToken
+    });
     socket.emit('auth_error', 'Invalid authentication token');
     socket.disconnect(true);
     return;
@@ -342,6 +492,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
 
   // Initialize client info
   clientsInfo[clientId] = {
+    serverUserId: `temp_${clientId}`, // Temporary ID until user registers
     nickname: "User",
     isMuted: false,
     isDeafened: false,
@@ -351,6 +502,22 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     isConnectedToVoice: false,
     isAFK: false,
   };
+
+  // Check if client has a valid access token
+  const clientAccessToken = socket.handshake.auth?.accessToken;
+  if (clientAccessToken) {
+    const tokenPayload = verifyAccessToken(clientAccessToken);
+    if (tokenPayload && tokenPayload.serverHost === socket.handshake.headers.host) {
+      consola.info(`✅ Client ${clientId} has valid access token`);
+      // Update client info with token data
+      clientsInfo[clientId].accessToken = clientAccessToken;
+      // We could also update nickname from token if needed
+    } else {
+      consola.warn(`⚠️ Client ${clientId} has invalid access token - will need to rejoin`);
+    }
+  } else {
+    consola.info(`ℹ️ Client ${clientId} has no access token - will need to join server`);
+  }
 
   // Send client verification and details
   verifyClient(socket);

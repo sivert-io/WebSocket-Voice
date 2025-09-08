@@ -4,7 +4,8 @@ import { useMemo } from "react";
 export type ChatMessage = {
   conversation_id: string;
   message_id: string;
-  sender_id: string;
+  sender_server_id: string;
+  sender_nickname: string;
   text: string | null;
   attachments: string[] | null;
   created_at: string | Date;
@@ -30,8 +31,8 @@ export const ChatView = ({
     const result: Array<{ senderId: string; messages: ChatMessage[] }> = [];
     for (const m of chatMessages) {
       const last = result[result.length - 1];
-      if (!last || last.senderId !== m.sender_id) {
-        result.push({ senderId: m.sender_id, messages: [m] });
+      if (!last || last.senderId !== m.sender_server_id) {
+        result.push({ senderId: m.sender_server_id, messages: [m] });
       } else {
         last.messages.push(m);
       }
@@ -49,18 +50,16 @@ export const ChatView = ({
       }}
     >
       <Flex height="100%" width="100%" direction="column" p="3">
-        <Flex direction="column" justify="start" align="start" flexGrow="1" style={{ gap: 12, overflowY: "auto" }}>
+        <Flex direction="column" justify="end" flexGrow="1" style={{ gap: 12, overflowY: "auto", paddingBottom: "16px" }}>
           {groups.length === 0 ? (
-            <Flex direction="column" justify="center" align="center" style={{ opacity: 0.6, width: "100%", height: "100%" }}>
               <Text size="2">No messages yet</Text>
-            </Flex>
           ) : (
             groups.map((group, idx) => {
               const isSelf = !!currentUserId && group.senderId === currentUserId;
               return (
                 <Flex key={`${group.senderId}-${idx}`} direction="column" style={{ width: "100%" }} align={isSelf ? "end" : "start"}>
                   <Text size="1" color="gray" style={{ marginBottom: 6 }}>
-                    {isSelf ? "You" : "Them"}
+                    {isSelf ? "You" : group.messages[0].sender_nickname}
                   </Text>
                   <Flex direction="column" style={{ gap: 6, width: "100%" }}>
                     {group.messages.map((m) => (

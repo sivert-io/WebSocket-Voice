@@ -1,0 +1,506 @@
+---
+title: 🎛️ Audio Processing
+description: Multi-stage processing with real-time visualization
+icon: Settings
+---
+
+# 🎛️ Professional Audio Processing
+
+Gryt features a sophisticated multi-stage audio processing pipeline that delivers professional-grade voice quality with real-time visualization and advanced audio controls.
+
+## ✨ Key Features
+
+### 🔧 **Enhanced Audio Pipeline**
+- **Multi-stage Processing**: Noise gate → Volume → Mute → Output
+- **Real-time Audio Visualization**: Frequency spectrum and level meters
+- **Loopback Monitoring**: Hear yourself to test audio setup
+- **Device Management**: Hot-swappable microphone and speaker selection
+
+### 📊 **Audio Quality Optimization**
+- **Automatic Gain Control**: Maintains consistent volume levels
+- **Dynamic Range Compression**: Smooths out volume variations
+- **Noise Gate Filtering**: Configurable threshold with smooth curves
+- **Echo Cancellation**: Eliminates feedback and echo
+
+### 🎚️ **Professional Controls**
+- **Volume Controls**: Independent microphone and output volume with 2x boost
+- **Real-time Adjustment**: Instant response without audio glitches
+- **Visual Feedback**: Accurate representation of transmitted audio
+- **Device Hot-swapping**: Change devices without connection loss
+
+## 🎛️ Audio Processing Pipeline
+
+The client implements a sophisticated multi-stage audio processing pipeline:
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Microphone  │───►│ Noise Gate  │───►│   Volume    │───►│    Mute     │
+│   Input     │    │  Filtering  │    │  Control    │    │   Control   │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                                                                  │
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐           │
+│   Visual    │◄───│   Final     │◄───│     SFU     │◄──────────┘
+│  Feedback   │    │  Analyser   │    │Transmission │
+└─────────────┘    └─────────────┘    └─────────────┘
+```
+
+### Stage 1: Noise Gate Filtering
+
+The noise gate is the first stage of audio processing, filtering out background noise:
+
+```typescript
+// Noise gate configuration
+interface NoiseGateConfig {
+  threshold: number; // -50dB to -10dB
+  attackTime: number; // 10ms (fast response)
+  releaseTime: number; // 100ms (smooth fade)
+  ratio: number; // ∞:1 (hard gate)
+  enabled: boolean;
+}
+
+// Noise gate implementation
+const applyNoiseGate = (audioBuffer: AudioBuffer, config: NoiseGateConfig) => {
+  const samples = audioBuffer.getChannelData(0);
+  const threshold = dbToLinear(config.threshold);
+  
+  for (let i = 0; i < samples.length; i++) {
+    const amplitude = Math.abs(samples[i]);
+    
+    if (amplitude < threshold) {
+      // Apply smooth fade-out
+      samples[i] *= applyReleaseCurve(amplitude, config.releaseTime);
+    } else {
+      // Apply fast attack
+      samples[i] *= applyAttackCurve(amplitude, config.attackTime);
+    }
+  }
+  
+  return audioBuffer;
+};
+```
+
+**Configuration Options:**
+- **Threshold**: -50dB to -10dB (configurable)
+- **Attack Time**: 10ms (fast response to speech)
+- **Release Time**: 100ms (smooth fade-out)
+- **Ratio**: ∞:1 (hard gate for clean audio)
+
+### Stage 2: Volume Control
+
+Professional volume control with 2x boost capability:
+
+```typescript
+// Volume control configuration
+interface VolumeConfig {
+  microphoneVolume: number; // 0-200% (2x boost)
+  outputVolume: number; // 0-200%
+  scaling: 'linear' | 'logarithmic'; // Logarithmic for natural perception
+  realTime: boolean; // Instant response
+}
+
+// Volume control implementation
+const applyVolumeControl = (audioBuffer: AudioBuffer, config: VolumeConfig) => {
+  const samples = audioBuffer.getChannelData(0);
+  const volumeMultiplier = config.scaling === 'logarithmic' 
+    ? linearToLog(config.microphoneVolume / 100)
+    : config.microphoneVolume / 100;
+  
+  for (let i = 0; i < samples.length; i++) {
+    samples[i] *= volumeMultiplier;
+    
+    // Prevent clipping
+    samples[i] = Math.max(-1, Math.min(1, samples[i]));
+  }
+  
+  return audioBuffer;
+};
+```
+
+**Features:**
+- **Range**: 0% to 200% (2x boost capability)
+- **Scaling**: Logarithmic for natural perception
+- **Real-time**: Instant response without audio glitches
+- **Clipping Protection**: Prevents audio distortion
+
+### Stage 3: Mute Control
+
+Server-synchronized mute functionality:
+
+```typescript
+// Mute control implementation
+const applyMuteControl = (audioBuffer: AudioBuffer, isMuted: boolean) => {
+  if (isMuted) {
+    const samples = audioBuffer.getChannelData(0);
+    // Apply smooth mute transition
+    for (let i = 0; i < samples.length; i++) {
+      samples[i] *= (1 - (i / samples.length)); // Smooth fade to silence
+    }
+  }
+  return audioBuffer;
+};
+```
+
+### Stage 4: Final Analysis
+
+The final analyser provides accurate visual feedback:
+
+```typescript
+// Final audio analysis for visual feedback
+const analyzeFinalAudio = (audioBuffer: AudioBuffer) => {
+  const analyser = audioContext.createAnalyser();
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+  
+  // Get frequency data
+  analyser.getByteFrequencyData(dataArray);
+  
+  // Calculate RMS for level meter
+  const rms = calculateRMS(audioBuffer);
+  
+  // Calculate peak for peak meter
+  const peak = calculatePeak(audioBuffer);
+  
+  return {
+    frequencyData: dataArray,
+    rmsLevel: rms,
+    peakLevel: peak,
+    isActive: rms > noiseGateThreshold
+  };
+};
+```
+
+## 📊 Real-time Audio Visualization
+
+### Frequency Spectrum Analysis
+
+Real-time frequency spectrum visualization:
+
+```typescript
+// Frequency spectrum visualization
+interface FrequencySpectrum {
+  frequencies: Uint8Array; // 0-255 values for each frequency bin
+  sampleRate: number; // 48kHz
+  fftSize: number; // 2048 for good resolution
+  smoothing: number; // 0-1 for smooth transitions
+}
+
+// Update frequency display
+const updateFrequencyDisplay = (spectrum: FrequencySpectrum) => {
+  const canvas = document.getElementById('frequency-canvas') as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d');
+  
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw frequency bars
+  const barWidth = canvas.width / spectrum.frequencies.length;
+  
+  for (let i = 0; i < spectrum.frequencies.length; i++) {
+    const barHeight = (spectrum.frequencies[i] / 255) * canvas.height;
+    
+    // Color based on frequency range
+    const hue = (i / spectrum.frequencies.length) * 360;
+    ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+    
+    ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth, barHeight);
+  }
+};
+```
+
+### Audio Level Meters
+
+Real-time level meters for input and output:
+
+```typescript
+// Audio level meter configuration
+interface LevelMeter {
+  rms: number; // Root Mean Square (average level)
+  peak: number; // Peak level
+  hold: number; // Peak hold value
+  decay: number; // Peak decay rate
+}
+
+// Update level meters
+const updateLevelMeters = (inputLevel: LevelMeter, outputLevel: LevelMeter) => {
+  // Update input level meter
+  updateLevelMeter('input-meter', inputLevel);
+  
+  // Update output level meter
+  updateLevelMeter('output-meter', outputLevel);
+  
+  // Update peak hold indicators
+  updatePeakHold('input-peak', inputLevel.peak);
+  updatePeakHold('output-peak', outputLevel.peak);
+};
+```
+
+## 🔄 Loopback Monitoring
+
+Hear your processed audio to test your setup:
+
+```typescript
+// Loopback monitoring configuration
+interface LoopbackConfig {
+  enabled: boolean;
+  volume: number; // 0-100%
+  delay: number; // Compensation delay in ms
+  echoCancellation: boolean;
+}
+
+// Enable loopback monitoring
+const enableLoopbackMonitoring = (config: LoopbackConfig) => {
+  if (config.enabled) {
+    // Create loopback audio context
+    const loopbackContext = new AudioContext();
+    
+    // Connect processed audio to loopback
+    const loopbackGain = loopbackContext.createGain();
+    loopbackGain.gain.value = config.volume / 100;
+    
+    // Connect to speakers
+    processedAudioSource.connect(loopbackGain);
+    loopbackGain.connect(loopbackContext.destination);
+    
+    // Apply echo cancellation if enabled
+    if (config.echoCancellation) {
+      applyEchoCancellation(loopbackGain);
+    }
+  }
+};
+```
+
+## 🎚️ Device Management
+
+### Hot-swappable Device Selection
+
+Change audio devices without losing connection:
+
+```typescript
+// Device management interface
+interface AudioDevice {
+  deviceId: string;
+  label: string;
+  kind: 'audioinput' | 'audiooutput';
+  groupId: string;
+}
+
+// Get available devices
+const getAudioDevices = async (): Promise<AudioDevice[]> => {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return devices.filter(device => 
+    device.kind === 'audioinput' || device.kind === 'audiooutput'
+  );
+};
+
+// Switch microphone device
+const switchMicrophone = async (deviceId: string) => {
+  try {
+    // Get new audio stream
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      audio: { 
+        deviceId: { exact: deviceId },
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+    
+    // Update audio pipeline
+    updateAudioPipeline({ microphoneStream: newStream });
+    
+    // Notify user of successful switch
+    showNotification('Microphone switched successfully');
+  } catch (error) {
+    showError('Failed to switch microphone: ' + error.message);
+  }
+};
+
+// Switch speaker device
+const switchSpeakers = async (deviceId: string) => {
+  try {
+    // Update audio output device
+    await audioContext.setSinkId(deviceId);
+    
+    // Notify user of successful switch
+    showNotification('Speakers switched successfully');
+  } catch (error) {
+    showError('Failed to switch speakers: ' + error.message);
+  }
+};
+```
+
+### Device Detection and Management
+
+```typescript
+// Device change detection
+navigator.mediaDevices.addEventListener('devicechange', async () => {
+  // Refresh device list
+  const devices = await getAudioDevices();
+  updateDeviceList(devices);
+  
+  // Check if current device is still available
+  const currentDevice = getCurrentDevice();
+  if (currentDevice && !devices.find(d => d.deviceId === currentDevice.deviceId)) {
+    // Device was disconnected, switch to default
+    await switchToDefaultDevice();
+  }
+});
+```
+
+## 🔧 Advanced Configuration
+
+### Audio Quality Settings
+
+Fine-tune audio processing parameters:
+
+```typescript
+// Advanced audio configuration
+interface AdvancedAudioConfig {
+  // Sample rate and buffer size
+  sampleRate: 48000; // 48kHz for optimal quality
+  bufferSize: 256; // Low latency buffer
+  
+  // Noise gate settings
+  noiseGate: {
+    threshold: -30; // dB
+    attackTime: 0.01; // 10ms
+    releaseTime: 0.1; // 100ms
+    ratio: Infinity; // Hard gate
+  };
+  
+  // Volume control settings
+  volume: {
+    microphone: 100; // 0-200%
+    output: 100; // 0-200%
+    boost: false; // 2x boost
+    scaling: 'logarithmic';
+  };
+  
+  // Processing settings
+  processing: {
+    echoCancellation: true;
+    noiseSuppression: true;
+    autoGainControl: true;
+    highpassFilter: true;
+    lowpassFilter: false;
+  };
+  
+  // Visualization settings
+  visualization: {
+    frequencyBins: 2048;
+    smoothing: 0.8;
+    updateRate: 60; // FPS
+    colorScheme: 'spectrum';
+  };
+}
+```
+
+### Performance Optimization
+
+Optimize audio processing for different hardware:
+
+```typescript
+// Performance optimization
+const optimizeAudioProcessing = (hardwareProfile: 'low' | 'medium' | 'high') => {
+  const configs = {
+    low: {
+      bufferSize: 512,
+      fftSize: 1024,
+      smoothing: 0.9,
+      updateRate: 30
+    },
+    medium: {
+      bufferSize: 256,
+      fftSize: 2048,
+      smoothing: 0.8,
+      updateRate: 60
+    },
+    high: {
+      bufferSize: 128,
+      fftSize: 4096,
+      smoothing: 0.7,
+      updateRate: 120
+    }
+  };
+  
+  return configs[hardwareProfile];
+};
+```
+
+## 🐛 Troubleshooting
+
+### Common Audio Processing Issues
+
+**Audio quality problems?**
+```bash
+# Check sample rate compatibility
+# Verify buffer size settings
+# Test with different audio devices
+# Adjust noise gate threshold
+```
+
+**Visualization not working?**
+```bash
+# Check canvas rendering
+# Verify frequency data
+# Test with different browsers
+# Check hardware acceleration
+```
+
+**Device switching issues?**
+```bash
+# Check device permissions
+# Verify device availability
+# Test with different devices
+# Check browser compatibility
+```
+
+**Performance issues?**
+```bash
+# Reduce buffer size
+# Lower visualization quality
+# Check CPU usage
+# Optimize for hardware
+```
+
+### Debug Tools
+
+Enable detailed audio processing debugging:
+
+```typescript
+// Enable audio debug mode
+localStorage.setItem('debug', 'gryt:audio:processing:*');
+
+// Audio processing metrics
+const audioMetrics = {
+  processingTime: getProcessingTime(),
+  bufferUnderruns: getBufferUnderruns(),
+  cpuUsage: getCPUUsage(),
+  memoryUsage: getMemoryUsage()
+};
+
+console.log('Audio Processing Metrics:', audioMetrics);
+```
+
+## 📊 Performance Metrics
+
+### Audio Processing Performance
+
+Monitor audio processing efficiency:
+
+- **Processing Latency**: < 10ms per buffer
+- **CPU Usage**: < 5% for audio processing
+- **Memory Usage**: < 50MB for audio buffers
+- **Buffer Underruns**: < 0.1% under normal conditions
+
+### Quality Metrics
+
+Measure audio quality:
+
+- **Signal-to-Noise Ratio**: > 60dB
+- **Total Harmonic Distortion**: < 0.1%
+- **Frequency Response**: ±1dB from 20Hz to 20kHz
+- **Dynamic Range**: > 90dB
+
+---
+
+**Ready to experience professional audio processing?** Check out our [Quick Start Guide](/docs/quick-start) to get started!

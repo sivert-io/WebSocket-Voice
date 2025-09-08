@@ -1,0 +1,565 @@
+---
+title: 📚 API Reference
+description: Complete API documentation for Gryt voice chat platform
+icon: Book
+---
+
+# 📚 API Reference
+
+Complete API documentation for all Gryt components including WebSocket events, REST endpoints, and data structures.
+
+## 🌐 Web Client API
+
+### Audio Processing Hooks
+
+#### `useMicrophone`
+
+Manages microphone input and audio processing.
+
+```typescript
+const { 
+  microphoneBuffer, 
+  isRecording, 
+  analyser, 
+  gainNode 
+} = useMicrophone(shouldAccess: boolean);
+```
+
+**Parameters:**
+- `shouldAccess` (boolean): Whether to request microphone access
+
+**Returns:**
+- `microphoneBuffer` (AudioBuffer): Raw microphone audio buffer
+- `isRecording` (boolean): Whether microphone is currently recording
+- `analyser` (AnalyserNode): Audio analyser for visualization
+- `gainNode` (GainNode): Volume control node
+
+#### `useSFU`
+
+Manages SFU connection and WebRTC handling.
+
+```typescript
+const { 
+  connect, 
+  disconnect, 
+  isConnected, 
+  isConnecting,
+  streamSources,
+  connectionState 
+} = useSFU();
+```
+
+**Returns:**
+- `connect()` (function): Connect to SFU server
+- `disconnect()` (function): Disconnect from SFU server
+- `isConnected` (boolean): Connection status
+- `isConnecting` (boolean): Connection in progress
+- `streamSources` (Map): Active audio streams
+- `connectionState` (string): Current connection state
+
+#### `useSockets`
+
+Manages WebSocket connections to signaling servers.
+
+```typescript
+const { 
+  sockets, 
+  clients, 
+  serverDetailsList,
+  currentConnection 
+} = useSockets();
+```
+
+**Returns:**
+- `sockets` (Map): Active WebSocket connections
+- `clients` (Map): Connected clients per server
+- `serverDetailsList` (Array): Available servers
+- `currentConnection` (string): Current server ID
+
+## 🖥️ Server API
+
+### WebSocket Events
+
+#### Client → Server
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `join` | `{ channelID: string }` | Join a voice channel |
+| `leave` | `{}` | Leave current voice channel |
+| `updateNickname` | `string` | Update user nickname |
+| `updateMute` | `boolean` | Update mute state |
+| `offer` | `RTCSessionDescription` | WebRTC offer for SFU |
+| `answer` | `RTCSessionDescription` | WebRTC answer from SFU |
+| `ice-candidate` | `RTCIceCandidate` | ICE candidate for connection |
+
+#### Server → Client
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `info` | `ServerInfo` | Server information and channels |
+| `users` | `UserList` | Current users in channels |
+| `user-joined` | `UserInfo` | User joined notification |
+| `user-left` | `UserInfo` | User left notification |
+| `user-updated` | `UserInfo` | User state changed |
+| `offer` | `RTCSessionDescription` | WebRTC offer from SFU |
+| `answer` | `RTCSessionDescription` | WebRTC answer to SFU |
+| `ice-candidate` | `RTCIceCandidate` | ICE candidate from SFU |
+
+### REST Endpoints
+
+#### Messages
+
+**GET** `/api/messages/:conversationId`
+
+Get messages for a conversation.
+
+**Query Parameters:**
+- `limit` (number, optional): Number of messages to return (default: 50)
+- `before` (string, optional): ISO timestamp to get messages before
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "id": "msg_123",
+      "senderId": "user_456",
+      "text": "Hello world",
+      "attachments": ["file_789"],
+      "created_at": "2024-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+**POST** `/api/messages/:conversationId`
+
+Create a new message.
+
+**Request Body:**
+```json
+{
+  "senderId": "user_456",
+  "text": "Hello world",
+  "attachments": ["file_789"]
+}
+```
+
+**Response:**
+```json
+{
+  "id": "msg_123",
+  "senderId": "user_456",
+  "text": "Hello world",
+  "attachments": ["file_789"],
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+#### Uploads
+
+**POST** `/api/uploads`
+
+Upload a file.
+
+**Request:** `multipart/form-data`
+- `file`: The file to upload
+
+**Response:**
+```json
+{
+  "fileId": "file_789",
+  "key": "uploads/file_789.jpg",
+  "thumbnailKey": "thumbnails/file_789_320.jpg"
+}
+```
+
+### Data Structures
+
+#### ServerInfo
+
+```typescript
+interface ServerInfo {
+  name: string;
+  members: string;
+  channels: Channel[];
+}
+```
+
+#### Channel
+
+```typescript
+interface Channel {
+  id: string;
+  name: string;
+  type: 'voice' | 'text';
+}
+```
+
+#### UserInfo
+
+```typescript
+interface UserInfo {
+  id: string;
+  nickname: string;
+  isMuted: boolean;
+  hasJoinedChannel: boolean;
+  isConnectedToVoice: boolean;
+  streamID?: string;
+}
+```
+
+## 🚀 SFU API
+
+### WebSocket Events
+
+#### Client → SFU
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `join` | `JoinMessage` | Join a room with user information |
+| `leave` | `LeaveMessage` | Leave current room |
+| `offer` | `RTCSessionDescription` | WebRTC offer from client |
+| `answer` | `RTCSessionDescription` | WebRTC answer from client |
+| `ice-candidate` | `RTCIceCandidate` | ICE candidate from client |
+
+#### SFU → Client
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `joined` | `JoinedMessage` | Confirmation of room join |
+| `user-joined` | `UserJoinedMessage` | Another user joined the room |
+| `user-left` | `UserLeftMessage` | User left the room |
+| `offer` | `RTCSessionDescription` | WebRTC offer from SFU |
+| `answer` | `RTCSessionDescription` | WebRTC answer from SFU |
+| `ice-candidate` | `RTCIceCandidate` | ICE candidate from SFU |
+
+### Message Types
+
+#### JoinMessage
+
+```go
+type JoinMessage struct {
+    RoomID   string `json:"roomId"`
+    UserID   string `json:"userId"`
+    UserInfo struct {
+        Nickname string `json:"nickname"`
+        IsMuted  bool   `json:"isMuted"`
+    } `json:"userInfo"`
+}
+```
+
+#### JoinedMessage
+
+```go
+type JoinedMessage struct {
+    RoomID    string   `json:"roomId"`
+    UserID    string   `json:"userId"`
+    Peers     []string `json:"peers"`
+    Success   bool     `json:"success"`
+    Message   string   `json:"message,omitempty"`
+}
+```
+
+### Debug Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/debug/rooms` | GET | Active rooms |
+| `/debug/peers` | GET | Peer connections |
+| `/debug/tracks` | GET | Media tracks |
+| `/metrics` | GET | Prometheus metrics |
+
+## 🔐 Auth Service API
+
+### Authentication Endpoints
+
+#### User Registration
+
+**POST** `/api/register`
+
+Register a new user account.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword",
+  "nickname": "UserNickname"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Registration successful. Please check your email for verification.",
+  "userId": "user_123456789"
+}
+```
+
+#### User Login
+
+**POST** `/api/login`
+
+Authenticate user and get access token.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "refresh_token_here",
+  "user": {
+    "id": "user_123456789",
+    "email": "user@example.com",
+    "nickname": "UserNickname",
+    "verified": true
+  }
+}
+```
+
+#### Token Validation
+
+**GET** `/api/validate`
+
+Validate an authentication token.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+
+**Response:**
+```json
+{
+  "valid": true,
+  "user": {
+    "id": "user_123456789",
+    "email": "user@example.com",
+    "nickname": "UserNickname",
+    "verified": true
+  }
+}
+```
+
+#### Refresh Token
+
+**POST** `/api/refresh`
+
+Get a new access token using refresh token.
+
+**Request Body:**
+```json
+{
+  "refreshToken": "refresh_token_here"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "token": "new_jwt_token_here",
+  "refreshToken": "new_refresh_token_here"
+}
+```
+
+### User Management Endpoints
+
+#### Get User Profile
+
+**GET** `/api/user/profile`
+
+Get current user's profile information.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+
+**Response:**
+```json
+{
+  "id": "user_123456789",
+  "email": "user@example.com",
+  "nickname": "UserNickname",
+  "avatar": "https://example.com/avatar.jpg",
+  "verified": true,
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+#### Update User Profile
+
+**PUT** `/api/user/profile`
+
+Update user profile information.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+
+**Request Body:**
+```json
+{
+  "nickname": "NewNickname",
+  "avatar": "https://example.com/new-avatar.jpg"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "user": {
+    "id": "user_123456789",
+    "email": "user@example.com",
+    "nickname": "NewNickname",
+    "avatar": "https://example.com/new-avatar.jpg",
+    "verified": true
+  }
+}
+```
+
+#### Change Password
+
+**PUT** `/api/user/password`
+
+Change user password.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+
+**Request Body:**
+```json
+{
+  "currentPassword": "oldpassword",
+  "newPassword": "newpassword"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Password changed successfully"
+}
+```
+
+## 📊 Error Codes
+
+### Server Error Codes
+
+| Code | Description | Solution |
+|------|-------------|----------|
+| `AUTH_001` | Invalid credentials | Check email/password |
+| `AUTH_002` | Token expired | Use refresh token |
+| `AUTH_003` | Rate limit exceeded | Wait and retry |
+| `AUTH_004` | Account not verified | Check email for verification |
+| `AUTH_005` | Account suspended | Contact support |
+
+### WebSocket Error Codes
+
+| Code | Description | Solution |
+|------|-------------|----------|
+| `WS_001` | Connection failed | Check server status |
+| `WS_002` | Authentication required | Provide valid token |
+| `WS_003` | Room not found | Check room ID |
+| `WS_004` | User already in room | Leave current room first |
+| `WS_005` | Room full | Wait for space |
+
+### SFU Error Codes
+
+| Code | Description | Solution |
+|------|-------------|----------|
+| `SFU_001` | WebRTC connection failed | Check STUN/TURN servers |
+| `SFU_002` | Track not found | Check track ID |
+| `SFU_003` | Room not found | Check room ID |
+| `SFU_004` | Peer connection failed | Check network connectivity |
+
+## 🔧 SDK Examples
+
+### JavaScript SDK
+
+```javascript
+import { GrytClient } from '@gryt/client-sdk';
+
+const client = new GrytClient({
+  serverUrl: 'wss://server.example.com',
+  authToken: 'your-auth-token'
+});
+
+// Connect to server
+await client.connect();
+
+// Join a voice channel
+await client.joinChannel('general');
+
+// Update mute state
+await client.setMuted(true);
+
+// Leave channel
+await client.leaveChannel();
+```
+
+### Go SDK
+
+```go
+package main
+
+import (
+    "github.com/gryt/sfu-go"
+    "log"
+)
+
+func main() {
+    client := sfu.NewClient("ws://localhost:5005")
+    
+    // Connect to SFU
+    err := client.Connect()
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Join room
+    err = client.JoinRoom("test-room", "user-123")
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Handle incoming tracks
+    client.OnTrack(func(track *webrtc.TrackRemote) {
+        log.Printf("Received track: %s", track.ID())
+    })
+}
+```
+
+## 📈 Rate Limits
+
+### Authentication Service
+
+- **Login attempts**: 5 per 15 minutes per IP
+- **Registration**: 3 per hour per IP
+- **API calls**: 1000 per hour per user
+- **Password reset**: 3 per hour per email
+
+### Signaling Server
+
+- **WebSocket messages**: 100 per minute per connection
+- **Room joins**: 10 per minute per user
+- **File uploads**: 10 per hour per user
+
+### SFU Server
+
+- **WebRTC connections**: 50 per minute per IP
+- **Track additions**: 100 per minute per connection
+- **ICE candidates**: 200 per minute per connection
+
+---
+
+**Need more details?** Check our [Architecture Guide](/docs/development/architecture) for system design information!

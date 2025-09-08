@@ -1,0 +1,370 @@
+---
+title: 🤝 Contributing
+description: How to contribute to Gryt voice chat platform
+icon: Heart
+---
+
+# 🤝 Contributing to Gryt
+
+We welcome contributions to Gryt! This guide will help you get started with contributing to our voice chat platform.
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Node.js** 18+ and **Bun** (for client/server development)
+- **Go** 1.21+ (for SFU development)
+- **Git** for version control
+- **Docker** (optional, for containerized development)
+
+### Development Setup
+
+1. **Fork the repository**
+   ```bash
+   # Fork on GitHub, then clone your fork
+   git clone https://github.com/YOUR_USERNAME/WebSocket-Voice.git
+   cd WebSocket-Voice/webrtc
+   ```
+
+2. **Set up development environment**
+   ```bash
+   # Install dependencies for all components
+   cd client && bun install
+   cd ../server && bun install
+   cd ../sfu-v2 && go mod download
+   cd ../docs && npm install
+   ```
+
+3. **Start development servers**
+   ```bash
+   # Use the development script
+   chmod +x start_dev.sh
+   ./start_dev.sh
+   ```
+
+## 🎯 How to Contribute
+
+### Types of Contributions
+
+We welcome several types of contributions:
+
+- **🐛 Bug Fixes**: Fix issues and improve stability
+- **✨ New Features**: Add requested functionality
+- **📚 Documentation**: Improve docs and guides
+- **🧪 Testing**: Add test coverage and improve quality
+- **🎨 UI/UX**: Enhance user interface and experience
+- **⚡ Performance**: Optimize code and resources
+
+### Contribution Workflow
+
+1. **Create an issue** (for bugs or feature requests)
+2. **Fork the repository**
+3. **Create a feature branch**
+4. **Make your changes**
+5. **Add tests** (if applicable)
+6. **Update documentation**
+7. **Submit a pull request**
+
+## 🔧 Development Guidelines
+
+### Code Style
+
+#### TypeScript/JavaScript
+
+- Use **TypeScript** for all new code
+- Follow **ESLint** and **Prettier** configurations
+- Use **meaningful variable names**
+- Add **JSDoc comments** for public APIs
+- Write **comprehensive tests**
+
+```typescript
+/**
+ * Manages microphone input and audio processing
+ * @param shouldAccess - Whether to request microphone access
+ * @returns Audio processing state and controls
+ */
+const useMicrophone = (shouldAccess: boolean): MicrophoneState => {
+  // Implementation
+};
+```
+
+#### Go
+
+- Follow **gofmt** formatting
+- Use **meaningful variable names**
+- Add **godoc comments** for public functions
+- Write **comprehensive tests**
+- Handle **errors properly**
+
+```go
+// ProcessAudio applies audio processing pipeline to the given buffer
+// Returns the processed audio buffer or an error if processing fails
+func (p *AudioProcessor) ProcessAudio(buffer AudioBuffer) (AudioBuffer, error) {
+    // Implementation
+}
+```
+
+### Testing
+
+#### Client Testing
+
+```bash
+# Run all tests
+cd client
+bun test
+
+# Run specific test suites
+bun test audio
+bun test webrtc
+bun test components
+
+# Coverage report
+bun test --coverage
+```
+
+#### Server Testing
+
+```bash
+# Run all tests
+cd server
+bun test
+
+# Run specific test suites
+bun test websocket
+bun test signaling
+bun test rooms
+
+# Integration tests
+bun test:integration
+```
+
+#### SFU Testing
+
+```bash
+# Run all tests
+cd sfu-v2
+go test ./...
+
+# Run with coverage
+go test -cover ./...
+
+# Benchmark tests
+go test -bench=. ./...
+```
+
+### Documentation
+
+When adding new features, update documentation:
+
+1. **Update README files** for new features
+2. **Add JSDoc/godoc comments** for new functions
+3. **Update API documentation** for new endpoints
+4. **Add usage examples** for new functionality
+5. **Update troubleshooting guide** for new issues
+
+## 🐛 Reporting Bugs
+
+### Before Reporting
+
+1. **Search existing issues** to avoid duplicates
+2. **Test with latest version** to ensure bug still exists
+3. **Check troubleshooting guide** for known solutions
+
+### Bug Report Template
+
+```markdown
+## Bug Description
+Brief description of the bug
+
+## Steps to Reproduce
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
+
+## Expected Behavior
+What you expected to happen
+
+## Actual Behavior
+What actually happened
+
+## Environment
+- OS: [e.g. Windows 10, macOS 12, Ubuntu 20.04]
+- Browser: [e.g. Chrome 91, Firefox 89]
+- Node.js: [e.g. 18.0.0]
+- Go: [e.g. 1.21.0]
+
+## Additional Context
+Any other context about the problem
+```
+
+## ✨ Feature Requests
+
+### Before Requesting
+
+1. **Search existing issues** to avoid duplicates
+2. **Check roadmap** for planned features
+3. **Consider if feature fits project scope**
+
+### Feature Request Template
+
+```markdown
+## Feature Description
+Brief description of the feature
+
+## Use Case
+Why is this feature needed?
+
+## Proposed Solution
+How should this feature work?
+
+## Alternatives Considered
+What other solutions have you considered?
+
+## Additional Context
+Any other context about the feature request
+```
+
+## 🔄 Pull Request Process
+
+### Before Submitting
+
+1. **Ensure tests pass**
+   ```bash
+   # Run all tests
+   bun test
+   go test ./...
+   ```
+
+2. **Check code style**
+   ```bash
+   # Lint and format
+   bun run lint
+   bun run format
+   go fmt ./...
+   ```
+
+3. **Update documentation**
+   - Add/update JSDoc/godoc comments
+   - Update README files
+   - Add usage examples
+
+4. **Test your changes**
+   - Test in different browsers
+   - Test with different configurations
+   - Test edge cases
+
+### Pull Request Template
+
+```markdown
+## Description
+Brief description of changes
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Testing
+- [ ] Tests pass locally
+- [ ] Added tests for new functionality
+- [ ] Tested in multiple browsers
+- [ ] Tested with different configurations
+
+## Checklist
+- [ ] Code follows style guidelines
+- [ ] Self-review completed
+- [ ] Documentation updated
+- [ ] No breaking changes (or marked as such)
+```
+
+### Review Process
+
+1. **Automated checks** must pass
+2. **Code review** by maintainers
+3. **Testing** by maintainers
+4. **Approval** and merge
+
+## 🏗️ Architecture Guidelines
+
+### Client Architecture
+
+- **Modular packages**: Keep functionality in separate packages
+- **Custom hooks**: Use React hooks for state management
+- **Type safety**: Use TypeScript strict mode
+- **Error boundaries**: Implement proper error handling
+
+### Server Architecture
+
+- **Event-driven**: Use event-driven patterns
+- **Modular design**: Separate concerns into modules
+- **Error handling**: Implement comprehensive error handling
+- **Logging**: Use structured logging
+
+### SFU Architecture
+
+- **Thread safety**: Ensure concurrent access safety
+- **Resource management**: Proper cleanup of resources
+- **Error handling**: Comprehensive error handling
+- **Performance**: Optimize for low latency
+
+## 📋 Development Checklist
+
+### Before Starting
+
+- [ ] Issue created and discussed
+- [ ] Development environment set up
+- [ ] Code style guidelines reviewed
+- [ ] Testing requirements understood
+
+### During Development
+
+- [ ] Code follows style guidelines
+- [ ] Tests written for new functionality
+- [ ] Documentation updated
+- [ ] Error handling implemented
+- [ ] Performance considered
+
+### Before Submitting
+
+- [ ] All tests pass
+- [ ] Code linted and formatted
+- [ ] Documentation updated
+- [ ] Pull request description complete
+- [ ] Breaking changes documented
+
+## 🎉 Recognition
+
+Contributors are recognized in several ways:
+
+- **GitHub contributors list**
+- **Release notes** for significant contributions
+- **Documentation credits** for doc improvements
+- **Community recognition** in Discord
+
+## 📞 Getting Help
+
+### Community Support
+
+- **GitHub Discussions**: For questions and ideas
+- **Discord Server**: Real-time chat and support
+- **GitHub Issues**: For bugs and feature requests
+
+### Maintainer Contact
+
+- **Email**: maintainers@gryt.chat
+- **Discord**: @maintainers in our server
+- **GitHub**: @sivert-io, @OlaHulleberg
+
+## 📄 License
+
+By contributing to Gryt, you agree that your contributions will be licensed under the [MIT License](https://opensource.org/licenses/MIT).
+
+## 🙏 Thank You
+
+Thank you for considering contributing to Gryt! Your contributions help make voice chat better for everyone.
+
+---
+
+**Ready to contribute?** Check out our [Quick Start Guide](/docs/quick-start) to get familiar with Gryt, then pick an issue and start coding!

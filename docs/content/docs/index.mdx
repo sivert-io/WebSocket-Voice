@@ -1,0 +1,158 @@
+---
+title: 🌩️ Gryt - Modern WebRTC Voice Chat Platform
+description: Welcome to Gryt, a cutting-edge WebRTC-based voice chat platform featuring real-time communication, advanced audio processing, and a beautiful modern interface.
+icon: Zap
+---
+
+<div className="text-center mb-8">
+  <h1 className="text-4xl font-bold mb-4">🌩️ Gryt</h1>
+  <div className="text-xl text-muted-foreground mb-6">
+    Modern WebRTC Voice Chat Platform
+  </div>
+  <div className="text-lg mb-8">
+    A cutting-edge WebRTC-based voice chat platform featuring real-time communication, 
+    advanced audio processing, and a beautiful modern interface. Built with TypeScript, 
+    React, and Go, Gryt provides a Discord-like experience with enterprise-grade voice 
+    quality and reliability.
+  </div>
+</div>
+
+## 🚀 Quick Start
+
+Get Gryt running in 30 seconds with our one-liner setup:
+
+<Cards>
+  <Card 
+    title="🐳 Docker (Easiest)" 
+    description="Get running with Docker Compose in seconds"
+    href="/docs/quick-start#docker-easiest"
+  />
+  <Card 
+    title="☸️ Kubernetes" 
+    description="Deploy to Kubernetes with Helm charts"
+    href="/docs/quick-start#kubernetes-with-helm"
+  />
+  <Card 
+    title="🛠️ Manual Setup" 
+    description="Set up each component individually"
+    href="/docs/quick-start#manual-setup"
+  />
+</Cards>
+
+## ✨ Key Features
+
+<Cards>
+  <Card 
+    title="🎙️ Advanced Voice Communication" 
+    description="High-quality audio with noise suppression and echo cancellation"
+    href="/docs/features/voice-communication"
+  />
+  <Card 
+    title="🎛️ Professional Audio Processing" 
+    description="Multi-stage processing with real-time visualization"
+    href="/docs/features/audio-processing"
+  />
+  <Card 
+    title="🌐 Multi-Server Architecture" 
+    description="Seamless server switching and room isolation"
+    href="/docs/features/multi-server"
+  />
+  <Card 
+    title="🎨 Modern User Interface" 
+    description="Beautiful design with dark/light themes and accessibility"
+    href="/docs/features/user-interface"
+  />
+</Cards>
+
+## 🏗️ Architecture
+
+Gryt consists of three main components working together:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Web Client    │    │  Gryt Servers   │    │   SFU Server    │
+│   (React/TS)    │◄──►│   (Node.js)     │◄──►│     (Go)        │
+│                 │    │                 │    │                 │
+│ • Voice UI      │    │ • Signaling     │    │ • Media Relay   │
+│ • Audio Proc.   │    │ • User Mgmt     │    │ • WebRTC        │
+│ • Server Mgmt   │    │ • Room Mgmt     │    │ • Track Mgmt    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                       ┌─────────────────┐
+                       │  Auth Service   │
+                       │ (Hosted by Gryt)│
+                       │                 │
+                       │ • Authentication│
+                       │ • User Sessions │
+                       │ • Security      │
+                       └─────────────────┘
+```
+
+<Cards>
+  <Card 
+    title="🌐 Web Client" 
+    description="React + TypeScript - User interface and audio processing"
+    href="/docs/components/client"
+  />
+  <Card 
+    title="🖥️ Gryt Server" 
+    description="Node.js + TypeScript - Signaling and room management"
+    href="/docs/components/server"
+  />
+  <Card 
+    title="🚀 SFU Server" 
+    description="Go + Pion WebRTC - Media forwarding and WebRTC"
+    href="/docs/components/sfu"
+  />
+  <Card 
+    title="🔐 Auth Service" 
+    description="Hosted by Gryt Team - Authentication and security"
+    href="/docs/components/auth"
+  />
+</Cards>
+
+## 🎯 What You Get
+
+- **Voice Chat**: Crystal clear WebRTC audio with professional quality
+- **Multiple Servers**: Connect to different communities seamlessly  
+- **Real-time**: Instant voice activity indicators and state synchronization
+- **Modern UI**: Beautiful, responsive interface built with Radix UI
+- **Production Ready**: Health checks, scaling, monitoring, and enterprise features
+
+## 🚀 Get Started Now
+
+Ready to start voice chatting? Choose your preferred setup method:
+
+<Cards>
+  <Card 
+    title="📖 Quick Start Guide" 
+    description="Get running in 30 seconds with Docker or Kubernetes"
+    href="/docs/quick-start"
+  />
+  <Card 
+    title="🚀 Deployment Guide" 
+    description="Complete deployment options from development to production"
+    href="/docs/deployment"
+  />
+  <Card 
+    title="🔧 Configuration" 
+    description="Customize your Gryt installation"
+    href="/docs/configuration"
+  />
+  <Card 
+    title="🐛 Troubleshooting" 
+    description="Common issues and solutions"
+    href="/docs/troubleshooting"
+  />
+</Cards>
+
+---
+
+<div className="text-center mt-12 p-6 bg-muted rounded-lg">
+  <h3 className="text-xl font-semibold mb-2">Built with ❤️ for the future of voice communication</h3>
+  <div className="text-muted-foreground">
+    [Report Bug](https://github.com/sivert-io/WebSocket-Voice/issues) • 
+    [Request Feature](https://github.com/sivert-io/WebSocket-Voice/issues) • 
+    [Documentation](https://docs.gryt.chat)
+  </div>
+</div>
