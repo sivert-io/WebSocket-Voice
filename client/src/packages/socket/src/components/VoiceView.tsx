@@ -92,7 +92,7 @@ export const VoiceView = ({
                           ? "var(--accent-3)"
                           : "var(--color-panel)",
                         borderRadius: "12px",
-                        opacity: client.isConnectedToVoice ?? true ? 1 : 0.5,
+                        opacity: 1, // Always show at full opacity when user has joined channel
                         transition: "opacity 0.3s ease, background-color 0.1s ease",
                         border: clientsSpeaking[id]
                           ? "1px solid var(--accent-6)"

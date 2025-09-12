@@ -45,7 +45,7 @@ export function ConnectedUser({
         width="100%" 
         justify="between"
         style={{
-          opacity: isConnectedToVoice ? 1 : 0.5,
+          opacity: 1, // Always show at full opacity when user has joined channel
           transition: "opacity 0.3s ease",
         }}
       >

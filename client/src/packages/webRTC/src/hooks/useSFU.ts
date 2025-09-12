@@ -98,6 +98,7 @@ function useSfuHook(): SFUInterface {
     customConnectSoundFile,
     customDisconnectSoundFile,
     isDeafened,
+    micID,
   } = useSettings();
   const { sockets, serverDetailsList } = useSockets();
   
@@ -1159,10 +1160,15 @@ function useSfuHook(): SFUInterface {
       
       if (!streamToUse) {
         console.warn("🔄 Waiting for microphone initialization...");
+        console.log("🎤 Microphone buffer state:", {
+          hasProcessedStream: !!microphoneBuffer.processedStream,
+          hasMediaStream: !!microphoneBuffer.mediaStream,
+          micID: micID
+        });
         
         // Wait for microphone to be ready with shorter intervals
-        for (let attempt = 0; attempt < 20; attempt++) { // Increased attempts
-          await new Promise(resolve => setTimeout(resolve, 150)); // Slightly longer intervals
+        for (let attempt = 0; attempt < 30; attempt++) { // Increased attempts
+          await new Promise(resolve => setTimeout(resolve, 200)); // Longer intervals for better reliability
           streamToUse = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
           
           if (streamToUse) {
@@ -1171,16 +1177,24 @@ function useSfuHook(): SFUInterface {
             const hasLiveTracks = audioTracks.length > 0 && audioTracks.some(track => track.readyState === 'live');
             
             if (hasLiveTracks) {
-              console.log("✅ Microphone ready after", (attempt + 1) * 150, "ms");
+              console.log("✅ Microphone ready after", (attempt + 1) * 200, "ms");
               break;
             } else {
-              console.log("⏳ Stream found but tracks not live yet, attempt", attempt + 1);
+              console.log("⏳ Stream found but tracks not live yet, attempt", attempt + 1, "of 30");
               streamToUse = undefined; // Keep waiting
             }
+          } else {
+            console.log("⏳ No stream yet, attempt", attempt + 1, "of 30");
           }
         }
         
         if (!streamToUse) {
+          console.error("❌ Microphone initialization failed after 30 attempts");
+          console.error("🎤 Final microphone buffer state:", {
+            hasProcessedStream: !!microphoneBuffer.processedStream,
+            hasMediaStream: !!microphoneBuffer.mediaStream,
+            micID: micID
+          });
           throw new Error("Microphone not available - please check microphone settings");
         }
       }

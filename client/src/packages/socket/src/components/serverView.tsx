@@ -53,15 +53,40 @@ export const ServerView = () => {
 
   const extractChannelIdFromRoomId = (roomId: string, serverId: string): string => {
     if (!roomId || !serverId) return "";
+    
+    // Try multiple server name formats to extract channel ID
     const serverName = serverId.split('.')[0];
-    const expectedPrefix = `${serverName}_`;
-    if (roomId.startsWith(expectedPrefix)) {
-      return roomId.substring(expectedPrefix.length);
+    const possiblePrefixes = [
+      `${serverName}_`,
+      `${serverId}_`,
+      `${serverName.toLowerCase()}_`,
+      `${serverName.replace(/\s+/g, '_').toLowerCase()}_`
+    ];
+    
+    for (const prefix of possiblePrefixes) {
+      if (roomId.startsWith(prefix)) {
+        return roomId.substring(prefix.length);
+      }
     }
+    
+    // If no prefix matches, return the roomId as-is (fallback)
     return roomId;
   };
 
   const currentChannelId = extractChannelIdFromRoomId(currentChannelConnected, currentServerConnected);
+  
+  // Debug logging for channel ID extraction
+  useEffect(() => {
+    if (currentChannelConnected && currentServerConnected) {
+      console.log("🔍 CHANNEL ID EXTRACTION DEBUG:", {
+        roomId: currentChannelConnected,
+        serverId: currentServerConnected,
+        extractedChannelId: currentChannelId,
+        isConnected,
+        isConnecting
+      });
+    }
+  }, [currentChannelConnected, currentServerConnected, currentChannelId, isConnected, isConnecting]);
 
   // Keep selectedChannelId in sync with SFU connection when it changes
   useEffect(() => {
@@ -484,24 +509,50 @@ export const ServerView = () => {
   if (!currentlyViewingServer) return null;
 
   const handleChannelClick = async (channel: Channel) => {
-    // Always select the channel for chat view
-    setSelectedChannelId(channel.id);
-
     switch (channel.type) {
       case "voice": {
-        const isAlreadyConnectedToThisChannel = 
+        // Check if we're already focusing this voice channel's text chat
+        const isAlreadyFocusingThisChannel = selectedChannelId === channel.id;
+        
+        // Check if we're already connected to any voice channel on this server
+        const isAlreadyConnectedToVoice = 
           isConnected &&
-          channel.id === currentChannelId &&
           currentlyViewingServer.host === currentServerConnected;
 
-        if (isAlreadyConnectedToThisChannel) {
+        console.log("🎤 VOICE CHANNEL CLICK DEBUG:", {
+          channelId: channel.id,
+          selectedChannelId,
+          currentChannelId,
+          isConnected,
+          currentServerConnected,
+          currentlyViewingServerHost: currentlyViewingServer.host,
+          isAlreadyFocusingThisChannel,
+          isAlreadyConnectedToVoice,
+          showVoiceView
+        });
+
+        // If already focusing this voice channel's text chat, toggle VoiceView
+        if (isAlreadyFocusingThisChannel) {
+          console.log("💬 Already focusing this voice channel's text chat, toggling voice view");
           setShowVoiceView(!showVoiceView);
+          console.log("✅ Early return - no connection attempt");
           return;
         }
 
+        // If already connected to voice on this server, just focus the text chat
+        if (isAlreadyConnectedToVoice) {
+          console.log("🔄 Already connected to voice on this server, focusing text chat");
+          setSelectedChannelId(channel.id);
+          console.log("✅ Early return - no connection attempt");
+          return;
+        }
+
+        // Only proceed with connection if we're not already connected
+        setSelectedChannelId(channel.id); // Focus the text chat
         setPendingChannelId(null);
         setShowVoiceView(true);
-        console.log("Attempting to connect with micID:", micID);
+        console.log("🔌 Proceeding with new connection attempt");
+        console.log("Attempting to connect with micID:", micID || "undefined");
         
         try {
           await connect(channel.id);
@@ -522,6 +573,8 @@ export const ServerView = () => {
       }
 
       case "text":
+        // For text channels, just focus the chat
+        setSelectedChannelId(channel.id);
         break;
     }
   };

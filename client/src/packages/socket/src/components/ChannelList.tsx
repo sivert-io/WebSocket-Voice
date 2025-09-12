@@ -45,6 +45,8 @@ export const ChannelList = ({
                 ? (channel.id === currentChannelId &&
                    serverHost === currentServerConnected
                     ? "solid"
+                    : channel.id === selectedChannelId
+                    ? "solid"
                     : "soft")
                 : (channel.id === selectedChannelId ? "solid" : "soft")
             }
