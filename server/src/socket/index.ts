@@ -5,7 +5,7 @@ import { Server, Socket } from "socket.io";
 import { syncAllClients, verifyClient } from "./utils/clients";
 import { sendInfo, sendServerDetails } from "./utils/server";
 import { SFUClient } from "../sfu/client";
-import { insertMessage, listMessages, MessageRecord, upsertUser, getUserByGrytId, getUserByServerId } from "../db/scylla";
+import { insertMessage, listMessages, MessageRecord, upsertUser, getUserByGrytId, getUserByServerId, addReactionToMessage } from "../db/scylla";
 import { generateAccessToken, verifyAccessToken, refreshToken, TokenPayload } from "../utils/jwt";
 import { verifyJoinToken } from "../services/grytAuth";
 
@@ -368,6 +368,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           sender_nickname: user.nickname,
           text: text || null,
           attachments: attachments && attachments.length > 0 ? attachments : null,
+          reactions: null
         });
         consola.success(`💾 chat:send persisted`, { conversation_id: created.conversation_id, message_id: created.message_id });
         // Update cache with new message (front-append; DB returns asc, but cache order isn't strict)
@@ -383,16 +384,29 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         io.emit('chat:new', created);
       } catch (err) {
         consola.error('chat:send failed (DB issue?)', err);
+        consola.error('Error details:', {
+          error: err,
+          message: err instanceof Error ? err.message : 'Unknown error',
+          stack: err instanceof Error ? err.stack : undefined,
+          payload: {
+            conversationId: payload?.conversationId,
+            hasText: !!payload?.text,
+            hasAttachments: !!payload?.attachments
+          }
+        });
+        
         // Fallback: still broadcast an ephemeral message so chat remains responsive
         try {
           const now = new Date();
           const fallback = {
             conversation_id: payload?.conversationId || 'unknown',
-            sender_server_id: clientId, // Use client ID as fallback
-            text: (payload?.text || '').toString(),
-            attachments: Array.isArray(payload?.attachments) && payload!.attachments!.length > 0 ? payload!.attachments! : null,
+            sender_server_id: 'unknown', // Fallback since we can't access tokenPayload here
+            sender_nickname: 'Unknown User',
+            text: payload?.text || null,
+            attachments: payload?.attachments && payload.attachments.length > 0 ? payload.attachments : null,
             message_id: randomUUID(),
             created_at: now,
+            reactions: null,
             ephemeral: true,
           } as any;
           io.emit('chat:new', fallback);
@@ -417,6 +431,78 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       } catch (err) {
         consola.error('chat:fetch failed', err);
         socket.emit('chat:error', 'Failed to fetch messages');
+      }
+    },
+
+    // Add reaction to a message
+    'chat:react': async (payload: { conversationId: string; messageId: string; reactionSrc: string; accessToken: string }) => {
+      try {
+        consola.info(`👍 chat:react from ${clientId}`, {
+          conversationId: payload?.conversationId,
+          messageId: payload?.messageId,
+          reactionSrc: payload?.reactionSrc,
+          hasToken: !!payload?.accessToken,
+        });
+
+        if (!payload || !payload.conversationId || !payload.messageId || !payload.reactionSrc || !payload.accessToken) {
+          socket.emit('chat:error', 'Invalid reaction payload');
+          return;
+        }
+
+        // Verify access token
+        const tokenPayload = verifyAccessToken(payload.accessToken);
+        if (!tokenPayload) {
+          socket.emit('chat:error', 'Invalid access token');
+          return;
+        }
+
+        // Get user info
+        const user = await getUserByServerId(tokenPayload.serverUserId);
+        if (!user) {
+          socket.emit('chat:error', 'User not found');
+          return;
+        }
+
+        consola.info(`✅ Reaction from user ${user.nickname} (verified via JWT)`);
+
+        // Add or remove reaction to message (function handles both cases)
+        const updatedMessage = await addReactionToMessage(
+          payload.conversationId,
+          payload.messageId,
+          payload.reactionSrc,
+          tokenPayload.serverUserId
+        );
+
+        if (!updatedMessage) {
+          socket.emit('chat:error', 'Message not found');
+          return;
+        }
+
+        consola.success(`👍 Reaction added successfully`, { 
+          messageId: updatedMessage.message_id, 
+          reactionSrc: payload.reactionSrc 
+        });
+
+        // Update cache with updated message
+        const existing = messageCache[updatedMessage.conversation_id];
+        if (existing?.items) {
+          const updatedItems = existing.items.map(item => 
+            item.message_id === updatedMessage.message_id ? updatedMessage : item
+          );
+          messageCache[updatedMessage.conversation_id] = { items: updatedItems, fetchedAt: existing.fetchedAt };
+        }
+
+        // Broadcast reaction update to all clients
+        consola.info(`📢 Broadcasting chat:reaction to all clients:`, {
+          messageId: updatedMessage.message_id,
+          conversationId: updatedMessage.conversation_id,
+          reactions: updatedMessage.reactions,
+          totalClients: io.engine.clientsCount
+        });
+        io.emit('chat:reaction', updatedMessage);
+      } catch (err) {
+        consola.error('chat:react failed', err);
+        socket.emit('chat:error', 'Failed to add reaction');
       }
     },
 

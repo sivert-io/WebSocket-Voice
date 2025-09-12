@@ -44,6 +44,7 @@ messagesRouter.post(
 					sender_nickname: user.nickname,
 					text: text ?? null,
 					attachments: attachments ?? null,
+					reactions: null,
 				});
 			})
 			.then((created) => res.status(201).json(created))

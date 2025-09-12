@@ -10,6 +10,12 @@ export interface UserRecord {
   last_token_refresh?: Date; // Track when token was last refreshed
 }
 
+export interface Reaction {
+  src: string; // Image source/URL for the reaction
+  amount: number; // Count of users who reacted with this image
+  users: string[]; // Array of server_user_ids who reacted with this image
+}
+
 export interface MessageRecord {
   conversation_id: string;
   message_id: string; // uuid string
@@ -18,6 +24,7 @@ export interface MessageRecord {
   text: string | null;
   created_at: Date;
   attachments: string[] | null; // file_id uuid strings
+  reactions: Reaction[] | null; // Array of reactions to this message
 }
 
 export interface FileRecord {
@@ -95,9 +102,20 @@ export async function initScylla(): Promise<void> {
       sender_nickname text,
       text text,
       attachments list<text>,
+      reactions text,
       PRIMARY KEY ((conversation_id), created_at, message_id)
     ) WITH CLUSTERING ORDER BY (created_at ASC, message_id ASC)`
   );
+
+  // Add reactions column if it doesn't exist (for existing tables)
+  try {
+    await client.execute(`ALTER TABLE messages_by_conversation ADD reactions text`);
+  } catch (error: any) {
+    // Column already exists or other error - ignore if it's about column already existing
+    if (!error.message?.includes('already exists') && !error.message?.includes('Invalid column name')) {
+      console.warn('Warning: Could not add reactions column:', error.message);
+    }
+  }
 
   await client.execute(
     `CREATE TABLE IF NOT EXISTS files_by_id (
@@ -201,19 +219,23 @@ export async function insertMessage(record: Omit<MessageRecord, "message_id" | "
   const created_at = record.created_at ?? new Date();
   const message_id = record.message_id ?? randomUUID();
   
+  // Serialize reactions to JSON string for storage
+  const reactionsJson = record.reactions ? JSON.stringify(record.reactions) : null;
+  
   console.log(`💾 Inserting message to ScyllaDB:`, {
     conversation_id: record.conversation_id,
     message_id,
     sender_server_id: record.sender_server_id,
     sender_nickname: record.sender_nickname,
     text_length: record.text?.length || 0,
-    has_attachments: !!record.attachments?.length
+    has_attachments: !!record.attachments?.length,
+    has_reactions: !!record.reactions?.length
   });
   
   try {
     await c.execute(
-      `INSERT INTO messages_by_conversation (conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [record.conversation_id, created_at, message_id, record.sender_server_id, record.sender_nickname, record.text ?? null, record.attachments ?? null],
+      `INSERT INTO messages_by_conversation (conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [record.conversation_id, created_at, message_id, record.sender_server_id, record.sender_nickname, record.text ?? null, record.attachments ?? null, reactionsJson],
       { prepare: true }
     );
     console.log(`✅ Message successfully inserted to ScyllaDB:`, { message_id });
@@ -236,7 +258,7 @@ export async function listMessages(conversationId: string, limit = 50, before?: 
   try {
     if (before) {
       const rs = await c.execute(
-        `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments FROM messages_by_conversation WHERE conversation_id = ? AND created_at < ? LIMIT ?`,
+        `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND created_at < ? LIMIT ?`,
         [conversationId, before, limit],
         { prepare: true }
       );
@@ -248,12 +270,13 @@ export async function listMessages(conversationId: string, limit = 50, before?: 
         sender_nickname: r["sender_nickname"],
         text: r["text"],
         attachments: r["attachments"] ?? null,
+        reactions: r["reactions"] ? JSON.parse(r["reactions"]) : null,
       }));
       console.log(`✅ Fetched ${messages.length} messages from ScyllaDB (with before filter)`);
       return messages;
     }
     const rs = await c.execute(
-      `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments FROM messages_by_conversation WHERE conversation_id = ? LIMIT ?`,
+      `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? LIMIT ?`,
       [conversationId, limit],
       { prepare: true }
     );
@@ -265,6 +288,7 @@ export async function listMessages(conversationId: string, limit = 50, before?: 
       sender_nickname: r["sender_nickname"],
       text: r["text"],
       attachments: r["attachments"] ?? null,
+      reactions: r["reactions"] ? JSON.parse(r["reactions"]) : null,
     }));
     console.log(`✅ Fetched ${messages.length} messages from ScyllaDB`);
     return messages;
@@ -304,4 +328,183 @@ export async function getFile(fileId: string): Promise<FileRecord | null> {
     thumbnail_key: r["thumbnail_key"],
     created_at: r["created_at"],
   };
+}
+
+export async function addReactionToMessage(
+  conversationId: string, 
+  messageId: string, 
+  reactionSrc: string, 
+  serverUserId: string
+): Promise<MessageRecord | null> {
+  // This function supports multi-reactions:
+  // - Users can react with multiple different emojis on the same message
+  // - Toggle behavior: clicking the same emoji again removes that reaction
+  // - Each emoji type is tracked separately with its own user list
+  const c = getScyllaClient();
+  
+  console.log(`👍 Adding reaction to message:`, {
+    conversation_id: conversationId,
+    message_id: messageId,
+    reaction_src: reactionSrc,
+    server_user_id: serverUserId
+  });
+  
+  try {
+    // First, get the current message to retrieve existing reactions
+    const rs = await c.execute(
+      `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND message_id = ?`,
+      [conversationId, messageId],
+      { prepare: true }
+    );
+    
+    const row = rs.first();
+    if (!row) {
+      console.log(`❌ Message not found:`, { conversationId, messageId });
+      return null;
+    }
+    
+    // Parse existing reactions
+    let reactions: Reaction[] = row["reactions"] ? JSON.parse(row["reactions"]) : [];
+    
+    // Find existing reaction with the same src
+    let existingReaction = reactions.find(r => r.src === reactionSrc);
+    
+    if (existingReaction) {
+      // Check if user already reacted with this specific emoji
+      if (existingReaction.users.includes(serverUserId)) {
+        console.log(`⚠️ User already reacted with this emoji, removing reaction:`, { serverUserId, reactionSrc });
+        // Remove user from this specific reaction (toggle behavior for same emoji)
+        const userIndex = existingReaction.users.indexOf(serverUserId);
+        existingReaction.users.splice(userIndex, 1);
+        existingReaction.amount = existingReaction.users.length;
+        
+        // If no users left, remove the entire reaction
+        if (existingReaction.amount === 0) {
+          const reactionIndex = reactions.indexOf(existingReaction);
+          reactions.splice(reactionIndex, 1);
+        }
+      } else {
+        // Add user to existing reaction
+        existingReaction.users.push(serverUserId);
+        existingReaction.amount = existingReaction.users.length;
+      }
+    } else {
+      // Create new reaction (user can have multiple different reactions)
+      reactions.push({
+        src: reactionSrc,
+        amount: 1,
+        users: [serverUserId]
+      });
+    }
+    
+    // Update the message with new reactions
+    const reactionsJson = reactions.length > 0 ? JSON.stringify(reactions) : null;
+    await c.execute(
+      `UPDATE messages_by_conversation SET reactions = ? WHERE conversation_id = ? AND created_at = ? AND message_id = ?`,
+      [reactionsJson, conversationId, row["created_at"], messageId],
+      { prepare: true }
+    );
+    
+    console.log(`✅ Reaction added successfully:`, { messageId, reactionSrc, serverUserId });
+    
+    // Return updated message
+    return {
+      conversation_id: row["conversation_id"],
+      created_at: row["created_at"],
+      message_id: row["message_id"].toString(),
+      sender_server_id: row["sender_server_id"],
+      sender_nickname: row["sender_nickname"],
+      text: row["text"],
+      attachments: row["attachments"] ?? null,
+      reactions: reactions.length > 0 ? reactions : null
+    };
+  } catch (error) {
+    console.error(`❌ Failed to add reaction:`, error);
+    throw error;
+  }
+}
+
+export async function removeReactionFromMessage(
+  conversationId: string, 
+  messageId: string, 
+  reactionSrc: string, 
+  serverUserId: string
+): Promise<MessageRecord | null> {
+  const c = getScyllaClient();
+  
+  console.log(`👎 Removing reaction from message:`, {
+    conversation_id: conversationId,
+    message_id: messageId,
+    reaction_src: reactionSrc,
+    server_user_id: serverUserId
+  });
+  
+  try {
+    // First, get the current message to retrieve existing reactions
+    const rs = await c.execute(
+      `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND message_id = ?`,
+      [conversationId, messageId],
+      { prepare: true }
+    );
+    
+    const row = rs.first();
+    if (!row) {
+      console.log(`❌ Message not found:`, { conversationId, messageId });
+      return null;
+    }
+    
+    // Parse existing reactions
+    let reactions: Reaction[] = row["reactions"] ? JSON.parse(row["reactions"]) : [];
+    
+    // Find existing reaction with the same src
+    const existingReactionIndex = reactions.findIndex(r => r.src === reactionSrc);
+    
+    if (existingReactionIndex === -1) {
+      console.log(`⚠️ Reaction not found:`, { reactionSrc });
+      return null; // Reaction doesn't exist, no change needed
+    }
+    
+    const existingReaction = reactions[existingReactionIndex];
+    
+    // Check if user reacted with this image
+    const userIndex = existingReaction.users.indexOf(serverUserId);
+    if (userIndex === -1) {
+      console.log(`⚠️ User didn't react with this image:`, { serverUserId, reactionSrc });
+      return null; // User didn't react, no change needed
+    }
+    
+    // Remove user from reaction
+    existingReaction.users.splice(userIndex, 1);
+    existingReaction.amount = existingReaction.users.length;
+    
+    // If no users left, remove the entire reaction
+    if (existingReaction.amount === 0) {
+      reactions.splice(existingReactionIndex, 1);
+    }
+    
+    // Update the message with new reactions
+    const reactionsJson = reactions.length > 0 ? JSON.stringify(reactions) : null;
+    await c.execute(
+      `UPDATE messages_by_conversation SET reactions = ? WHERE conversation_id = ? AND created_at = ? AND message_id = ?`,
+      [reactionsJson, conversationId, row["created_at"], messageId],
+      { prepare: true }
+    );
+    
+    console.log(`✅ Reaction removed successfully:`, { messageId, reactionSrc, serverUserId });
+    
+    // Return updated message
+    return {
+      conversation_id: row["conversation_id"],
+      created_at: row["created_at"],
+      message_id: row["message_id"].toString(),
+      sender_server_id: row["sender_server_id"],
+      sender_nickname: row["sender_nickname"],
+      text: row["text"],
+      attachments: row["attachments"] ?? null,
+      reactions: reactions.length > 0 ? reactions : null
+    };
+  } catch (error) {
+    console.error(`❌ Failed to remove reaction:`, error);
+    throw error;
+  }
 } 

@@ -32,8 +32,7 @@ export function syncAllClients(io: Server, clientsInfo: Clients) {
       isMuted: client.isMuted,
       isDeafened: client.isDeafened,
     })),
-    timestamp: now,
-    callStack: new Error().stack?.split('\n')[2]?.trim()
+    timestamp: now
   });
   
   io.to("verifiedClients").emit("clients", clientsInfo);

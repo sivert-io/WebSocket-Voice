@@ -1,21 +1,21 @@
 import { Box, Flex } from "@radix-ui/themes";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useRef,useState } from "react";
 import toast from "react-hot-toast";
 import { v4 as uuidv4 } from "uuid";
 
 import { isSpeaking, useMicrophone } from "@/audio";
+import { isUserAuthenticated,useUserId } from "@/common";
 import { useIsMobile } from "@/mobile";
 import { useSettings } from "@/settings";
 import { Channel } from "@/settings/src/types/server";
 import { useSFU } from "@/webRTC";
 
 import { useSockets } from "../hooks/useSockets";
-import { useUserId, isUserAuthenticated } from "@/common";
 import { shouldRefreshToken } from "../utils/tokenManager";
-import { ServerHeader } from "./ServerHeader";
 import { ChannelList } from "./ChannelList";
-import { VoiceView } from "./VoiceView";
 import { ChatMessage, ChatView } from "./ChatView";
+import { ServerHeader } from "./ServerHeader";
+import { VoiceView } from "./VoiceView";
 
 export const ServerView = () => {
   const [clientsSpeaking, setClientsSpeaking] = useState<{
@@ -114,7 +114,7 @@ export const ServerView = () => {
     
 
     
-    const onNew = (msg: any) => {
+    const onNew = (msg: ChatMessage) => {
       console.log(`📨 Received chat:new message:`, msg);
       if (!msg || !msg.conversation_id) {
         console.log(`❌ Invalid message received:`, msg);
@@ -143,7 +143,7 @@ export const ServerView = () => {
         console.log(`⏭️ Message not for current conversation, skipping`);
       }
     };
-    const onHistory = (payload: { conversation_id: string; items: any[] }) => {
+    const onHistory = (payload: { conversation_id: string; items: ChatMessage[] }) => {
       console.log(`📚 Received chat:history:`, payload);
       if (!payload || payload.conversation_id !== activeConversationId) {
         console.log(`⏭️ History not for current conversation, skipping`);
@@ -163,12 +163,47 @@ export const ServerView = () => {
         return merged;
       });
     };
+    // Handle reaction updates
+    const onReactionUpdate = (updatedMessage: ChatMessage) => {
+      console.log(`👍 Received reaction update:`, updatedMessage);
+      console.log(`🔍 Reaction update details:`, {
+        messageId: updatedMessage?.message_id,
+        conversationId: updatedMessage?.conversation_id,
+        reactions: updatedMessage?.reactions,
+        activeConversationId,
+        matches: updatedMessage?.conversation_id === activeConversationId
+      });
+      if (!updatedMessage || !updatedMessage.conversation_id) {
+        console.log(`❌ Invalid reaction update received:`, updatedMessage);
+        return;
+      }
+      
+      if (updatedMessage.conversation_id === activeConversationId) {
+        setChatMessages((prev) => {
+          const updated = prev.map((msg) => 
+            msg.message_id === updatedMessage.message_id 
+              ? { ...msg, reactions: updatedMessage.reactions }
+              : msg
+          );
+          console.log(`✅ Updated message reactions:`, { 
+            messageId: updatedMessage.message_id,
+            reactions: updatedMessage.reactions 
+          });
+          return updated;
+        });
+      } else {
+        console.log(`⏭️ Reaction update not for current conversation, skipping`);
+      }
+    };
+
     console.log(`🎧 Setting up event listeners for connection:`, currentConnection.id);
     currentConnection.on("chat:new", onNew);
     currentConnection.on("chat:history", onHistory);
+    currentConnection.on("chat:reaction", onReactionUpdate);
     return () => {
       currentConnection.off("chat:new", onNew);
       currentConnection.off("chat:history", onHistory);
+      currentConnection.off("chat:reaction", onReactionUpdate);
     };
   }, [currentConnection, activeConversationId]);
 
@@ -209,7 +244,19 @@ export const ServerView = () => {
 
   const sendChat = () => {
     const body = chatText.trim();
-    if (!canSend) return;
+    console.log(`📤 sendChat called:`, {
+      body,
+      canSend,
+      hasConnection: !!currentConnection,
+      hasConversationId: !!activeConversationId,
+      hasAccessToken: !!localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`),
+      isAuthenticated: isUserAuthenticated()
+    });
+    
+    if (!canSend) {
+      console.log(`❌ Cannot send: canSend is false`);
+      return;
+    }
     
     console.log(`📤 Sending chat message:`, {
       conversationId: activeConversationId,
@@ -227,6 +274,7 @@ export const ServerView = () => {
       text: body,
       attachments: null,
       created_at: new Date(),
+      reactions: null,
       pending: true,
     };
     setChatMessages((prev) => [...prev, optimistic]);
@@ -268,7 +316,17 @@ export const ServerView = () => {
     currentConnection!.emit("chat:send", payload);
   };
 
-  const logDataRef = useRef<any>(null);
+  const logDataRef = useRef<{
+    server: string;
+    totalClients: number;
+    currentConnection?: string;
+    isConnected: boolean;
+    isConnecting: boolean;
+    currentChannelId: string;
+    selectedChannelId: string | null;
+    activeConversationId: string;
+    clients: unknown;
+  } | null>(null);
   
   useEffect(() => {
     if (currentlyViewingServer && clients[currentlyViewingServer.host]) {
@@ -363,11 +421,10 @@ export const ServerView = () => {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [microphoneBuffer.finalAnalyser, streamSources, clients, currentlyViewingServer, currentConnection?.id, currentServerConnected]);
+  }, [microphoneBuffer.finalAnalyser, streamSources, clients, currentlyViewingServer, currentConnection, currentServerConnected]);
 
   useEffect(() => {
     let lastActivityTime = Date.now();
-    let afkCheckInterval: NodeJS.Timeout;
 
     if (
       !currentServerConnected ||
@@ -405,7 +462,7 @@ export const ServerView = () => {
       }
     };
 
-    afkCheckInterval = setInterval(checkAFK, 5000);
+    const afkCheckInterval: NodeJS.Timeout = setInterval(checkAFK, 5000);
     checkAFK();
 
     return () => {
@@ -431,7 +488,7 @@ export const ServerView = () => {
     setSelectedChannelId(channel.id);
 
     switch (channel.type) {
-      case "voice":
+      case "voice": {
         const isAlreadyConnectedToThisChannel = 
           isConnected &&
           channel.id === currentChannelId &&
@@ -462,6 +519,7 @@ export const ServerView = () => {
           }
         }
         break;
+      }
 
       case "text":
         break;
@@ -526,6 +584,7 @@ export const ServerView = () => {
               currentUserId={userId || undefined}
               placeholder={activeChannelName ? `Message #${activeChannelName}` : undefined}
               currentUserNickname={nickname}
+              socketConnection={currentConnection}
             />
           </Flex>
         )}
