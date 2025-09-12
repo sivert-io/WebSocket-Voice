@@ -19,6 +19,8 @@ export const ChatView = ({
   canSend,
   sendChat,
   currentUserId,
+  placeholder,
+  currentUserNickname,
 }: {
   chatMessages: ChatMessage[];
   chatText: string;
@@ -26,6 +28,8 @@ export const ChatView = ({
   canSend: boolean;
   sendChat: () => void;
   currentUserId?: string;
+  placeholder?: string;
+  currentUserNickname?: string;
 }) => {
   const groups = useMemo(() => {
     const result: Array<{ senderId: string; messages: ChatMessage[] }> = [];
@@ -59,7 +63,7 @@ export const ChatView = ({
               return (
                 <Flex key={`${group.senderId}-${idx}`} direction="column" style={{ width: "100%" }} align={isSelf ? "end" : "start"}>
                   <Text size="1" color="gray" style={{ marginBottom: 6 }}>
-                    {isSelf ? "You" : group.messages[0].sender_nickname}
+                    {isSelf ? (currentUserNickname || group.messages[0].sender_nickname || "You") : group.messages[0].sender_nickname}
                   </Text>
                   <Flex direction="column" style={{ gap: 6, width: "100%" }}>
                     {group.messages.map((m) => (
@@ -88,7 +92,7 @@ export const ChatView = ({
         <Box style={{ position: "relative" }}>
           <TextField.Root
             radius="full"
-            placeholder="Chat with your friends!"
+            placeholder={placeholder || "Chat with your friends!"}
             value={chatText}
             onChange={(e) => setChatText(e.target.value)}
             onKeyDown={(e) => {

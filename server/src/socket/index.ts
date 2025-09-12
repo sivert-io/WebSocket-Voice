@@ -104,6 +104,12 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         
         consola.info(`📤 Emitting server:joined to client ${clientId}`);
         socket.emit('server:joined', joinResponse);
+        // After successful join, send server details (channels, config) now that token is present
+        try {
+          sendServerDetails(socket, clientsInfo);
+        } catch (detailsErr) {
+          consola.error('Failed to send server details after join:', detailsErr);
+        }
         syncAllClients(io, clientsInfo);
       } catch (err) {
         consola.error('server:join failed', err);

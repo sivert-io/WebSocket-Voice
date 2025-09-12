@@ -252,14 +252,15 @@ function useSettingsHook() {
     console.log("adding server", server);
 
     const newServers = { ...oldServers, [server.host]: server };
-    setServerViewIndex(Object.keys(newServers).length - 1);
+    // Keep viewing the first server; do not switch to the newly added one
     updateServers(newServers);
   }
 
   function removeServer(host: string) {
     const newServers = { ...servers };
     delete newServers[host];
-    setServerViewIndex(Object.keys(newServers).length - 1);
+    // Always keep focus on the first server in the list
+    setServerViewIndex(0);
     updateServers(newServers);
   }
 
@@ -329,8 +330,11 @@ function useSettingsHook() {
 
   // Update the currently viewing server when the server view index changes
   useEffect(() => {
-    if (Object.keys(servers).length > 0) {
-      updateCurrentServer(Object.keys(servers)[serverViewIndex]);
+    const keys = Object.keys(servers);
+    if (keys.length > 0) {
+      // Force index to 0 on load/changes so first server is focused
+      if (serverViewIndex !== 0) setServerViewIndex(0);
+      updateCurrentServer(keys[0]);
     }
   }, [serverViewIndex, servers]);
 

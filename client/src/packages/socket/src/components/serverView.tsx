@@ -32,6 +32,7 @@ export const ServerView = () => {
     setShowRemoveServer,
     showVoiceView,
     setShowVoiceView,
+    nickname,
     micID,
     setShowSettings,
     setSettingsTab,
@@ -101,6 +102,12 @@ export const ServerView = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   // Active conversation derives from selected channel first, then SFU-derived channel
   const activeConversationId = selectedChannelId || currentChannelId || "";
+  const activeChannelName = useMemo(() => {
+    if (!currentlyViewingServer) return "";
+    const channels = serverDetailsList[currentlyViewingServer.host]?.channels || [];
+    const found = channels.find((c) => c.id === activeConversationId);
+    return found?.name || "";
+  }, [currentlyViewingServer, serverDetailsList, activeConversationId]);
 
   useEffect(() => {
     if (!currentConnection) return;
@@ -120,9 +127,9 @@ export const ServerView = () => {
       });
       if (msg.conversation_id === activeConversationId) {
         setChatMessages((prev) => {
-          // Remove matching pending optimistic message (same sender and text)
+          // Remove matching pending optimistic message (same text in same conversation)
           const filtered = prev.filter(
-            (m) => !(m.pending && m.sender_server_id === msg.sender_server_id && m.text === msg.text && m.conversation_id === msg.conversation_id)
+            (m) => !(m.pending && m.text === msg.text && m.conversation_id === msg.conversation_id)
           );
           const newMessages = [...filtered, msg];
           console.log(`✅ Updated chat messages:`, { 
@@ -490,6 +497,7 @@ export const ServerView = () => {
                 showVoiceView={showVoiceView}
                 isConnecting={isConnecting}
                 currentConnectionId={currentConnection?.id}
+                selectedChannelId={selectedChannelId}
                 onChannelClick={handleChannelClick}
                 clientsSpeaking={clientsSpeaking}
               />
@@ -516,6 +524,8 @@ export const ServerView = () => {
               canSend={canSend}
               sendChat={sendChat}
               currentUserId={userId || undefined}
+              placeholder={activeChannelName ? `Message #${activeChannelName}` : undefined}
+              currentUserNickname={nickname}
             />
           </Flex>
         )}

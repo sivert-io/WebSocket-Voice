@@ -1,5 +1,5 @@
 import { Button, Flex, Spinner } from "@radix-ui/themes";
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 import { Channel } from "@/settings/src/types/server";
 import { ConnectedUser } from "./connectedUser";
@@ -13,6 +13,7 @@ export const ChannelList = ({
   showVoiceView,
   isConnecting,
   currentConnectionId,
+  selectedChannelId,
   onChannelClick,
   clientsSpeaking,
 }: {
@@ -24,6 +25,7 @@ export const ChannelList = ({
   showVoiceView: boolean;
   isConnecting: boolean;
   currentConnectionId?: string;
+  selectedChannelId: string | null;
   onChannelClick: (channel: Channel) => void;
   clientsSpeaking: Record<string, boolean>;
 }) => {
@@ -39,11 +41,12 @@ export const ChannelList = ({
         >
           <Button
             variant={
-              channel.id === currentChannelId &&
-              serverHost === currentServerConnected &&
-              showVoiceView
-                ? "solid"
-                : "soft"
+              channel.type === "voice"
+                ? (channel.id === currentChannelId &&
+                   serverHost === currentServerConnected
+                    ? "solid"
+                    : "soft")
+                : (channel.id === selectedChannelId ? "solid" : "soft")
             }
             radius="large"
             style={{
@@ -63,41 +66,48 @@ export const ChannelList = ({
           </Button>
 
           {channel.type === "voice" && (
-            <Flex
-              position="absolute"
-              top="0"
-              width="100%"
-              pt="6"
-              direction="column"
-              style={{
-                background: "var(--color-panel)",
-                borderRadius: "0 0 12px 12px",
-                zIndex: -1,
-              }}
-            >
-              <AnimatePresence initial={false}>
-                {Object.keys(clients)?.map(
-                  (id) =>
-                    clients[id].hasJoinedChannel && (
-                      <ConnectedUser
-                        isSpeaking={clientsSpeaking[id] || false}
-                        isMuted={clients[id].isMuted}
-                        isDeafened={clients[id].isDeafened}
-                        isAFK={clients[id].isAFK}
-                        nickname={clients[id].nickname}
-                        isConnectedToVoice={clients[id].isConnectedToVoice ?? true}
-                        isConnectingToVoice={
-                          id === currentConnectionId &&
-                          isConnecting &&
-                          serverHost === currentServerConnected &&
-                          channel.id === currentChannelId
-                        }
-                        key={id}
-                      />
-                    )
-                )}
-              </AnimatePresence>
-            </Flex>
+            <AnimatePresence initial={false}>
+              {Object.values(clients).some((c: any) => c.hasJoinedChannel) && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  style={{ overflow: "hidden", width: "100%" }}
+                >
+                  <Flex
+                    width="100%"
+                    pt="2"
+                    direction="column"
+                    style={{
+                      background: "var(--color-panel)",
+                      borderRadius: "0 0 12px 12px",
+                    }}
+                  >
+                    {Object.keys(clients)?.map(
+                      (id) =>
+                        clients[id].hasJoinedChannel && (
+                          <ConnectedUser
+                            isSpeaking={clientsSpeaking[id] || false}
+                            isMuted={clients[id].isMuted}
+                            isDeafened={clients[id].isDeafened}
+                            isAFK={clients[id].isAFK}
+                            nickname={clients[id].nickname}
+                            isConnectedToVoice={clients[id].isConnectedToVoice ?? true}
+                            isConnectingToVoice={
+                              id === currentConnectionId &&
+                              isConnecting &&
+                              serverHost === currentServerConnected &&
+                              channel.id === currentChannelId
+                            }
+                            key={id}
+                          />
+                        )
+                    )}
+                  </Flex>
+                </motion.div>
+              )}
+            </AnimatePresence>
           )}
         </Flex>
       ))}

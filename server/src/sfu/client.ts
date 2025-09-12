@@ -26,8 +26,12 @@ export class SFUClient {
   private serverToken: string;
   private sfuHost: string;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  // Fixed 10s reconnect delay as requested
+  private reconnectDelay = 10000;
+  // Track scheduled reconnect to avoid duplicates
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  // Allow opting out on manual shutdown
+  private shouldReconnect = true;
   private registeredRooms = new Set<string>();
   private roomsToReregister = new Set<string>();
   private connectionHealth = {
@@ -54,6 +58,8 @@ export class SFUClient {
         consola.info(`Connecting to SFU server at ${wsUrl}`);
         
         this.ws = new WebSocket(wsUrl);
+        // ensure future reconnects are allowed when connect is called
+        this.shouldReconnect = true;
 
         // Set connection timeout
         const connectionTimeout = setTimeout(() => {
@@ -69,6 +75,11 @@ export class SFUClient {
           this.reconnectAttempts = 0;
           this.connectionHealth.isHealthy = true;
           this.startHealthCheck();
+          // Clear any pending reconnect timer on successful open
+          if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+          }
           
           // Re-register rooms after successful reconnection
           this.reregisterRooms().catch(error => {
@@ -107,6 +118,8 @@ export class SFUClient {
           if (this.reconnectAttempts === 0) {
             reject(error);
           }
+          // Also schedule reconnects on error in case 'close' is not emitted
+          this.scheduleReconnect();
         });
 
       } catch (error) {
@@ -175,21 +188,28 @@ export class SFUClient {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
-      
-      consola.info(`Reconnecting to SFU in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
-      setTimeout(() => {
-        this.connect().catch((error) => {
-          consola.error('SFU reconnection failed:', error);
-        });
-      }, delay);
-    } else {
-      consola.error('Max SFU reconnection attempts reached. Connection lost.');
-      this.connectionHealth.isHealthy = false;
+    if (!this.shouldReconnect) {
+      consola.info('Reconnect disabled (manual shutdown). Skipping reconnect scheduling.');
+      return;
     }
+
+    // Avoid stacking multiple timers
+    if (this.reconnectTimer) {
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay; // fixed 10s
+    consola.info(`Reconnecting to SFU in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect().catch((error) => {
+        consola.error('SFU reconnection failed:', error);
+        // schedule again; connect() error path will call scheduleReconnect via error/close, but defensively reschedule
+        this.scheduleReconnect();
+      });
+    }, delay);
   }
 
   private handleMessage(message: WebSocketMessage): void {
@@ -334,6 +354,12 @@ export class SFUClient {
       consola.info('Disconnecting from SFU server');
       this.ws.close(1000, 'Server shutdown');
       this.ws = null;
+    }
+    // Prevent further reconnect attempts and clear any pending timer
+    this.shouldReconnect = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
     this.registeredRooms.clear();
     this.roomsToReregister.clear();
