@@ -8,6 +8,7 @@ import { SFUClient } from "../sfu/client";
 import { insertMessage, listMessages, MessageRecord, upsertUser, getUserByGrytId, getUserByServerId, addReactionToMessage } from "../db/scylla";
 import { generateAccessToken, verifyAccessToken, refreshToken, TokenPayload } from "../utils/jwt";
 import { verifyJoinToken } from "../services/grytAuth";
+import { checkRateLimit, RateLimitRule } from "../utils/rateLimiter";
 
 import { randomUUID } from "crypto";
 
@@ -28,6 +29,24 @@ async function getMessagesCached(conversationId: string, limit = 50): Promise<Me
   return items;
 }
 
+// Helper: extract a stable IP for rate limiting (honors X-Forwarded-For)
+function getClientIp(socket: Socket): string {
+  const xf = socket.handshake.headers['x-forwarded-for'] as string | string[] | undefined;
+  if (Array.isArray(xf) && xf.length > 0) return xf[0];
+  if (typeof xf === 'string' && xf.length > 0) return xf.split(',')[0].trim();
+  return (socket.handshake.address as string) || 'unknown';
+}
+
+// Rate limit rules (tunable; consider env overrides)
+const RL: { [k: string]: RateLimitRule } = {
+  CHAT_SEND: { limit: 20, windowMs: 10_000, banMs: 30_000 },
+  CHAT_REACT: { limit: 60, windowMs: 60_000 },
+  CHAT_FETCH: { limit: 15, windowMs: 10_000 },
+  SERVER_JOIN: { limit: 5, windowMs: 60_000, banMs: 300_000 },
+  REQUEST_ROOM: { limit: 10, windowMs: 60_000 },
+  JOINED_CHANNEL: { limit: 10, windowMs: 60_000 },
+};
+
 export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient | null) {
   const clientId = socket.id;
   consola.info(`Client connected: ${clientId}`);
@@ -37,6 +56,14 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     // Join server with join token
     'server:join': async (payload: { joinToken: string; nickname?: string; serverToken?: string }) => {
       try {
+        // Rate limit join attempts per IP
+        const ip = getClientIp(socket);
+        const rl = checkRateLimit('server:join', undefined, ip, RL.SERVER_JOIN);
+        if (!rl.allowed) {
+          consola.warn(`🚫 server:join rate limited for ${clientId} (${ip})`, rl);
+          socket.emit('server:error', 'rate_limited');
+          return;
+        }
         consola.info(`📥 Received server:join from client ${clientId}:`, {
           hasJoinToken: !!payload?.joinToken,
           hasNickname: !!payload?.nickname,
@@ -200,6 +227,14 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
 
     requestRoomAccess: async (roomId: string) => {
       try {
+        const ip = getClientIp(socket);
+        const userId = clientsInfo[clientId]?.serverUserId;
+        const rl = checkRateLimit('requestRoomAccess', userId, ip, RL.REQUEST_ROOM);
+        if (!rl.allowed) {
+          consola.warn(`🚫 requestRoomAccess rate limited for ${clientId} (${userId || 'anon'})`, rl);
+          socket.emit('room_error', 'rate_limited');
+          return;
+        }
         // Validate input
         if (!roomId || typeof roomId !== 'string' || roomId.length === 0) {
           socket.emit('room_error', 'Invalid room ID');
@@ -250,6 +285,14 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
 
     joinedChannel: (hasJoined: boolean) => {
       if (!clientsInfo[clientId]) return;
+      const ip = getClientIp(socket);
+      const userId = clientsInfo[clientId]?.serverUserId;
+      const rl = checkRateLimit('joinedChannel', userId, ip, RL.JOINED_CHANNEL);
+      if (!rl.allowed) {
+        consola.warn(`🚫 joinedChannel rate limited for ${clientId} (${userId || 'anon'})`, rl);
+        socket.emit('room_error', 'rate_limited');
+        return;
+      }
       
       const wasInChannel = clientsInfo[clientId].hasJoinedChannel;
       const newJoinedState = Boolean(hasJoined);
@@ -319,6 +362,15 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     // Real-time chat: persist and broadcast
     'chat:send': async (payload: { conversationId: string; accessToken: string; text?: string; attachments?: string[] }) => {
       try {
+        // Rate limit messages per user/IP
+        const ip = getClientIp(socket);
+        const userId = clientsInfo[clientId]?.serverUserId;
+        const rl = checkRateLimit('chat:send', userId, ip, RL.CHAT_SEND);
+        if (!rl.allowed) {
+          consola.warn(`🚫 chat:send rate limited for ${clientId} (${userId || 'anon'})`, rl);
+          socket.emit('chat:error', 'rate_limited');
+          return;
+        }
         consola.info(`💬 chat:send from ${clientId}`, {
           conversationId: payload?.conversationId,
           textLen: typeof payload?.text === 'string' ? payload.text.length : 0,
@@ -421,6 +473,14 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     // Fetch recent messages for a conversation (served from cache when fresh)
     'chat:fetch': async (payload: { conversationId: string; limit?: number }) => {
       try {
+        const ip = getClientIp(socket);
+        const userId = clientsInfo[clientId]?.serverUserId;
+        const rl = checkRateLimit('chat:fetch', userId, ip, RL.CHAT_FETCH);
+        if (!rl.allowed) {
+          consola.warn(`🚫 chat:fetch rate limited for ${clientId} (${userId || 'anon'})`, rl);
+          socket.emit('chat:error', 'rate_limited');
+          return;
+        }
         if (!payload || typeof payload.conversationId !== 'string') {
           socket.emit('chat:error', 'Invalid fetch payload');
           return;
@@ -437,6 +497,14 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     // Add reaction to a message
     'chat:react': async (payload: { conversationId: string; messageId: string; reactionSrc: string; accessToken: string }) => {
       try {
+        const ip = getClientIp(socket);
+        const userId = clientsInfo[clientId]?.serverUserId;
+        const rl = checkRateLimit('chat:react', userId, ip, RL.CHAT_REACT);
+        if (!rl.allowed) {
+          consola.warn(`🚫 chat:react rate limited for ${clientId} (${userId || 'anon'})`, rl);
+          socket.emit('chat:error', 'rate_limited');
+          return;
+        }
         consola.info(`👍 chat:react from ${clientId}`, {
           conversationId: payload?.conversationId,
           messageId: payload?.messageId,
