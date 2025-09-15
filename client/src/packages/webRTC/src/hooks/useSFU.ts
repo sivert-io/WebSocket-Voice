@@ -141,6 +141,11 @@ function useSfuHook(): SFUInterface {
   // Access shared microphone buffer without creating our own handle
   // ServerView manages the microphone access, we just use the shared singleton buffer
   const { microphoneBuffer } = useMicrophone(false);
+  // Use a ref to always read the freshest microphone buffer inside async flows
+  const microphoneBufferRef = useRef(microphoneBuffer);
+  useEffect(() => {
+    microphoneBufferRef.current = microphoneBuffer;
+  }, [microphoneBuffer]);
   const { mediaDestination, audioContext } = useSpeakers();
 
   // Enhanced cleanup function
@@ -1145,7 +1150,7 @@ function useSfuHook(): SFUInterface {
 
       // Enhanced microphone availability check with better retry logic
       // If no mic selected yet, request devices and auto-select before waiting
-      let streamToUse = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
+      let streamToUse = microphoneBufferRef.current.processedStream || microphoneBufferRef.current.mediaStream;
       
       // Check if we have a stream and if its tracks are actually live
       if (streamToUse) {
@@ -1161,15 +1166,15 @@ function useSfuHook(): SFUInterface {
       if (!streamToUse) {
         console.warn("🔄 Waiting for microphone initialization...");
         console.log("🎤 Microphone buffer state:", {
-          hasProcessedStream: !!microphoneBuffer.processedStream,
-          hasMediaStream: !!microphoneBuffer.mediaStream,
+          hasProcessedStream: !!microphoneBufferRef.current.processedStream,
+          hasMediaStream: !!microphoneBufferRef.current.mediaStream,
           micID: micID
         });
         
         // Wait for microphone to be ready with shorter intervals
         for (let attempt = 0; attempt < 30; attempt++) { // Increased attempts
           await new Promise(resolve => setTimeout(resolve, 200)); // Longer intervals for better reliability
-          streamToUse = microphoneBuffer.processedStream || microphoneBuffer.mediaStream;
+          streamToUse = microphoneBufferRef.current.processedStream || microphoneBufferRef.current.mediaStream;
           
           if (streamToUse) {
             // Double-check that tracks are live
@@ -1191,8 +1196,8 @@ function useSfuHook(): SFUInterface {
         if (!streamToUse) {
           console.error("❌ Microphone initialization failed after 30 attempts");
           console.error("🎤 Final microphone buffer state:", {
-            hasProcessedStream: !!microphoneBuffer.processedStream,
-            hasMediaStream: !!microphoneBuffer.mediaStream,
+            hasProcessedStream: !!microphoneBufferRef.current.processedStream,
+            hasMediaStream: !!microphoneBufferRef.current.mediaStream,
             micID: micID
           });
           throw new Error("Microphone not available - please check microphone settings");
@@ -1325,8 +1330,6 @@ function useSfuHook(): SFUInterface {
     currentlyViewingServer,
     sfuHost,
     stunHosts,
-    microphoneBuffer.mediaStream,
-    microphoneBuffer.processedStream,
     connectionState,
     isConnected,
     sockets,
