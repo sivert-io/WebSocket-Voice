@@ -23,6 +23,12 @@ export function Settings() {
     setLoopbackEnabled(false);
   }
 
+  function handleTabChange(value: string) {
+    // Ensure we stop any mic monitoring/loopback when leaving the mic tab
+    setLoopbackEnabled(false);
+    setSettingsTab(value);
+  }
+
   return (
     <Dialog.Root open={showSettings} onOpenChange={handleDialogChange}>
       <Dialog.Content maxWidth="900px" style={{ height: "700px", minWidth: "600px" }}>
@@ -44,7 +50,7 @@ export function Settings() {
           </Dialog.Title>
 
           {showSettings && (
-            <Tabs.Root value={settingsTab} onValueChange={setSettingsTab} orientation="vertical" style={{ flex: 1 }}>
+            <Tabs.Root value={settingsTab} onValueChange={handleTabChange} orientation="vertical" style={{ flex: 1 }}>
               <Flex gap="4" height="100%">
                 {/* Vertical Tab List */}
                 <Box style={{ minWidth: "200px", flexShrink: 0 }}>
@@ -101,7 +107,9 @@ export function Settings() {
                     <AppearanceSettings />
                   </Tabs.Content>
                   <Tabs.Content value="microphone">
-                    <MicrophoneSettings />
+                    {settingsTab === "microphone" && showSettings && (
+                      <MicrophoneSettings />
+                    )}
                   </Tabs.Content>
                 </Box>
               </Flex>

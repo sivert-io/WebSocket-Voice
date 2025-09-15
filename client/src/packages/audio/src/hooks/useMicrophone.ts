@@ -39,6 +39,32 @@ function useCreateMicrophoneHook() {
       const context = new AudioContext();
       setAudioContext(context);
     } else if (handles.length === 0 && audioContext) {
+      console.log("🎤 No active handles - performing full microphone cleanup");
+
+      // Disconnect any source node
+      if (sourceNodeRef.current) {
+        try {
+          sourceNodeRef.current.disconnect();
+        } catch {}
+        sourceNodeRef.current = null;
+      }
+
+      // Disconnect loopback if any
+      if (loopbackGainRef.current) {
+        try {
+          loopbackGainRef.current.disconnect();
+        } catch {}
+        loopbackGainRef.current = null;
+      }
+
+      // Stop any active microphone stream tracks
+      if (micStream) {
+        try {
+          micStream.getTracks().forEach((t) => t.stop());
+        } catch {}
+        setMicStream(undefined);
+      }
+
       console.log("🎤 Closing shared AudioContext");
       audioContext.close().catch(console.error);
       setAudioContext(undefined);
@@ -140,7 +166,7 @@ function useCreateMicrophoneHook() {
       console.log("🎤 Enumerating audio devices...");
       
       // Request permission first - using truly raw audio constraints
-      await navigator.mediaDevices.getUserMedia({
+      const permissionStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           // Disable all WebRTC audio processing
           autoGainControl: false,
@@ -148,6 +174,14 @@ function useCreateMicrophoneHook() {
           noiseSuppression: false,
         },
       });
+
+      // Immediately stop the temporary permission stream to release the mic
+      try {
+        permissionStream.getTracks().forEach(track => track.stop());
+        console.log("🎤 Stopped temporary permission stream after enumeration request");
+      } catch (e) {
+        console.warn("⚠️ Failed to stop temporary permission stream", e);
+      }
 
       const allDevices = await navigator.mediaDevices.enumerateDevices();
       const audioDevices = allDevices.filter((d) => d.kind === "audioinput") as InputDeviceInfo[];
