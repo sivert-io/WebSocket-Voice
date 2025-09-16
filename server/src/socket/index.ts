@@ -37,6 +37,12 @@ function getClientIp(socket: Socket): string {
   return (socket.handshake.address as string) || 'unknown';
 }
 
+// Helper: check if a user is connected to a voice channel
+function isUserConnectedToVoiceChannel(serverUserId: string): boolean {
+  const clientInfo = Object.values(clientsInfo).find(client => client.serverUserId === serverUserId);
+  return !!(clientInfo && clientInfo.hasJoinedChannel && clientInfo.streamID);
+}
+
 // Rate limit rules (tunable; consider env overrides)
 const RL: { [k: string]: RateLimitRule } = {
   CHAT_SEND: { limit: 20, windowMs: 10_000, banMs: 30_000 },
@@ -144,40 +150,33 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       }
     },
 
-    updateNickname: (newNickName: string) => {
-      if (!clientsInfo[clientId]) return;
-      if (typeof newNickName !== 'string' || newNickName.length > 50) {
-        socket.emit('error', 'Invalid nickname');
-        return;
-      }
-      
-      clientsInfo[clientId].nickname = newNickName.trim();
-      syncAllClients(io, clientsInfo);
-      consola.info(`Client ${clientId} updated nickname to: ${newNickName}`);
-    },
 
-    updateMute: (isMuted: boolean) => {
+    updateClientState: (clientState: { isMuted: boolean; isDeafened: boolean; isAFK: boolean; nickname: string }) => {
       if (!clientsInfo[clientId]) return;
       
+      const { isMuted, isDeafened, isAFK, nickname } = clientState;
+      
+      // Update all client state properties
       clientsInfo[clientId].isMuted = Boolean(isMuted);
-      syncAllClients(io, clientsInfo);
-      consola.info(`Client ${clientId} ${isMuted ? 'muted' : 'unmuted'}`);
-    },
-
-    updateDeafen: (isDeafened: boolean) => {
-      if (!clientsInfo[clientId]) return;
-      
       clientsInfo[clientId].isDeafened = Boolean(isDeafened);
-      syncAllClients(io, clientsInfo);
-      consola.info(`Client ${clientId} ${isDeafened ? 'deafened' : 'undeafened'}`);
-    },
-
-    updateAFK: (isAFK: boolean) => {
-      if (!clientsInfo[clientId]) return;
-      
       clientsInfo[clientId].isAFK = Boolean(isAFK);
+      clientsInfo[clientId].nickname = nickname.trim();
+      
       syncAllClients(io, clientsInfo);
-      consola.info(`Client ${clientId} ${isAFK ? 'went AFK' : 'returned from AFK'}`);
+      consola.info(`Client ${clientId} state updated: muted=${isMuted}, deafened=${isDeafened}, afk=${isAFK}, nickname="${nickname}"`);
+      
+      // Update SFU with new audio state for security enforcement
+      if (sfuClient && clientsInfo[clientId].hasJoinedChannel) {
+        const roomId = `${clientsInfo[clientId].serverUserId}:${clientsInfo[clientId].streamID}`;
+        sfuClient.updateUserAudioState(
+          roomId, 
+          clientId, 
+          clientsInfo[clientId].isMuted, 
+          clientsInfo[clientId].isDeafened
+        ).catch(error => {
+          consola.error(`Failed to update SFU audio state: ${error}`);
+        });
+      }
     },
 
     streamID: (streamID: string) => {
@@ -185,9 +184,20 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       
       const wasInChannel = clientsInfo[clientId].hasJoinedChannel;
       const newJoinedState = streamID.length > 0;
+      const serverUserId = clientsInfo[clientId].serverUserId;
+      
+      // Debug: Log the current client info
+      consola.info(`🔍 Current client info for ${clientId}:`, {
+        nickname: clientsInfo[clientId].nickname,
+        serverUserId: serverUserId,
+        wasInChannel,
+        newJoinedState,
+        streamID
+      });
       
       console.log(`🎪 SERVER streamID [${clientId}]:`, {
         nickname: clientsInfo[clientId].nickname,
+        serverUserId,
         oldStreamID: clientsInfo[clientId].streamID,
         newStreamID: streamID,
         wasInChannel,
@@ -195,6 +205,94 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         stateWillChange: wasInChannel !== newJoinedState,
         timestamp: Date.now()
       });
+      
+      // Prevent duplicate connections: check if this serverUserId is already connected to voice elsewhere
+      // IMPORTANT: Do this BEFORE updating the client's state
+      if (newJoinedState && serverUserId) {
+        // Debug: Log all current connections
+        consola.info(`🔍 Checking for duplicates for serverUserId: ${serverUserId}`);
+        consola.info(`🔍 Current clientsInfo:`, Object.entries(clientsInfo).map(([id, info]) => ({
+          clientId: id,
+          serverUserId: info.serverUserId,
+          nickname: info.nickname,
+          hasJoinedChannel: info.hasJoinedChannel,
+          streamID: info.streamID
+        })));
+        
+        // Server-level check: look for existing connections in clientsInfo
+        const existingConnection = Object.entries(clientsInfo).find(([otherClientId, clientInfo]) => {
+          const isDifferentClient = otherClientId !== clientId;
+          const isSameUser = clientInfo.serverUserId === serverUserId;
+          const isInVoice = clientInfo.hasJoinedChannel;
+          
+          consola.info(`🔍 Checking client ${otherClientId}:`, {
+            isDifferentClient,
+            isSameUser,
+            isInVoice,
+            serverUserId: clientInfo.serverUserId,
+            hasJoinedChannel: clientInfo.hasJoinedChannel
+          });
+          
+          return isDifferentClient && isSameUser && isInVoice;
+        });
+        
+        if (existingConnection) {
+          const [existingClientId, existingClient] = existingConnection;
+          consola.warn(`🔄 Device switch detected for serverUserId ${serverUserId}`);
+          consola.warn(`   - New client: ${clientId} (${clientsInfo[clientId].nickname})`);
+          consola.warn(`   - Existing client: ${existingClientId} (${existingClient.nickname})`);
+          
+          // Notify the existing client that they're being disconnected due to new device
+          const existingSocket = io.sockets.sockets.get(existingClientId);
+          if (existingSocket) {
+            existingSocket.emit('device_switch_disconnect', {
+              type: 'device_switch',
+              message: 'You have been disconnected because you connected from another device.',
+              newDevice: {
+                clientId: clientId,
+                nickname: clientsInfo[clientId].nickname
+              }
+            });
+            
+            // Disconnect the existing client from voice
+            existingSocket.emit("joinedChannel", false);
+            existingSocket.emit("streamID", "");
+            existingSocket.emit("leaveRoom");
+            
+            // Clean up the existing client's voice state
+            clientsInfo[existingClientId].hasJoinedChannel = false;
+            clientsInfo[existingClientId].streamID = "";
+            
+            // Clean up SFU tracking for the existing client
+            if (sfuClient) {
+              sfuClient.untrackUserConnection(serverUserId);
+            }
+            
+            consola.info(`✅ Disconnected existing client ${existingClientId} due to device switch`);
+          }
+          
+          // Allow the new connection to proceed
+          consola.info(`✅ Allowing new connection for client ${clientId}`);
+        } else {
+          consola.info(`✅ No duplicate connection found for serverUserId ${serverUserId}`);
+        }
+
+        // SFU-level check: additional security layer
+        if (sfuClient) {
+          const roomId = `${clientsInfo[clientId].serverUserId}:${streamID}`;
+          const sfuConnectionAllowed = sfuClient.trackUserConnection(roomId, serverUserId);
+          
+          if (!sfuConnectionAllowed) {
+            consola.warn(`🚫 SFU: Duplicate connection prevented for serverUserId ${serverUserId}`);
+            socket.emit('voice_error', {
+              type: 'duplicate_connection',
+              message: 'You are already connected to a voice channel. Please disconnect first.',
+              source: 'sfu'
+            });
+            return;
+          }
+        }
+      }
       
       const prevStreamID = clientsInfo[clientId].streamID;
       const prevJoinedState = wasInChannel;
@@ -212,9 +310,14 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       const stateChanged = wasInChannel !== newJoinedState;
       if (stateChanged) {
         if (!wasInChannel && newJoinedState) {
-          consola.info(`Client ${clientId} joined voice channel`);
+          consola.info(`Client ${clientId} joined voice channel (serverUserId: ${serverUserId})`);
         } else if (wasInChannel && !newJoinedState) {
-          consola.info(`Client ${clientId} left voice channel`);
+          consola.info(`Client ${clientId} left voice channel (serverUserId: ${serverUserId})`);
+          
+          // Clean up SFU tracking when user leaves voice
+          if (sfuClient && serverUserId) {
+            sfuClient.untrackUserConnection(serverUserId);
+          }
         }
         console.log(`📡 SERVER syncAllClients triggered by streamID [${clientId}] - STATE CHANGED`);
         syncAllClients(io, clientsInfo);
@@ -412,6 +515,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           return;
         }
         
+        // Check if user is connected to a voice channel (required for text channel access)
+        if (!isUserConnectedToVoiceChannel(tokenPayload.serverUserId)) {
+          consola.warn(`🚫 User ${tokenPayload.serverUserId} attempted to send message without being in voice channel`);
+          socket.emit('chat:error', 'You must be connected to a voice channel to send messages');
+          return;
+        }
+        
         consola.info(`✅ Message from user ${user.nickname} (verified via JWT)`);
         
         const created = await insertMessage({
@@ -485,6 +595,14 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           socket.emit('chat:error', 'Invalid fetch payload');
           return;
         }
+        
+        // Check if user is connected to a voice channel (required for text channel access)
+        if (!userId || !isUserConnectedToVoiceChannel(userId)) {
+          consola.warn(`🚫 User ${userId || 'unknown'} attempted to fetch messages without being in voice channel`);
+          socket.emit('chat:error', 'You must be connected to a voice channel to view messages');
+          return;
+        }
+        
         const limit = typeof payload.limit === 'number' ? payload.limit : 50;
         const items = await getMessagesCached(payload.conversationId, limit);
         socket.emit('chat:history', { conversation_id: payload.conversationId, items });
@@ -528,6 +646,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         const user = await getUserByServerId(tokenPayload.serverUserId);
         if (!user) {
           socket.emit('chat:error', 'User not found');
+          return;
+        }
+        
+        // Check if user is connected to a voice channel (required for text channel access)
+        if (!isUserConnectedToVoiceChannel(tokenPayload.serverUserId)) {
+          consola.warn(`🚫 User ${tokenPayload.serverUserId} attempted to react without being in voice channel`);
+          socket.emit('chat:error', 'You must be connected to a voice channel to react to messages');
           return;
         }
 
@@ -613,6 +738,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
 
   socket.on("disconnect", (reason) => {
     consola.info(`Client disconnected: ${clientId} (${reason})`);
+    
+    // Clean up SFU tracking if this client was connected to voice
+    const clientInfo = clientsInfo[clientId];
+    if (clientInfo && clientInfo.serverUserId && sfuClient) {
+      sfuClient.untrackUserConnection(clientInfo.serverUserId);
+    }
+    
     delete clientsInfo[clientId];
     syncAllClients(io, clientsInfo);
   });

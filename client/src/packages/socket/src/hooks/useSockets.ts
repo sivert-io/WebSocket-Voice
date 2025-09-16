@@ -70,37 +70,19 @@ function useSocketsHook() {
     return serverDetailsList[host]?.channels.find((c) => c.id === channel);
   }
 
-  // Update nickname on connected sockets only
+  // Send complete client state whenever any state changes
   useEffect(() => {
     Object.keys(sockets).forEach((host) => {
-      console.log("Sending nickname");
-      sockets[host]?.emit("updateNickname", nickname);
+      const clientState = {
+        isMuted,
+        isDeafened,
+        isAFK,
+        nickname
+      };
+      console.log("Sending client state:", clientState);
+      sockets[host]?.emit("updateClientState", clientState);
     });
-  }, [nickname, sockets]);
-
-  // Update mute state on connected sockets only
-  useEffect(() => {
-    Object.keys(sockets).forEach((host) => {
-      console.log("Sending mute state:", isMuted);
-      sockets[host]?.emit("updateMute", isMuted);
-    });
-  }, [isMuted, sockets]);
-
-  // Update deafen state on connected sockets only
-  useEffect(() => {
-    Object.keys(sockets).forEach((host) => {
-      console.log("Sending deafen state:", isDeafened);
-      sockets[host]?.emit("updateDeafen", isDeafened);
-    });
-  }, [isDeafened, sockets]);
-
-  // Update AFK state on connected sockets only
-  useEffect(() => {
-    Object.keys(sockets).forEach((host) => {
-      console.log("Sending AFK state:", isAFK);
-      sockets[host]?.emit("updateAFK", isAFK);
-    });
-  }, [isAFK, sockets]);
+  }, [isMuted, isDeafened, isAFK, nickname, sockets]);
 
   // Add new or update servers to the list
   useEffect(() => {
@@ -139,6 +121,76 @@ function useSocketsHook() {
         
         socket.on("connect_error", (error) => {
           console.error(`❌ Connection error to server ${host}:`, error);
+        });
+
+        socket.on("voice_error", (error: { type: string; message: string; existingConnection?: any }) => {
+          console.error(`🚫 Voice error from server ${host}:`, error);
+          
+          if (error.type === 'duplicate_connection') {
+            // Handle duplicate connection error
+            console.warn(`🚫 Duplicate voice connection detected:`, error.message);
+            if (error.existingConnection) {
+              console.warn(`   - Existing connection: ${error.existingConnection.nickname} (${error.existingConnection.clientId})`);
+            }
+            
+            // You could show a toast notification here
+            // toast.error(error.message);
+          }
+        });
+
+        socket.on("device_switch_disconnect", (data: { type: string; message: string; newDevice?: any }) => {
+          console.warn(`🔄 Device switch disconnect from server ${host}:`, data);
+          
+          if (data.type === 'device_switch') {
+            // Handle device switch disconnect
+            console.warn(`🔄 Disconnected due to device switch:`, data.message);
+            if (data.newDevice) {
+              console.warn(`   - Connected from: ${data.newDevice.nickname} (${data.newDevice.clientId})`);
+            }
+            
+            // Trigger device switch modal
+            window.dispatchEvent(new CustomEvent('device_switch_disconnect', {
+              detail: {
+                message: data.message,
+                newDevice: data.newDevice
+              }
+            }));
+          }
+        });
+
+        // Handle server-initiated voice disconnects (for device switching)
+        socket.on("joinedChannel", (hasJoined: boolean) => {
+          console.log(`📡 Server set joinedChannel to ${hasJoined} for ${host}`);
+          
+          if (!hasJoined) {
+            // Server is forcing us to leave voice - trigger disconnect
+            console.log(`🔄 Server initiated voice disconnect for ${host}`);
+            window.dispatchEvent(new CustomEvent('server_voice_disconnect', {
+              detail: { host, reason: 'server_initiated' }
+            }));
+          }
+        });
+
+        socket.on("streamID", (streamID: string) => {
+          console.log(`📡 Server set streamID to "${streamID}" for ${host}`);
+          
+          if (!streamID) {
+            // Server cleared our streamID - trigger disconnect
+            console.log(`🔄 Server cleared streamID for ${host}`);
+            window.dispatchEvent(new CustomEvent('server_voice_disconnect', {
+              detail: { host, reason: 'stream_cleared' }
+            }));
+          }
+        });
+
+        socket.on("leaveRoom", () => {
+          console.log(`📡 Server sent leaveRoom for ${host}`);
+          
+          // Server is forcing us to leave room - trigger disconnect
+          console.log(`🔄 Server initiated room leave for ${host}`);
+          window.dispatchEvent(new CustomEvent('server_voice_disconnect', {
+            detail: { host, reason: 'room_leave' }
+          }));
         });
 
         socket.on("info", (data: Server) => {

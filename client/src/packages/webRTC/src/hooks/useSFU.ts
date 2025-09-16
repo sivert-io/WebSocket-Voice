@@ -331,17 +331,8 @@ function useSfuHook(): SFUInterface {
     // Check for disconnected peers (streams that were in previous but not in current)
     const disconnectedPeers = [...previousRemoteStreams].filter(streamId => !currentRemoteStreams.has(streamId));
 
-    // Play sounds for peer changes
+    // Handle peer changes (no sounds - sounds are only for your own connection)
     if (newPeers.length > 0) {
-      // Play connect sound if enabled
-      if (connectSoundEnabled) {
-        try {
-          connectSound();
-        } catch (error) {
-          console.error("❌ Error playing peer connect sound:", error);
-        }
-      }
-      
       // Emit voice connection status to server for each new peer
       if (connectionState.serverId && sockets[connectionState.serverId]) {
         const socket = sockets[connectionState.serverId];
@@ -352,15 +343,6 @@ function useSfuHook(): SFUInterface {
     }
 
     if (disconnectedPeers.length > 0) {
-      // Play disconnect sound if enabled
-      if (disconnectSoundEnabled) {
-        try {
-          disconnectSound();
-        } catch (error) {
-          console.error("❌ Error playing peer disconnect sound:", error);
-        }
-      }
-
       // Emit voice disconnection status to server
       if (connectionState.serverId && sockets[connectionState.serverId]) {
         const socket = sockets[connectionState.serverId];
@@ -1342,7 +1324,7 @@ function useSfuHook(): SFUInterface {
   ]);
 
   // Enhanced disconnect function - optimistic with background cleanup
-  const disconnect = useCallback(async (playSound?: boolean): Promise<void> => {
+  const disconnect = useCallback(async (playSound?: boolean, onDisconnect?: () => void): Promise<void> => {
     const shouldPlaySound = playSound !== false && disconnectSoundEnabled; // Respect settings
 
     // IMMEDIATE: Update UI state optimistically for instant feedback
@@ -1364,6 +1346,11 @@ function useSfuHook(): SFUInterface {
 
     console.log("✅ Disconnected (UI updated immediately)");
 
+    // Call the disconnect callback if provided (e.g., to switch to text channel)
+    if (onDisconnect) {
+      onDisconnect();
+    }
+
     // BACKGROUND: Perform cleanup asynchronously without blocking
     performCleanup(false).catch((error) => {
       console.error("❌ Background cleanup error:", error);
@@ -1374,6 +1361,30 @@ function useSfuHook(): SFUInterface {
 
     // Return immediately - don't wait for cleanup
   }, [disconnectSound, disconnectSoundEnabled, performCleanup]);
+
+  // Listen for server-initiated disconnects (device switching)
+  useEffect(() => {
+    const handleServerDisconnect = (event: CustomEvent) => {
+      const { host, reason } = event.detail;
+      console.log(`🔄 Server initiated disconnect for ${host}, reason: ${reason}`);
+      
+      // Trigger disconnect without playing sound (since it's server-initiated)
+      disconnect(false).catch(error => {
+        console.error('❌ Error during server-initiated disconnect:', error);
+      });
+      
+      // Also trigger text channel switch for server-initiated disconnects
+      window.dispatchEvent(new CustomEvent('voice_disconnect_text_switch', {
+        detail: { host, reason }
+      }));
+    };
+
+    window.addEventListener('server_voice_disconnect', handleServerDisconnect as EventListener);
+    
+    return () => {
+      window.removeEventListener('server_voice_disconnect', handleServerDisconnect as EventListener);
+    };
+  }, [disconnect]);
 
   // Monitor processedStream changes and update WebRTC tracks
   useEffect(() => {

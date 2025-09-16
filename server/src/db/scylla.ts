@@ -134,32 +134,67 @@ export async function initScylla(): Promise<void> {
 export async function upsertUser(grytUserId: string, nickname: string): Promise<UserRecord> {
   const c = getScyllaClient();
   const now = new Date();
-  const serverUserId = `user_${randomUUID()}`; // Generate unique server user ID
   
-  console.log(`👤 Upserting user:`, { grytUserId, serverUserId, nickname });
+  console.log(`👤 Upserting user:`, { grytUserId, nickname });
   
   try {
-    // Insert into both tables for efficient lookups
-    await c.execute(
-      `INSERT INTO users_by_gryt_id (gryt_user_id, server_user_id, nickname, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
-      [grytUserId, serverUserId, nickname, now, now],
-      { prepare: true }
-    );
+    // First, check if user already exists
+    const existingUser = await getUserByGrytId(grytUserId);
     
-    await c.execute(
-      `INSERT INTO users_by_server_id (server_user_id, gryt_user_id, nickname, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
-      [serverUserId, grytUserId, nickname, now, now],
-      { prepare: true }
-    );
-    
-    console.log(`✅ User successfully upserted:`, { grytUserId, serverUserId });
-    return { 
-      gryt_user_id: grytUserId, 
-      server_user_id: serverUserId, 
-      nickname,
-      created_at: now, 
-      last_seen: now 
-    };
+    if (existingUser) {
+      // User exists, update their nickname and last_seen
+      const serverUserId = existingUser.server_user_id;
+      
+      console.log(`👤 User exists, updating:`, { grytUserId, serverUserId, nickname });
+      
+      await c.execute(
+        `UPDATE users_by_gryt_id SET nickname = ?, last_seen = ? WHERE gryt_user_id = ?`,
+        [nickname, now, grytUserId],
+        { prepare: true }
+      );
+      
+      await c.execute(
+        `UPDATE users_by_server_id SET nickname = ?, last_seen = ? WHERE server_user_id = ?`,
+        [nickname, now, serverUserId],
+        { prepare: true }
+      );
+      
+      console.log(`✅ User successfully updated:`, { grytUserId, serverUserId });
+      return { 
+        gryt_user_id: grytUserId, 
+        server_user_id: serverUserId, 
+        nickname,
+        created_at: existingUser.created_at, 
+        last_seen: now 
+      };
+    } else {
+      // User doesn't exist, create new one
+      const serverUserId = `user_${randomUUID()}`; // Generate unique server user ID
+      
+      console.log(`👤 Creating new user:`, { grytUserId, serverUserId, nickname });
+      
+      // Insert into both tables for efficient lookups
+      await c.execute(
+        `INSERT INTO users_by_gryt_id (gryt_user_id, server_user_id, nickname, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
+        [grytUserId, serverUserId, nickname, now, now],
+        { prepare: true }
+      );
+      
+      await c.execute(
+        `INSERT INTO users_by_server_id (server_user_id, gryt_user_id, nickname, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
+        [serverUserId, grytUserId, nickname, now, now],
+        { prepare: true }
+      );
+      
+      console.log(`✅ User successfully created:`, { grytUserId, serverUserId });
+      return { 
+        gryt_user_id: grytUserId, 
+        server_user_id: serverUserId, 
+        nickname,
+        created_at: now, 
+        last_seen: now 
+      };
+    }
   } catch (error) {
     console.error(`❌ Failed to upsert user:`, error);
     throw error;

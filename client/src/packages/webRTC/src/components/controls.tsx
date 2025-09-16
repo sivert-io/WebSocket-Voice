@@ -8,7 +8,11 @@ import { getIsBrowserSupported } from "@/audio";
 import { useSettings } from "@/settings";
 import { useSFU } from "@/webRTC";
 
-export function Controls() {
+interface ControlsProps {
+  onDisconnect?: () => void;
+}
+
+export function Controls({ onDisconnect }: ControlsProps) {
   const [isBrowserSupported] = useState(getIsBrowserSupported());
   const { disconnect } = useSFU();
 
@@ -21,6 +25,10 @@ export function Controls() {
 
   function handleDeafen() {
     setIsDeafened(!isDeafened);
+  }
+
+  function handleDisconnect() {
+    disconnect(true, onDisconnect);
   }
 
   return (
@@ -47,7 +55,7 @@ export function Controls() {
             )}
           </IconButton>
 
-          <IconButton variant="soft" color="red" onClick={disconnect}>
+          <IconButton variant="soft" color="red" onClick={handleDisconnect}>
             <ImPhoneHangUp />
           </IconButton>
         </Flex>

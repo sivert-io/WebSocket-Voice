@@ -307,7 +307,7 @@ function useSettingsHook() {
       setPreDeafenMuteState(isMuted);
       setIsDeafenedState(true);
       setIsMutedState(true);
-      console.log(`🔇 Deafening - stored pre-deafen mute state: ${isMuted}`);
+      console.log(`🔇 Deafening - stored pre-deafen mute state: ${isMuted}, now muted: true`);
     } else {
       // Undeafening: restore previous mute state
       setIsDeafenedState(false);

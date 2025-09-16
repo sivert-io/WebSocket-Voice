@@ -1,6 +1,7 @@
 import { useAccount } from "@/common";
 import { AddNewServer, Nickname, Settings } from "@/settings";
 import { SignUpModal } from "@/signUp";
+import { DeviceSwitchModal } from "@/socket";
 
 import { LeaveServer } from "./components/leaveServer";
 import { MainApp } from "./components/mainApp";
@@ -18,6 +19,7 @@ export function App() {
         <Welcome />
         <AddNewServer />
         <LeaveServer />
+        <DeviceSwitchModal />
       </>
     );
   else return <SignUpModal />;

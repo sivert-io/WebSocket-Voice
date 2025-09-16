@@ -506,6 +506,25 @@ export const ServerView = () => {
     noiseGate,
   ]);
 
+  // Listen for server-initiated voice disconnects to trigger text channel switch
+  useEffect(() => {
+    const handleServerVoiceDisconnect = (event: CustomEvent) => {
+      const { host, reason } = event.detail;
+      console.log(`🔄 Server-initiated voice disconnect detected for ${host}, reason: ${reason}`);
+      
+      // Only handle if it's for the currently viewing server
+      if (currentlyViewingServer && currentlyViewingServer.host === host) {
+        handleVoiceDisconnect();
+      }
+    };
+
+    window.addEventListener('voice_disconnect_text_switch', handleServerVoiceDisconnect as EventListener);
+    
+    return () => {
+      window.removeEventListener('voice_disconnect_text_switch', handleServerVoiceDisconnect as EventListener);
+    };
+  }, [currentlyViewingServer, serverDetailsList]);
+
   if (!currentlyViewingServer) return null;
 
   const handleChannelClick = async (channel: Channel) => {
@@ -579,6 +598,18 @@ export const ServerView = () => {
     }
   };
 
+  const handleVoiceDisconnect = () => {
+    // When disconnecting from voice, automatically select the first text channel
+    if (currentlyViewingServer) {
+      const channels = serverDetailsList[currentlyViewingServer.host]?.channels || [];
+      const firstTextChannel = channels.find((c) => c.type === "text");
+      if (firstTextChannel) {
+        console.log("🔄 Auto-selecting first text channel after voice disconnect:", firstTextChannel.name);
+        setSelectedChannelId(firstTextChannel.id);
+      }
+    }
+  };
+
   return (
     <>
       <Flex width="100%" height="100%" gap="4">
@@ -626,6 +657,7 @@ export const ServerView = () => {
               clientsSpeaking={clientsSpeaking}
               isConnecting={isConnecting}
               currentConnectionId={currentConnection?.id}
+              onDisconnect={handleVoiceDisconnect}
             />
 
             <ChatView

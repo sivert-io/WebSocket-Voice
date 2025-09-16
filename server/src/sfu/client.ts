@@ -15,6 +15,15 @@ interface ClientJoinData {
   user_token: string;
 }
 
+interface AudioControlData {
+  room_id: string;
+  user_id: string;
+  server_id: string;
+  server_token: string;
+  is_muted: boolean;
+  is_deafened: boolean;
+}
+
 interface WebSocketMessage {
   event: string;
   data: string;
@@ -34,6 +43,7 @@ export class SFUClient {
   private shouldReconnect = true;
   private registeredRooms = new Set<string>();
   private roomsToReregister = new Set<string>();
+  private activeUsers = new Map<string, { roomId: string; userId: string; connectedAt: number }>();
   private connectionHealth = {
     lastPing: 0,
     isHealthy: true,
@@ -325,6 +335,68 @@ export class SFUClient {
     
     // Simple encoding for now - in production use proper JWT signing
     return Buffer.from(payload).toString('base64');
+  }
+
+  async updateUserAudioState(roomId: string, userId: string, isMuted: boolean, isDeafened: boolean): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      consola.warn('SFU connection not available for audio state update');
+      return;
+    }
+
+    if (!roomId || !userId) {
+      throw new Error('Room ID and User ID are required for audio state update');
+    }
+
+    const audioControlData: AudioControlData = {
+      room_id: roomId,
+      user_id: userId,
+      server_id: this.serverId,
+      server_token: this.serverToken,
+      is_muted: isMuted,
+      is_deafened: isDeafened,
+    };
+
+    const message: WebSocketMessage = {
+      event: 'user_audio_control',
+      data: JSON.stringify(audioControlData),
+    };
+
+    this.ws.send(JSON.stringify(message));
+    consola.info(`Updated audio state for user ${userId} in room ${roomId}: muted=${isMuted}, deafened=${isDeafened}`);
+  }
+
+  // Track user connections for duplicate prevention
+  trackUserConnection(roomId: string, userId: string): boolean {
+    // Check if user is already connected to any room
+    const existingConnection = this.activeUsers.get(userId);
+    if (existingConnection) {
+      consola.warn(`🚫 SFU: User ${userId} already connected to room ${existingConnection.roomId}`);
+      return false; // Connection denied
+    }
+
+    // Track the new connection
+    this.activeUsers.set(userId, {
+      roomId,
+      userId,
+      connectedAt: Date.now()
+    });
+    
+    consola.info(`✅ SFU: User ${userId} connected to room ${roomId}`);
+    return true; // Connection allowed
+  }
+
+  // Remove user connection tracking
+  untrackUserConnection(userId: string): void {
+    const connection = this.activeUsers.get(userId);
+    if (connection) {
+      this.activeUsers.delete(userId);
+      consola.info(`✅ SFU: User ${userId} disconnected from room ${connection.roomId}`);
+    }
+  }
+
+  // Get active user connections (for debugging/monitoring)
+  getActiveUsers(): Map<string, { roomId: string; userId: string; connectedAt: number }> {
+    return new Map(this.activeUsers);
   }
 
   isConnected(): boolean {

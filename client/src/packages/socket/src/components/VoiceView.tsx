@@ -14,6 +14,7 @@ export const VoiceView = ({
   clientsSpeaking,
   isConnecting,
   currentConnectionId,
+  onDisconnect,
 }: {
   showVoiceView: boolean;
   voiceWidth: string;
@@ -23,6 +24,7 @@ export const VoiceView = ({
   clientsSpeaking: Record<string, boolean>;
   isConnecting: boolean;
   currentConnectionId?: string;
+  onDisconnect?: () => void;
 }) => {
   const prevPeerStatesRef = useRef<Record<string, boolean>>({});
 
@@ -186,7 +188,7 @@ export const VoiceView = ({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <Controls />
+                <Controls onDisconnect={onDisconnect} />
               </motion.div>
             )}
           </AnimatePresence>
