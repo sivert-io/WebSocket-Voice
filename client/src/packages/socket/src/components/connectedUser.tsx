@@ -11,7 +11,7 @@ export function ConnectedUser({
   isDeafened,
   isAFK,
   nickname,
-  isConnectedToVoice = true, // Default to true for backward compatibility
+  // isConnectedToVoice = true, // Default to true for backward compatibility
   isConnectingToVoice = false, // New prop for showing loading state
 }: {
   isSpeaking: boolean;

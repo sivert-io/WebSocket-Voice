@@ -2,10 +2,10 @@ import { Clients } from "../types";
 import { colors } from "../utils/colors";
 import consola from "consola";
 import { Server, Socket } from "socket.io";
-import { syncAllClients, verifyClient } from "./utils/clients";
+import { syncAllClients, verifyClient, broadcastMemberList } from "./utils/clients";
 import { sendInfo, sendServerDetails } from "./utils/server";
 import { SFUClient } from "../sfu/client";
-import { insertMessage, listMessages, MessageRecord, upsertUser, getUserByGrytId, getUserByServerId, addReactionToMessage } from "../db/scylla";
+import { insertMessage, listMessages, MessageRecord, upsertUser, getUserByGrytId, getUserByServerId, addReactionToMessage, getAllRegisteredUsers } from "../db/scylla";
 import { generateAccessToken, verifyAccessToken, refreshToken, TokenPayload } from "../utils/jwt";
 import { verifyJoinToken } from "../services/grytAuth";
 import { checkRateLimit, RateLimitRule } from "../utils/rateLimiter";
@@ -75,9 +75,9 @@ const RL: { [k: string]: RateLimitRule } = {
     scorePerAction: 0.3, maxScore: 8, scoreDecayMs: 1500
   },
   SERVER_JOIN: { 
-    limit: 5, windowMs: 60_000, banMs: 300_000,
-    // Score-based: 2 points per join attempt, max 6 points, decay 1 point per 10 seconds
-    scorePerAction: 2, maxScore: 6, scoreDecayMs: 10000
+    limit: 20, windowMs: 60_000, banMs: 60_000,
+    // Score-based: 0.5 points per join attempt, max 10 points, decay 1 point per 5 seconds
+    scorePerAction: 0.5, maxScore: 10, scoreDecayMs: 5000
   },
   REQUEST_ROOM: { 
     limit: 10, windowMs: 60_000,
@@ -93,7 +93,26 @@ const RL: { [k: string]: RateLimitRule } = {
 
 export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient | null) {
   const clientId = socket.id;
-  consola.info(`Client connected: ${clientId}`);
+  consola.info(`🔌 WEBSOCKET CONNECTION: Client ${clientId} connected from ${socket.handshake.address}`);
+  console.log(`🔌 Socket handshake:`, {
+    id: socket.id,
+    address: socket.handshake.address,
+    headers: socket.handshake.headers,
+    query: socket.handshake.query,
+    auth: socket.handshake.auth
+  });
+
+  // Log all incoming events
+  const originalEmit = socket.emit;
+  socket.emit = function(event: string, ...args: any[]) {
+    console.log(`📤 SERVER EMITTING to ${clientId}:`, event, args.length > 0 ? args : '');
+    return originalEmit.call(this, event, ...args);
+  };
+
+  // Log all outgoing events (client to server)
+  socket.onAny((event: string, ...args: any[]) => {
+    console.log(`📥 SERVER RECEIVED from ${clientId}:`, event, args.length > 0 ? args : '');
+  });
 
   // Enhanced event handlers with better error handling and validation
   const eventHandlers: { [event: string]: (...args: any[]) => void } = {
@@ -138,7 +157,27 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         
         if (!verification.valid || !verification.user) {
           consola.warn(`❌ Invalid join token from client ${clientId}`);
-          socket.emit('server:error', verification.error || 'Invalid join token');
+          
+          // Send specific error codes for better client handling
+          if (verification.error?.includes('not found') || verification.error?.includes('not authorized')) {
+            socket.emit('server:error', {
+              error: 'user_not_authorized',
+              message: 'You are not authorized to join this server. Please contact the server administrator or re-apply if this is an open server.',
+              canReapply: true // Assume servers can be open for now
+            });
+          } else if (verification.error?.includes('expired') || verification.error?.includes('invalid')) {
+            socket.emit('server:error', {
+              error: 'join_token_invalid',
+              message: 'Your join token is invalid or expired. Please get a new token and try again.',
+              canReapply: true
+            });
+          } else {
+            socket.emit('server:error', {
+              error: 'join_verification_failed',
+              message: verification.error || 'Failed to verify your access to this server.',
+              canReapply: true
+            });
+          }
           return;
         }
         
@@ -188,6 +227,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           consola.error('Failed to send server details after join:', detailsErr);
         }
         syncAllClients(io, clientsInfo);
+        broadcastMemberList(io, clientsInfo);
       } catch (err) {
         consola.error('server:join failed', err);
         socket.emit('server:error', 'Failed to join server');
@@ -365,10 +405,12 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         }
         console.log(`📡 SERVER syncAllClients triggered by streamID [${clientId}] - STATE CHANGED`);
         syncAllClients(io, clientsInfo);
+        broadcastMemberList(io, clientsInfo);
       } else {
         // Only streamID changed; avoid spamming by not broadcasting if identical
         console.log(`📡 SERVER streamID changed only [${clientId}] - broadcasting`);
         syncAllClients(io, clientsInfo);
+        broadcastMemberList(io, clientsInfo);
       }
     },
 
@@ -501,6 +543,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       if (clientWithStream && clientsInfo[clientWithStream]) {
         clientsInfo[clientWithStream].isConnectedToVoice = true;
         syncAllClients(io, clientsInfo);
+        broadcastMemberList(io, clientsInfo);
         consola.info(`Client ${clientWithStream} voice connection established`);
       }
     },
@@ -514,6 +557,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       if (clientWithStream && clientsInfo[clientWithStream]) {
         clientsInfo[clientWithStream].isConnectedToVoice = false;
         syncAllClients(io, clientsInfo);
+        broadcastMemberList(io, clientsInfo);
         consola.info(`Client ${clientWithStream} voice connection lost`);
       }
     },
@@ -784,6 +828,59 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         socket.emit('token:error', 'Failed to refresh token');
       }
     },
+
+    // Fetch member list with registered users and their online status
+    'members:fetch': async () => {
+      try {
+        consola.info(`👥 Fetching member list for client ${clientId}`);
+        
+        // Get all registered users from database
+        const registeredUsers = await getAllRegisteredUsers();
+        
+        // Create a map of online users by serverUserId
+        const onlineUsers = new Map<string, any>();
+        Object.values(clientsInfo).forEach(client => {
+          if (client.serverUserId && !client.serverUserId.startsWith('temp_')) {
+            onlineUsers.set(client.serverUserId, client);
+          }
+        });
+        
+        // Combine registered users with online status
+        const members = registeredUsers.map(user => {
+          const onlineClient = onlineUsers.get(user.server_user_id);
+          
+          let status: 'online' | 'in_voice' | 'afk' | 'offline' = 'offline';
+          if (onlineClient) {
+            if (onlineClient.isAFK) {
+              status = 'afk';
+            } else if (onlineClient.isConnectedToVoice && onlineClient.hasJoinedChannel) {
+              status = 'in_voice';
+            } else {
+              status = 'online';
+            }
+          }
+          
+          return {
+            serverUserId: user.server_user_id,
+            nickname: user.nickname,
+            status,
+            lastSeen: user.last_seen,
+            isMuted: onlineClient?.isMuted || false,
+            isDeafened: onlineClient?.isDeafened || false,
+            color: onlineClient?.color || '#666666',
+            isConnectedToVoice: onlineClient?.isConnectedToVoice || false,
+            hasJoinedChannel: onlineClient?.hasJoinedChannel || false,
+            streamID: onlineClient?.streamID || '',
+          };
+        });
+        
+        consola.info(`📤 Sending member list with ${members.length} registered users to client ${clientId}`);
+        socket.emit('members:list', members);
+      } catch (err) {
+        consola.error('members:fetch failed', err);
+        socket.emit('members:error', 'Failed to fetch member list');
+      }
+    },
   };
 
   // Set up base socket event handlers
@@ -792,6 +889,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
   });
 
   socket.on("info", () => {
+    console.log(`📤 CLIENT REQUESTED INFO from ${clientId} (${socket.handshake.address})`);
     sendInfo(socket);
   });
 
@@ -806,6 +904,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     
     delete clientsInfo[clientId];
     syncAllClients(io, clientsInfo);
+    broadcastMemberList(io, clientsInfo);
   });
 
   // Send initial info
@@ -874,6 +973,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
   verifyClient(socket);
   sendServerDetails(socket, clientsInfo);
   syncAllClients(io, clientsInfo);
+  broadcastMemberList(io, clientsInfo);
 
   // Register all event handlers
   Object.entries(eventHandlers).forEach(([event, handler]) => {

@@ -1,4 +1,4 @@
-import { Box } from "@radix-ui/themes";
+// import { Box } from "@radix-ui/themes";
 import { motion } from "motion/react";
 
 interface SkeletonBaseProps {

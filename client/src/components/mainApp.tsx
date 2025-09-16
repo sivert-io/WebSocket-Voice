@@ -6,7 +6,7 @@ import { ServerView } from "@/socket/src/components/serverView";
 import { Sidebar } from "./sidebar";
 
 export function MainApp() {
-  const { servers } = useServerManagement();
+  const { servers, setShowAddServer } = useServerManagement();
 
   return (
     <Flex
@@ -15,7 +15,7 @@ export function MainApp() {
       overflow="hidden"
       p="4"
     >
-      <Sidebar />
+      <Sidebar setShowAddServer={setShowAddServer} />
 
       {Object.keys(servers).length > 0 ? (
         <ServerView />

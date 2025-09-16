@@ -8,7 +8,7 @@ import useSound from "use-sound";
 import connectMp3 from "@/audio/src/assets/connect.mp3";
 import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
-import { useServerManagement } from "./useServerManagement";
+import { useServerSettings } from "@/settings/src/hooks/useServerSettings";
 import { checkAuthenticationOnLaunch, canUseServer, forceSignOutWithAccount } from "@/common";
 import { useAccount } from "@/common";
 import { handleRateLimitError } from "../utils/rateLimitHandler";
@@ -20,6 +20,7 @@ import {
 } from "@/settings/src/types/server";
 
 import { Clients } from "../types/clients";
+import { MemberInfo } from "../components/MemberSidebar";
 
 type Sockets = { [host: string]: Socket };
 
@@ -47,13 +48,17 @@ function useSocketsHook() {
   
   const { 
     servers, 
-    addServer, 
-  } = useServerManagement();
+    setServers, 
+  } = useServerSettings();
   const [newServerInfo, setNewServerInfo] = useState<Server[]>([]);
   const [serverDetailsList, setServerDetailsList] = useState<serverDetailsList>(
     {}
   );
+  const [failedServerDetails, setFailedServerDetails] = useState<Record<string, { error: string; message: string; timestamp: number }>>({});
   const [clients, setClients] = useState<{ [host: string]: Clients }>({});
+  const [memberLists, setMemberLists] = useState<{ [host: string]: MemberInfo[] }>({});
+  const [serverConnectionStatus, setServerConnectionStatus] = useState<Record<string, 'connected' | 'disconnected' | 'connecting'>>({});
+  // const [reconnectAttempts, setReconnectAttempts] = useState<Record<string, number>>({});
 
   // Sound hooks for peer notifications with dynamic settings
   const [connectSound] = useSound(
@@ -75,6 +80,16 @@ function useSocketsHook() {
     return serverDetailsList[host]?.channels.find((c) => c.id === channel);
   }
 
+  function requestMemberList(host: string) {
+    const socket = sockets[host];
+    if (socket && socket.connected) {
+      console.log(`📤 CLIENT REQUESTING member list from [${host}]`);
+      socket.emit('members:fetch');
+    } else {
+      console.warn(`⚠️ Cannot request member list from [${host}] - socket not connected`);
+    }
+  }
+
   // Send complete client state whenever any state changes
   useEffect(() => {
     Object.keys(sockets).forEach((host) => {
@@ -91,13 +106,31 @@ function useSocketsHook() {
 
   // Add new or update servers to the list
   useEffect(() => {
-    const info = [...newServerInfo];
-    newServerInfo.forEach((server) => {
-      addServer(server, false); // Don't auto-focus when adding from socket discovery
-      info.splice(info.indexOf(server), 1);
-    });
-    if (info.length !== newServerInfo.length) setNewServerInfo(info);
-  }, [newServerInfo, addServer]);
+    if (newServerInfo.length > 0) {
+      console.log("🔄 PROCESSING new server info:", newServerInfo);
+      console.log("🔄 Current servers before processing:", servers);
+      
+      newServerInfo.forEach((server, index) => {
+        console.log(`🔄 Processing server ${index + 1}/${newServerInfo.length}:`, server);
+        
+        // Check if server already exists and is the same
+        const existingServer = servers[server.host];
+        if (existingServer && existingServer.name === server.name) {
+          console.log("🔄 Server already exists with same name, skipping add:", server.host);
+          return;
+        }
+        
+        // Add the server directly
+        const newServers = { ...servers, [server.host]: server };
+        console.log("🔄 Adding server directly:", server.host);
+        setServers(newServers);
+      });
+      
+      console.log("🔄 Clearing newServerInfo queue...");
+      // Clear the processed server info
+      setNewServerInfo([]);
+    }
+  }, [newServerInfo, servers, setServers]);
 
   // Create sockets for all servers
   useEffect(() => {
@@ -109,24 +142,69 @@ function useSocketsHook() {
         // Get access token for this server if available
         const accessToken = localStorage.getItem(`accessToken_${host}`);
         
-        console.log(`🔌 Connecting to server ${host} with token:`, servers[host].token);
-        console.log(`📊 Current server details keys:`, Object.keys(serverDetailsList));
-        
         const socket = io(`wss://${host}`, {
           auth: {
             token: servers[host].token,
             accessToken: accessToken || undefined,
           },
         });
+        
+        // Log all WebSocket events for this socket
+        console.log(`🔌 CREATING SOCKET for ${host}:`, {
+          url: `wss://${host}`,
+          auth: {
+            token: servers[host].token ? "***" : "none",
+            accessToken: accessToken ? "***" : "none"
+          }
+        });
+
+        // Log all outgoing events (client to server)
+        const originalEmit = socket.emit;
+        socket.emit = function(event: string, ...args: any[]) {
+          console.log(`📤 CLIENT EMITTING to [${host}]:`, event, args.length > 0 ? args : '');
+          return originalEmit.call(this, event, ...args);
+        };
+
+        // Log all incoming events (server to client)
+        socket.onAny((event: string, ...args: any[]) => {
+          console.log(`📥 CLIENT RECEIVED from [${host}]:`, event, args.length > 0 ? args : '');
+        });
+        
         newSockets[host] = socket;
         changed = true;
         
+        // Set initial connecting status
+        setServerConnectionStatus(prev => ({ ...prev, [host]: 'connecting' }));
+        
         socket.on("connect", () => {
           console.log(`✅ Connected to server ${host}`);
+          setServerConnectionStatus(prev => ({ ...prev, [host]: 'connected' }));
+          // setReconnectAttempts(prev => ({ ...prev, [host]: 0 })); // Reset reconnect attempts on successful connection
+          
+          // Request server info immediately after connection
+          console.log(`📤 CLIENT REQUESTING server info from [${host}]`);
+          console.log(`📤 Socket ID: ${socket.id}, Socket connected: ${socket.connected}`);
+          socket.emit("info");
+          console.log(`📤 Info request emitted to [${host}]`);
         });
         
         socket.on("connect_error", (error) => {
           console.error(`❌ Connection error to server ${host}:`, error);
+          setServerConnectionStatus(prev => ({ ...prev, [host]: 'disconnected' }));
+          
+          // Auto-reconnect with exponential backoff (max 3 attempts)
+          // setReconnectAttempts(prev => {
+          //   const currentAttempts = prev[host] || 0;
+          //   if (currentAttempts < 3) {
+          //     const delay = Math.min(1000 * Math.pow(2, currentAttempts), 10000); // 1s, 2s, 4s, max 10s
+          //     console.log(`🔄 Auto-reconnecting to ${host} in ${delay}ms (attempt ${currentAttempts + 1}/3)`);
+          //     setTimeout(() => {
+          //       socket.connect();
+          //     }, delay);
+          //     return { ...prev, [host]: currentAttempts + 1 };
+          //   }
+          //   return prev;
+          // });
         });
 
         socket.on("voice_error", (error: { type: string; message: string; existingConnection?: any }) => {
@@ -199,14 +277,41 @@ function useSocketsHook() {
           }));
         });
 
-        socket.on("info", (data: Server) => {
-          setNewServerInfo((old) => [
-            ...old,
-            {
-              ...servers[host],
-              name: data.name,
-            },
-          ]);
+        socket.on("info", (data: any) => {
+          console.log(`📥 CLIENT RECEIVED server info from [${host}]:`, data);
+          console.log(`📥 Current servers[${host}]:`, servers[host]);
+          
+          const updatedServer = {
+            ...servers[host],
+            name: data.name || servers[host]?.name || host,
+          };
+          
+          console.log(`📥 Updated server object:`, updatedServer);
+          
+          // Check if the server name has actually changed
+          const currentServer = servers[host];
+          if (currentServer && currentServer.name === updatedServer.name) {
+            console.log(`📥 Server ${host} name unchanged (${updatedServer.name}), skipping processing`);
+            return;
+          }
+          
+          console.log(`📥 Adding to newServerInfo queue...`);
+          
+          setNewServerInfo((old) => {
+            // Check if this server is already in the queue to prevent duplicates
+            const alreadyExists = old.some(server => server.host === updatedServer.host);
+            if (alreadyExists) {
+              console.log(`📥 Server ${updatedServer.host} already in queue, skipping duplicate`);
+              return old;
+            }
+            
+            const newInfo = [
+              ...old,
+              updatedServer,
+            ];
+            console.log(`📥 newServerInfo updated:`, newInfo);
+            return newInfo;
+          });
         });
 
         // Check if user can use this server - but don't force sign out yet
@@ -240,8 +345,6 @@ function useSocketsHook() {
         }
 
         socket.on("details", (data: serverDetails) => {
-          console.log(`📥 Received details from server ${host}:`, data);
-          console.log(`📊 Server details before update:`, Object.keys(serverDetailsList));
           
           // Check if server details were denied due to missing token
           if (data.error === "token_required") {
@@ -250,12 +353,15 @@ function useSocketsHook() {
             // Get the stored server token and re-attempt to join
             const storedToken = servers[host]?.token;
             if (storedToken) {
-              console.log(`🔄 Re-joining server ${host} with stored token`);
-              socket.emit("server:join", {
-                joinToken: grytToken,
-                nickname,
-                serverToken: storedToken
-              });
+              // Add a delay to prevent rate limiting
+              setTimeout(() => {
+                console.log(`🔄 Re-joining server ${host} with stored token`);
+                socket.emit("server:join", {
+                  joinToken: grytToken,
+                  nickname,
+                  serverToken: storedToken
+                });
+              }, 500); // 0.5 second delay
             } else {
               console.error(`❌ No stored token for server ${host}`);
               toast.error(`No access token for server ${host}. Please re-add the server.`);
@@ -267,22 +373,41 @@ function useSocketsHook() {
           
           if (data.error && data.message) {
             console.error(`🚫 Server details denied for ${host}:`, data.error, data.message);
-            toast.error(`Access denied: ${data.message}`);
+            
+            // Track failed server details request
+            setFailedServerDetails(prev => ({
+              ...prev,
+              [host]: {
+                error: data.error || 'unknown_error',
+                message: data.message || 'Unknown error occurred',
+                timestamp: Date.now()
+              }
+            }));
+            
+            // Handle rate limiting specifically
+            if (data.error === 'rate_limited') {
+              handleRateLimitError({
+                error: data.error,
+                message: data.message
+              }, "Server details");
+            } else {
+              toast.error(`Access denied: ${data.message}`);
+            }
             return;
           }
-          
-          console.log(`✅ Setting server details for ${host}:`, {
-            channels: data.channels?.length || 0,
-            sfu_host: data.sfu_host,
-            stun_hosts: data.stun_hosts?.length || 0
-          });
           
           setServerDetailsList((old) => {
             const updated = {
               ...old,
               [host]: data,
             };
-            console.log(`📊 Server details after update:`, Object.keys(updated));
+            return updated;
+          });
+          
+          // Clear any previous failure for this server
+          setFailedServerDetails(prev => {
+            const updated = { ...prev };
+            delete updated[host];
             return updated;
           });
         });
@@ -301,12 +426,43 @@ function useSocketsHook() {
         });
 
         // Handle server join errors - don't force sign out, just show error
-        socket.on("server:error", (errorInfo: { error: string; message?: string; retryAfterMs?: number; currentScore?: number; maxScore?: number }) => {
+        socket.on("server:error", (errorInfo: { error: string; message?: string; retryAfterMs?: number; currentScore?: number; maxScore?: number; canReapply?: boolean }) => {
           console.error(`❌ Server join failed for ${host}:`, errorInfo);
           
           // Handle rate limiting with user-friendly message
           if (errorInfo.error === 'rate_limited' && errorInfo.message) {
             handleRateLimitError(errorInfo, "Server connection");
+            return;
+          }
+          
+          // Handle user authorization errors
+          if (errorInfo.error === 'user_not_authorized' || errorInfo.error === 'join_token_invalid' || errorInfo.error === 'join_verification_failed') {
+            console.log(`🚫 User authorization failed for server ${host}:`, errorInfo);
+            
+            // Show user-friendly error message
+            const message = errorInfo.message || 'You are not authorized to join this server.';
+            toast.error(message, { duration: 6000 });
+            
+            // Show follow-up action message after a delay
+            setTimeout(() => {
+              if (errorInfo.canReapply) {
+                toast(
+                  `You can re-apply to join this server or remove it from your list. Check the server settings for more options.`,
+                  { 
+                    duration: 8000,
+                    icon: 'ℹ️'
+                  }
+                );
+              } else {
+                toast(
+                  `You can remove this server from your list if you no longer need access.`,
+                  { 
+                    duration: 6000,
+                    icon: 'ℹ️'
+                  }
+                );
+              }
+            }, 2000);
             return;
           }
           
@@ -341,6 +497,7 @@ function useSocketsHook() {
 
         socket.on("disconnect", () => {
           delete newSockets[host];
+          setServerConnectionStatus(prev => ({ ...prev, [host]: 'disconnected' }));
           toast.error(`Disconnected from ${host}`);
         });
 
@@ -429,6 +586,27 @@ function useSocketsHook() {
           });
         });
 
+        // Handle member list updates
+        socket.on("members:list", (data: MemberInfo[]) => {
+          console.log(`📥 CLIENT RECEIVED members:list from [${host}]:`, {
+            totalMembers: data.length,
+            memberSummary: data.map(member => ({
+              serverUserId: member.serverUserId,
+              nickname: member.nickname,
+              status: member.status,
+              isConnectedToVoice: member.isConnectedToVoice,
+              hasJoinedChannel: member.hasJoinedChannel,
+            })),
+            timestamp: Date.now(),
+            host
+          });
+          
+          setMemberLists((old) => ({
+            ...old,
+            [host]: data,
+          }));
+        });
+
         // Add peer join/leave room event handlers for sound notifications
         socket.on("peerJoinedRoom", (data: { clientId: string; nickname: string }) => {
           console.log("🔊 Peer joined room:", data.nickname);
@@ -464,7 +642,7 @@ function useSocketsHook() {
     }
   }, [servers, connectSound, disconnectSound, connectSoundEnabled, disconnectSoundEnabled]);
 
-  return { sockets, serverDetailsList, clients, getChannelDetails };
+  return { sockets, serverDetailsList, clients, memberLists, getChannelDetails, requestMemberList, failedServerDetails, serverConnectionStatus };
 }
 
 export const useSockets = singletonHook(
@@ -472,7 +650,11 @@ export const useSockets = singletonHook(
     sockets: {},
     serverDetailsList: {},
     clients: {},
+    memberLists: {},
     getChannelDetails: () => undefined,
+    requestMemberList: () => {},
+    failedServerDetails: {},
+    serverConnectionStatus: {},
   },
   useSocketsHook
 );

@@ -12,7 +12,7 @@ interface ControlsProps {
   onDisconnect?: () => void;
 }
 
-export function Controls({ onDisconnect }: ControlsProps) {
+export function Controls({ }: ControlsProps) {
   const [isBrowserSupported] = useState(getIsBrowserSupported());
   const { disconnect } = useSFU();
 
@@ -28,7 +28,7 @@ export function Controls({ onDisconnect }: ControlsProps) {
   }
 
   function handleDisconnect() {
-    disconnect(true, onDisconnect);
+    disconnect();
   }
 
   return (

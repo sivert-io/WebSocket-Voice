@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Pencil2Icon, PinTopIcon } from "@radix-ui/react-icons";
 import {
   Avatar,
@@ -16,11 +17,16 @@ import { MdAdd, MdMic } from "react-icons/md";
 
 import { useAccount } from "@/common";
 import { useSettings } from "@/settings";
-import { useServerManagement } from "@/socket";
+import { useServerManagement, useSockets } from "@/socket";
 import { useSFU } from "@/webRTC";
 import { MiniControls } from "@/webRTC/src/components/miniControls";
+import { RemoveServerModal } from "@/socket/src/components/RemoveServerModal";
 
-export function Sidebar() {
+interface SidebarProps {
+  setShowAddServer: (show: boolean) => void;
+}
+
+export function Sidebar({ setShowAddServer }: SidebarProps) {
   const { logout } = useAccount();
   const {
     nickname,
@@ -31,12 +37,25 @@ export function Sidebar() {
   const {
     servers,
     currentlyViewingServer,
-    setShowAddServer,
+    showRemoveServer,
     setShowRemoveServer,
+    removeServer,
     switchToServer,
   } = useServerManagement();
+  
 
   const { currentServerConnected, isConnected } = useSFU();
+  const { serverConnectionStatus } = useSockets();
+
+  // Debug modal state (only log when modal state changes)
+  useEffect(() => {
+    if (showRemoveServer) {
+      console.log("🔄 Remove server modal opened for:", showRemoveServer);
+    } else {
+      console.log("🔄 Remove server modal closed");
+    }
+  }, [showRemoveServer]);
+
 
   return (
     <Flex
@@ -47,29 +66,44 @@ export function Sidebar() {
       justify="between"
     >
       <Flex direction="column" gap="4" pt="2">
-        {Object.keys(servers).map((host, index) => (
-          <HoverCard.Root openDelay={500} closeDelay={0} key={host}>
-            <ContextMenu.Root>
-              <ContextMenu.Trigger>
-                <HoverCard.Trigger>
-                  <Box position="relative">
-                    <Avatar
-                      size="2"
-                      color="gray"
-                      asChild
-                      fallback={servers[host].name[0]}
-                      style={{
-                        opacity: currentlyViewingServer?.host === host ? 1 : 0.5,
-                      }}
-                      src={`https://${host}/icon`}
-                    >
-                      <Button
+        {Object.keys(servers).map((host, index) => {
+          const connectionStatus = serverConnectionStatus[host] || 'disconnected';
+          const isOffline = connectionStatus === 'disconnected';
+          const isConnecting = connectionStatus === 'connecting';
+          
+          return (
+            <HoverCard.Root openDelay={500} closeDelay={0} key={host}>
+              <ContextMenu.Root>
+                <ContextMenu.Trigger>
+                  <HoverCard.Trigger>
+                    <Box position="relative">
+                      <Avatar
+                        size="2"
+                        color="gray"
+                        asChild
+                        fallback={servers[host].name[0]}
                         style={{
-                          padding: "0",
+                          opacity: currentlyViewingServer?.host === host ? 1 : (isOffline ? 0.3 : 0.5),
+                          filter: isOffline ? 'grayscale(100%)' : 'none',
                         }}
-                        onClick={() => switchToServer(host)}
-                      ></Button>
-                    </Avatar>
+                        src={`https://${host}/icon`}
+                      >
+                        <Button
+                          style={{
+                            padding: "0",
+                            cursor: isOffline ? "not-allowed" : "pointer",
+                          }}
+                          onClick={() => {
+                            console.log("🖱️ Sidebar server clicked:", host, "isOffline:", isOffline);
+                            if (!isOffline) {
+                              console.log("🖱️ Calling switchToServer for:", host);
+                              switchToServer(host);
+                            } else {
+                              console.log("🖱️ Server is offline, not switching");
+                            }
+                          }}
+                        ></Button>
+                      </Avatar>
                     
                     {/* Connection badge */}
                     {isConnected && currentServerConnected === host && (
@@ -111,7 +145,11 @@ export function Sidebar() {
                 <ContextMenu.Separator />
                 <ContextMenu.Item
                   color="red"
-                  onClick={() => setShowRemoveServer(host)}
+                  onClick={() => {
+                    console.log("🖱️ Context menu Leave clicked for:", host);
+                    setShowRemoveServer(host);
+                    console.log("🖱️ setShowRemoveServer called with:", host);
+                  }}
                 >
                   Leave
                 </ContextMenu.Item>
@@ -131,11 +169,22 @@ export function Sidebar() {
                       • Connected to voice
                     </span>
                   )}
+                  {isOffline && (
+                    <span style={{ color: "var(--red-9)", marginLeft: "8px" }}>
+                      • OFFLINE
+                    </span>
+                  )}
+                  {isConnecting && (
+                    <span style={{ color: "var(--orange-9)", marginLeft: "8px" }}>
+                      • Connecting...
+                    </span>
+                  )}
                 </Heading>
               </Box>
             </HoverCard.Content>
           </HoverCard.Root>
-        ))}
+          );
+        })}
         <Tooltip content="Add new server" delayDuration={100} side="right">
           <IconButton
             variant="soft"
@@ -177,6 +226,23 @@ export function Sidebar() {
           </DropdownMenu.Content>
         </DropdownMenu.Root>
       </Flex>
+
+      {/* Remove Server Modal */}
+      <RemoveServerModal
+        isOpen={!!showRemoveServer}
+        onClose={() => {
+          console.log("🔄 Sidebar modal onClose called");
+          setShowRemoveServer(null);
+        }}
+        onConfirm={() => {
+          if (showRemoveServer) {
+            console.log("🗑️ Confirming server removal from sidebar:", showRemoveServer);
+            removeServer(showRemoveServer);
+          }
+        }}
+        serverName={showRemoveServer ? servers[showRemoveServer]?.name : undefined}
+        serverHost={showRemoveServer || undefined}
+      />
     </Flex>
   );
 }

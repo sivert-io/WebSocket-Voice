@@ -11,7 +11,6 @@ export const ChannelList = ({
   clients,
   currentChannelId,
   currentServerConnected,
-  showVoiceView,
   isConnecting,
   currentConnectionId,
   selectedChannelId,

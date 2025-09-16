@@ -81,6 +81,13 @@ const io = new Server(httpServer, {
 });
 
 io.on("connection", (socket) => {
+	console.log(`🔌 MAIN SERVER: New WebSocket connection established`);
+	console.log(`🔌 Connection details:`, {
+		id: socket.id,
+		address: socket.handshake.address,
+		userAgent: socket.handshake.headers['user-agent'],
+		origin: socket.handshake.headers.origin
+	});
 	socketHandler(io, socket, sfuClient);
 });
 
@@ -92,4 +99,10 @@ httpServer.listen(PORT, () => {
 	if (process.env.SFU_WS_HOST)
 		consola.info("SFU host set to " + process.env.SFU_WS_HOST);
 	consola.success("Signaling server started at port", PORT);
+	console.log(`🔌 WEBSOCKET SERVER READY:`, {
+		port: PORT,
+		serverName: process.env.SERVER_NAME || "Unknown Server",
+		corsOrigin: process.env.CORS_ORIGIN || "https://app.gryt.chat",
+		ready: true
+	});
 });

@@ -1,6 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import { upsertUser, getUserByServerId } from "../db/scylla";
+import { upsertUser, getUserByServerId, getAllRegisteredUsers } from "../db/scylla";
 
 export const usersRouter = express.Router();
 
@@ -54,6 +54,24 @@ usersRouter.get(
           nickname: user.nickname
         };
         res.json(publicUserInfo);
+      })
+      .catch(next);
+  }
+);
+
+usersRouter.get(
+  "/",
+  (req: Request, res: Response, next: NextFunction): void => {
+    Promise.resolve()
+      .then(() => getAllRegisteredUsers())
+      .then((users) => {
+        // Only return public information for all users
+        const publicUsersInfo = users.map(user => ({
+          serverUserId: user.server_user_id,
+          nickname: user.nickname,
+          lastSeen: user.last_seen
+        }));
+        res.json(publicUsersInfo);
       })
       .catch(next);
   }

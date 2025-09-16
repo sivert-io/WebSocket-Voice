@@ -71,7 +71,10 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		// Upgrade the HTTP request to a WebSocket connection
 		unsafeConn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			h.debugLog("❌ WebSocket upgrade error: %v", err)
+			// Only log WebSocket upgrade errors in debug mode to reduce noise
+			if h.config.Debug {
+				h.debugLog("❌ WebSocket upgrade error: %v", err)
+			}
 			return err
 		}
 

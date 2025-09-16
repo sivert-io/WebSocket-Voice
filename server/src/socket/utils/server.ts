@@ -14,13 +14,21 @@ if (stunHosts.length === 0) {
 }
 
 export function sendInfo(socket: Socket) {
-  console.log("Sending server info to client:", socket.id);
-
-  socket.emit("info", {
+  const serverInfo = {
     name: process.env.SERVER_NAME || "Unknown Server",
     members: Object.keys({}).length.toString(), // You might want to pass actual client count
     version: process.env.SERVER_VERSION || "1.0.0",
+  };
+  
+  console.log(`📡 SENDING SERVER INFO to client ${socket.id}:`, serverInfo);
+  console.log(`📡 Environment variables:`, {
+    SERVER_NAME: process.env.SERVER_NAME,
+    SERVER_VERSION: process.env.SERVER_VERSION,
+    NODE_ENV: process.env.NODE_ENV
   });
+
+  socket.emit("info", serverInfo);
+  console.log(`✅ Server info sent to client ${socket.id}`);
 }
 
 export function sendServerDetails(socket: Socket, clientsInfo: Clients) {

@@ -8,7 +8,6 @@ import {
   Dialog,
   Flex,
   IconButton,
-  Spinner,
   Text,
   TextField,
 } from "@radix-ui/themes";
@@ -25,8 +24,14 @@ export type FetchInfo = {
   members: string;
 };
 
-export function AddNewServer() {
-  const { showAddServer, setShowAddServer, addServer } = useServerManagement();
+interface AddNewServerProps {
+  showAddServer: boolean;
+  setShowAddServer: (show: boolean) => void;
+}
+
+export function AddNewServer({ showAddServer, setShowAddServer }: AddNewServerProps) {
+  const { addServer, servers } = useServerManagement();
+  
   const [serverHost, setServerHost] = useState("");
   const [serverInfo, setServerInfo] = useState<FetchInfo | null>(null);
   const [hasError, setHasError] = useState("");

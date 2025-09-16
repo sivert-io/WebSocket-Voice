@@ -1,4 +1,4 @@
-import { Flex, Box } from "@radix-ui/themes";
+import { Flex } from "@radix-ui/themes";
 import { SkeletonBase } from "./SkeletonBase";
 import { ChannelSkeleton } from "./ChannelSkeleton";
 

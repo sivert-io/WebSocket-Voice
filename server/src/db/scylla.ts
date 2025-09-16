@@ -247,6 +247,32 @@ export async function getUserByServerId(serverUserId: string): Promise<UserRecor
   }
 }
 
+export async function getAllRegisteredUsers(): Promise<UserRecord[]> {
+  const c = getScyllaClient();
+  
+  try {
+    const rs = await c.execute(
+      `SELECT server_user_id, gryt_user_id, nickname, created_at, last_seen FROM users_by_server_id`,
+      [],
+      { prepare: true }
+    );
+    
+    const users = rs.rows.map((r) => ({
+      gryt_user_id: r["gryt_user_id"],
+      server_user_id: r["server_user_id"],
+      nickname: r["nickname"],
+      created_at: r["created_at"],
+      last_seen: r["last_seen"],
+    }));
+    
+    console.log(`👥 Fetched ${users.length} registered users from database`);
+    return users;
+  } catch (error) {
+    console.error(`❌ Failed to get all registered users:`, error);
+    throw error;
+  }
+}
+
 export async function insertMessage(record: Omit<MessageRecord, "message_id" | "created_at"> & { created_at?: Date; message_id?: string }): Promise<MessageRecord> {
   const c = getScyllaClient();
   const created_at = record.created_at ?? new Date();

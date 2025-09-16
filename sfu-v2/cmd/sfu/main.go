@@ -146,18 +146,38 @@ func main() {
 		}
 	})
 
-	// Handle WebSocket connections with recovery wrapper
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		recovery.SafeExecuteWithContext("WEBSOCKET", "HANDLE_CONNECTION", "", "", r.RemoteAddr, func() error {
-			wsHandler.HandleWebSocket(w, r)
-			return nil
-		})
+	// Add health check endpoint for monitoring systems
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy","service":"sfu","timestamp":"` + time.Now().Format(time.RFC3339) + `"}`))
 	})
 
-	log.Printf("✅ WebSocket endpoints configured:")
-	log.Printf("   📡 / (default client endpoint)")
-	log.Printf("   📡 /client (explicit client endpoint)")
-	log.Printf("   📡 /server (server registration endpoint)")
+	// Handle WebSocket connections with recovery wrapper
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is a WebSocket upgrade request
+		if r.Header.Get("Upgrade") == "websocket" && r.Header.Get("Connection") != "" {
+			recovery.SafeExecuteWithContext("WEBSOCKET", "HANDLE_CONNECTION", "", "", r.RemoteAddr, func() error {
+				wsHandler.HandleWebSocket(w, r)
+				return nil
+			})
+		} else {
+			// Handle non-WebSocket requests (health checks, monitoring, etc.)
+			log.Printf("📋 Non-WebSocket request from %s: %s %s (User-Agent: %s)",
+				r.RemoteAddr, r.Method, r.URL.Path, r.Header.Get("User-Agent"))
+
+			// Return a helpful response for non-WebSocket requests
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("This endpoint only accepts WebSocket connections. Use /health for health checks."))
+		}
+	})
+
+	log.Printf("✅ Endpoints configured:")
+	log.Printf("   📡 / (WebSocket client endpoint)")
+	log.Printf("   📡 /client (explicit WebSocket client endpoint)")
+	log.Printf("   📡 /server (WebSocket server registration endpoint)")
+	log.Printf("   🏥 /health (HTTP health check endpoint)")
 
 	// Log initial system stats
 	recovery.LogSystemStats()

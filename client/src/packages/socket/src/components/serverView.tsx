@@ -1,7 +1,8 @@
-import { Box, Flex } from "@radix-ui/themes";
+import { Box, Flex, Button, Text } from "@radix-ui/themes";
 import { useEffect, useMemo, useRef,useState } from "react";
 import toast from "react-hot-toast";
 import { v4 as uuidv4 } from "uuid";
+import { IoMdRefresh } from "react-icons/io";
 
 import { isSpeaking, useMicrophone } from "@/audio";
 import { isUserAuthenticated,useUserId } from "@/common";
@@ -17,13 +18,16 @@ import { handleRateLimitError } from "../utils/rateLimitHandler";
 import { ChannelList } from "./ChannelList";
 import { ChatMessage, ChatView } from "./ChatView";
 import { ServerHeader } from "./ServerHeader";
+import { RemoveServerModal } from "./RemoveServerModal";
 import { VoiceView } from "./VoiceView";
+import { MemberSidebar } from "./MemberSidebar";
 import { ServerDetailsSkeleton } from "./skeletons";
 
 export const ServerView = () => {
   const [clientsSpeaking, setClientsSpeaking] = useState<{
     [id: string]: boolean;
   }>({});
+  const [serverLoadingTimeouts, setServerLoadingTimeouts] = useState<Record<string, number>>({});
   const [voiceWidth, setVoiceWidth] = useState("0px");
   const [pendingChannelId, setPendingChannelId] = useState<string | null>(null);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
@@ -45,8 +49,18 @@ export const ServerView = () => {
   
   const {
     currentlyViewingServer,
+    showRemoveServer,
     setShowRemoveServer,
+    removeServer,
+    getLastSelectedChannel,
+    setLastSelectedChannelForServer,
   } = useServerManagement();
+
+  // Debug currentlyViewingServer changes
+  useEffect(() => {
+    console.log("🔍 currentlyViewingServer changed:", currentlyViewingServer?.name || "null");
+  }, [currentlyViewingServer]);
+
 
   const {
     connect,
@@ -108,20 +122,79 @@ export const ServerView = () => {
 
   const { microphoneBuffer } = useMicrophone(shouldAccessMic);
 
-  const { sockets, serverDetailsList, clients } = useSockets();
+  const { sockets, serverDetailsList, clients, memberLists, requestMemberList, failedServerDetails } = useSockets();
   const userId = useUserId();
 
-  // When viewing a server, default to the first text channel if none selected
+  // Request member list when server is connected
+  useEffect(() => {
+    if (isConnected && currentlyViewingServer?.host) {
+      console.log(`📤 Requesting member list for server: ${currentlyViewingServer.host}`);
+      requestMemberList(currentlyViewingServer.host);
+    }
+  }, [isConnected, currentlyViewingServer?.host, requestMemberList]);
+
+
+  // Set up timeout for server details loading
+  useEffect(() => {
+    if (!currentlyViewingServer) return;
+
+    const host = currentlyViewingServer.host;
+    const hasDetails = !!serverDetailsList[host];
+    const hasFailed = !!failedServerDetails[host];
+    const hasTimeout = !!serverLoadingTimeouts[host];
+
+    // If we don't have details, haven't failed, and don't have a timeout set, start one
+    if (!hasDetails && !hasFailed && !hasTimeout) {
+      const timeoutId = window.setTimeout(() => {
+        setServerLoadingTimeouts(prev => {
+          const updated = { ...prev };
+          delete updated[host];
+          return updated;
+        });
+      }, 10000); // 10 second timeout
+
+      setServerLoadingTimeouts(prev => ({
+        ...prev,
+        [host]: timeoutId
+      }));
+    }
+
+    // Clean up timeout if we get details or fail
+    if ((hasDetails || hasFailed) && hasTimeout) {
+      clearTimeout(serverLoadingTimeouts[host]);
+      setServerLoadingTimeouts(prev => {
+        const updated = { ...prev };
+        delete updated[host];
+        return updated;
+      });
+    } 
+  }, [currentlyViewingServer, serverDetailsList, failedServerDetails, serverLoadingTimeouts]);
+
+  // When viewing a server, default to the last selected channel or first text channel
   useEffect(() => {
     if (!currentlyViewingServer) return;
     if (selectedChannelId) return;
 
     const channels = serverDetailsList[currentlyViewingServer.host]?.channels || [];
+    
+    // First, try to restore the last selected channel for this server
+    const lastSelectedChannelId = getLastSelectedChannel(currentlyViewingServer.host);
+    if (lastSelectedChannelId) {
+      const lastChannel = channels.find(c => c.id === lastSelectedChannelId);
+      if (lastChannel) {
+        console.log("🔄 Restoring last selected channel:", lastChannel.name, "for server:", currentlyViewingServer.host);
+        setSelectedChannelId(lastSelectedChannelId);
+        return;
+      }
+    }
+    
+    // Fallback to first text channel if no last selected channel or it doesn't exist
     const firstText = channels.find((c) => c.type === "text");
     if (firstText) {
+      console.log("🔄 Defaulting to first text channel:", firstText.name, "for server:", currentlyViewingServer.host);
       setSelectedChannelId(firstText.id);
     }
-  }, [currentlyViewingServer, serverDetailsList, selectedChannelId]);
+  }, [currentlyViewingServer, serverDetailsList, selectedChannelId, getLastSelectedChannel]);
 
   const currentConnection = useMemo(
     () =>
@@ -565,9 +638,68 @@ export const ServerView = () => {
 
   // Check if server details are still loading
   const serverDetails = serverDetailsList[currentlyViewingServer.host];
+  const serverFailure = failedServerDetails[currentlyViewingServer.host];
+  const hasTimeout = !!serverLoadingTimeouts[currentlyViewingServer.host];
+  
+  
   if (!serverDetails) {
-    console.log("🔄 Server details not yet loaded for:", currentlyViewingServer.host);
-    console.log("📊 Available server details:", Object.keys(serverDetailsList));
+    // Show error state if server details failed to load
+    if (serverFailure) {
+      console.log("❌ Server details failed for:", currentlyViewingServer.host, serverFailure);
+      return (
+        <Flex width="100%" height="100%" gap="4" align="center" justify="center">
+          <Box style={{ textAlign: "center", maxWidth: "400px" }}>
+            <Text size="4" weight="bold" color="red" mb="3">
+              Failed to load server details
+            </Text>
+            <Text size="2" color="gray" mb="4">
+              {serverFailure.error === 'rate_limited' 
+                ? "You're being rate limited. Please wait a moment and try again."
+                : serverFailure.message || "An error occurred while loading server details."
+              }
+            </Text>
+            <Button 
+              onClick={() => {
+                // Clear the failure and retry
+                window.location.reload();
+              }}
+              variant="solid"
+            >
+              <IoMdRefresh size={16} />
+              Retry
+            </Button>
+          </Box>
+        </Flex>
+      );
+    }
+    
+    // Show timeout state if loading takes too long
+    if (!hasTimeout) {
+      return (
+        <Flex width="100%" height="100%" gap="4" align="center" justify="center">
+          <Box style={{ textAlign: "center", maxWidth: "400px" }}>
+            <Text size="4" weight="bold" color="orange" mb="3">
+              Loading timeout
+            </Text>
+            <Text size="2" color="gray" mb="4">
+              Server details are taking longer than expected to load. This might be due to network issues or server problems.
+            </Text>
+            <Button 
+              onClick={() => {
+                // Clear the timeout and retry
+                window.location.reload();
+              }}
+              variant="solid"
+            >
+              <IoMdRefresh size={16} />
+              Retry
+            </Button>
+          </Box>
+        </Flex>
+      );
+    }
+    
+    // Show loading skeleton for normal loading state
     return (
       <Flex width="100%" height="100%" gap="4">
         <Box width={{ sm: "240px", initial: "100%" }}>
@@ -612,12 +744,20 @@ export const ServerView = () => {
         if (isAlreadyConnectedToVoice) {
           console.log("🔄 Already connected to voice on this server, focusing text chat");
           setSelectedChannelId(channel.id);
+          // Save this as the last selected channel for this server
+          if (currentlyViewingServer) {
+            setLastSelectedChannelForServer(currentlyViewingServer.host, channel.id);
+          }
           console.log("✅ Early return - no connection attempt");
           return;
         }
 
         // Only proceed with connection if we're not already connected
         setSelectedChannelId(channel.id); // Focus the text chat
+        // Save this as the last selected channel for this server
+        if (currentlyViewingServer) {
+          setLastSelectedChannelForServer(currentlyViewingServer.host, channel.id);
+        }
         setPendingChannelId(null);
         setShowVoiceView(true);
         console.log("🔌 Proceeding with new connection attempt");
@@ -644,6 +784,10 @@ export const ServerView = () => {
       case "text":
         // For text channels, just focus the chat
         setSelectedChannelId(channel.id);
+        // Save this as the last selected channel for this server
+        if (currentlyViewingServer) {
+          setLastSelectedChannelForServer(currentlyViewingServer.host, channel.id);
+        }
         break;
     }
   };
@@ -720,11 +864,41 @@ export const ServerView = () => {
               placeholder={activeChannelName ? `Message #${activeChannelName}` : undefined}
               currentUserNickname={nickname}
               socketConnection={currentConnection}
-              memberList={clients[currentlyViewingServer.host] as any || {}}
+              memberList={memberLists[currentlyViewingServer.host]?.reduce((acc, member) => {
+                acc[member.serverUserId] = {
+                  ...member
+                };
+                return acc;
+              }, {} as Record<string, any>) || {}}
             />
           </Flex>
         )}
+
+        {/* Member Sidebar - Hidden on mobile */}
+        {!isMobile && (
+          <MemberSidebar
+            members={memberLists[currentlyViewingServer.host] || []}
+            currentConnectionId={currentConnection?.id}
+            clientsSpeaking={clientsSpeaking}
+            currentServerConnected={currentServerConnected}
+            serverHost={currentlyViewingServer.host}
+          />
+        )}
       </Flex>
+
+      {/* Remove Server Modal */}
+      <RemoveServerModal
+        isOpen={!!showRemoveServer}
+        onClose={() => setShowRemoveServer(null)}
+        onConfirm={() => {
+          if (showRemoveServer) {
+            console.log("🗑️ Confirming server removal:", showRemoveServer);
+            removeServer(showRemoveServer);
+          }
+        }}
+        serverName={currentlyViewingServer?.name}
+        serverHost={showRemoveServer || undefined}
+      />
     </>
   );
 };

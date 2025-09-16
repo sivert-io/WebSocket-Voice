@@ -1,3 +1,5 @@
+export type UserStatus = 'online' | 'in_voice' | 'afk' | 'offline';
+
 export type Client = {
   nickname: string;
   isMuted: boolean;
@@ -7,6 +9,8 @@ export type Client = {
   hasJoinedChannel: boolean;
   isConnectedToVoice?: boolean;
   isAFK: boolean;
+  status?: UserStatus;
+  lastSeen?: Date;
 };
 
 export type Clients = { [id: string]: Client };
