@@ -43,18 +43,41 @@ function isUserConnectedToVoiceChannel(serverUserId: string): boolean {
   return !!(clientInfo && clientInfo.hasJoinedChannel && clientInfo.streamID);
 }
 
-// Helper: check if a user is connected to a specific voice channel
-function isUserConnectedToSpecificVoiceChannel(serverUserId: string, conversationId: string): boolean {
-  const clientInfo = Object.values(clientsInfo).find(client => client.serverUserId === serverUserId);
-  if (!clientInfo || !clientInfo.hasJoinedChannel || !clientInfo.streamID) {
+// Helper: check if a user is connected to a specific voice channel using SFU tracking
+function isUserConnectedToSpecificVoiceChannel(serverUserId: string, conversationId: string, sfuClient: SFUClient | null): boolean {
+  if (!sfuClient || !sfuClient.isConnected()) {
     return false;
   }
   
-  // Extract channel ID from the streamID (which contains the room/channel info)
-  // The streamID format is typically: "serverName_channelId" or similar
-  // We need to check if the conversationId matches the channel the user is connected to
-  const connectedChannelId = clientInfo.streamID.split('_').pop(); // Get the last part after underscore
-  return connectedChannelId === conversationId;
+  // Get the active users from SFU
+  const activeUsers = sfuClient.getActiveUsers();
+  const userConnection = activeUsers.get(serverUserId);
+  
+  if (!userConnection) {
+    return false;
+  }
+  
+  // Check if the user is connected to the specific room/conversation
+  return userConnection.roomId === conversationId;
+}
+
+// Helper: check if a conversation is a voice channel (by checking if any user is connected to it via SFU)
+function isConversationAVoiceChannel(conversationId: string, sfuClient: SFUClient | null): boolean {
+  if (!sfuClient || !sfuClient.isConnected()) {
+    return false;
+  }
+  
+  // Get the active users from SFU
+  const activeUsers = sfuClient.getActiveUsers();
+  
+  // Check if any user is connected to this conversation as a voice channel
+  for (const [userId, connection] of activeUsers) {
+    if (connection.roomId === conversationId) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // Rate limit rules (tunable; consider env overrides)
@@ -580,6 +603,21 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           });
           return;
         }
+        // Check if this is a voice channel and if user is connected to it
+        if (userId && isConversationAVoiceChannel(payload.conversationId, sfuClient)) {
+          // This is a voice channel, check if user is connected to it
+          if (isUserConnectedToSpecificVoiceChannel(userId, payload.conversationId, sfuClient)) {
+            consola.info(`✅ Allowing chat:send to voice channel ${payload.conversationId} - user ${userId} is connected`);
+          } else {
+            consola.warn(`🚫 Blocking chat:send to voice channel ${payload.conversationId} - user ${userId} not connected to this channel`);
+            socket.emit('chat:error', 'You must be connected to this voice channel to send messages');
+            return;
+          }
+        } else if (userId) {
+          // This is a text channel, allow sending
+          consola.info(`💬 Allowing chat:send to text channel ${payload.conversationId} from user ${userId}`);
+        }
+        
         consola.info(`💬 chat:send from ${clientId}`, {
           conversationId: payload?.conversationId,
           textLen: typeof payload?.text === 'string' ? payload.text.length : 0,
@@ -637,13 +675,33 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         const existing = messageCache[created.conversation_id];
         const items = existing?.items ? [...existing.items, created] : [created];
         messageCache[created.conversation_id] = { items, fetchedAt: Date.now() };
-        // Broadcast to all clients for now; clients can filter by conversationId
-        consola.info(`📢 Broadcasting chat:new to all clients`, { 
+        
+        // Broadcast message only to users connected to this voice channel (if it's a voice channel)
+        // For text channels, broadcast to all users
+        const connectedClients = Object.entries(clientsInfo).filter(([clientId, clientInfo]) => {
+          if (isConversationAVoiceChannel(created.conversation_id, sfuClient)) {
+            // For voice channels, only send to users connected to this specific channel
+            return isUserConnectedToSpecificVoiceChannel(clientInfo.serverUserId, created.conversation_id, sfuClient);
+          } else {
+            // For text channels, send to all users
+            return true;
+          }
+        });
+        
+        consola.info(`📢 Broadcasting chat:new to ${connectedClients.length} clients`, { 
           message_id: created.message_id, 
           conversation_id: created.conversation_id,
-          totalClients: io.engine.clientsCount 
+          totalClients: io.engine.clientsCount,
+          connectedClients: connectedClients.length
         });
-        io.emit('chat:new', created);
+        
+        // Send to specific clients instead of broadcasting to all
+        connectedClients.forEach(([clientId]) => {
+          const clientSocket = io.sockets.sockets.get(clientId);
+          if (clientSocket) {
+            clientSocket.emit('chat:new', created);
+          }
+        });
       } catch (err) {
         consola.error('chat:send failed (DB issue?)', err);
         consola.error('Error details:', {
@@ -670,7 +728,21 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
             reactions: null,
             ephemeral: true,
           } as any;
-          io.emit('chat:new', fallback);
+          // Use same filtering logic for fallback message
+          const connectedClients = Object.entries(clientsInfo).filter(([clientId, clientInfo]) => {
+            if (isConversationAVoiceChannel(fallback.conversation_id, sfuClient)) {
+              return isUserConnectedToSpecificVoiceChannel(clientInfo.serverUserId, fallback.conversation_id, sfuClient);
+            } else {
+              return true;
+            }
+          });
+          
+          connectedClients.forEach(([clientId]) => {
+            const clientSocket = io.sockets.sockets.get(clientId);
+            if (clientSocket) {
+              clientSocket.emit('chat:new', fallback);
+            }
+          });
           socket.emit('chat:error', 'Message not persisted (temporary server storage issue)');
         } catch (emitErr) {
           consola.error('chat:send fallback emit failed', emitErr);
@@ -701,8 +773,20 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           return;
         }
         
-        // Note: Voice channel text chat permission is now handled on the client side
-        consola.info(`📚 User ${userId || 'unknown'} fetching messages for conversation ${payload.conversationId}`);
+        // Check if this is a voice channel and if user is connected to it
+        if (userId && isConversationAVoiceChannel(payload.conversationId, sfuClient)) {
+          // This is a voice channel, check if user is connected to it
+          if (isUserConnectedToSpecificVoiceChannel(userId, payload.conversationId, sfuClient)) {
+            consola.info(`✅ Allowing chat:fetch for voice channel ${payload.conversationId} - user ${userId} is connected`);
+          } else {
+            consola.warn(`🚫 Blocking chat:fetch for voice channel ${payload.conversationId} - user ${userId} not connected to this channel`);
+            socket.emit('chat:error', 'You must be connected to this voice channel to view its messages');
+            return;
+          }
+        } else if (userId) {
+          // This is a text channel, allow fetching
+          consola.info(`📚 Allowing chat:fetch for text channel ${payload.conversationId} from user ${userId}`);
+        }
         
         const limit = typeof payload.limit === 'number' ? payload.limit : 50;
         const items = await getMessagesCached(payload.conversationId, limit);

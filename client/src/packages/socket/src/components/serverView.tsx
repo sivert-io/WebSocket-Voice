@@ -18,7 +18,6 @@ import { handleRateLimitError } from "../utils/rateLimitHandler";
 import { ChannelList } from "./ChannelList";
 import { ChatMessage, ChatView } from "./ChatView";
 import { ServerHeader } from "./ServerHeader";
-import { RemoveServerModal } from "./RemoveServerModal";
 import { VoiceView } from "./VoiceView";
 import { MemberSidebar } from "./MemberSidebar";
 import { ServerDetailsSkeleton } from "./skeletons";
@@ -212,20 +211,121 @@ export const ServerView = () => {
     if (!currentConnection) return;
 
     const handleChatError = (error: string | { error: string; message?: string; retryAfterMs?: number; currentScore?: number; maxScore?: number }) => {
-      handleRateLimitError(error, "Chat");
+      // Handle rate limiting specifically
+      if (typeof error === 'object' && error.error === 'rate_limited') {
+        console.log(`🚫 Chat rate limited:`, error);
+        setIsRateLimited(true);
+        
+        // Remove any pending messages and restore text to input
+        setChatMessages((prev) => {
+          const pendingMessages = prev.filter(msg => msg.pending);
+          if (pendingMessages.length > 0) {
+            // Get the most recent pending message text
+            const latestPending = pendingMessages[pendingMessages.length - 1];
+            if (latestPending.text) {
+              setChatText(latestPending.text);
+              console.log(`📝 Restored text to input: "${latestPending.text}"`);
+            }
+          }
+          // Return only non-pending messages
+          return prev.filter(msg => !msg.pending);
+        });
+        
+        // Show user-friendly message
+        handleRateLimitError(error, "Chat");
+        
+        // Clear any existing interval
+        if (rateLimitIntervalRef.current) {
+          clearInterval(rateLimitIntervalRef.current);
+          rateLimitIntervalRef.current = null;
+        }
+        
+        // Start countdown timer
+        if (error.retryAfterMs && error.retryAfterMs > 0) {
+          const totalSeconds = Math.ceil(error.retryAfterMs / 1000);
+          setRateLimitCountdown(totalSeconds);
+          
+          // Update countdown every second
+          rateLimitIntervalRef.current = setInterval(() => {
+            setRateLimitCountdown((prev) => {
+              if (prev <= 1) {
+                if (rateLimitIntervalRef.current) {
+                  clearInterval(rateLimitIntervalRef.current);
+                  rateLimitIntervalRef.current = null;
+                }
+                setIsRateLimited(false);
+                console.log(`✅ Rate limit cleared for chat`);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        } else {
+          // Fallback: 5 second countdown if no retry time provided
+          setRateLimitCountdown(5);
+          rateLimitIntervalRef.current = setInterval(() => {
+            setRateLimitCountdown((prev) => {
+              if (prev <= 1) {
+                if (rateLimitIntervalRef.current) {
+                  clearInterval(rateLimitIntervalRef.current);
+                  rateLimitIntervalRef.current = null;
+                }
+                setIsRateLimited(false);
+                console.log(`✅ Rate limit cleared for chat (fallback)`);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        }
+      } else {
+        // Handle other chat errors normally
+        handleRateLimitError(error, "Chat");
+      }
     };
 
     currentConnection.on("chat:error", handleChatError);
 
     return () => {
       currentConnection.off("chat:error", handleChatError);
+      // Clean up rate limit interval
+      if (rateLimitIntervalRef.current) {
+        clearInterval(rateLimitIntervalRef.current);
+        rateLimitIntervalRef.current = null;
+      }
     };
   }, [currentConnection]);
 
   const [chatText, setChatText] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
+  const rateLimitIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Active conversation derives from selected channel first, then SFU-derived channel
   const activeConversationId = selectedChannelId || currentChannelId || "";
+
+  // Clear rate limiting state when switching servers (but not channels)
+  useEffect(() => {
+    // Clear rate limiting state when server changes
+    setIsRateLimited(false);
+    setRateLimitCountdown(0);
+    setChatText(""); // Clear chat text when switching servers
+    
+    // Clear any existing rate limit interval
+    if (rateLimitIntervalRef.current) {
+      clearInterval(rateLimitIntervalRef.current);
+      rateLimitIntervalRef.current = null;
+    }
+    
+    console.log(`🔄 Cleared rate limiting state for server: ${currentlyViewingServer?.host}`);
+  }, [currentlyViewingServer?.host]);
+
+  // Clear chat text when switching channels (but keep rate limiting state)
+  useEffect(() => {
+    setChatText(""); // Clear chat text when switching channels
+    console.log(`🔄 Cleared chat text for channel: ${activeConversationId}`);
+  }, [activeConversationId]);
   const activeChannelName = useMemo(() => {
     if (!currentlyViewingServer) return "";
     const channels = serverDetailsList[currentlyViewingServer.host]?.channels || [];
@@ -340,6 +440,29 @@ export const ServerView = () => {
     setChatMessages([]);
     if (!currentConnection || !activeConversationId) return;
     
+    // Check if we're trying to fetch from a voice channel's text chat
+    const isVoiceChannelTextChat = activeConversationId === currentChannelId;
+    const canViewVoiceChannelText = !isVoiceChannelTextChat || isConnected;
+    
+    if (isVoiceChannelTextChat && !canViewVoiceChannelText) {
+      console.log(`🚫 Blocking chat:fetch for voice channel ${activeConversationId} - user not connected`);
+      
+      // Automatically switch to the first available text channel
+      if (currentlyViewingServer) {
+        const channels = serverDetailsList[currentlyViewingServer.host]?.channels || [];
+        const textChannels = channels.filter(channel => channel.type === 'text');
+        if (textChannels.length > 0) {
+          console.log(`🔄 Auto-switching from voice channel to first text channel: ${textChannels[0].id}`);
+          setSelectedChannelId(textChannels[0].id);
+          return;
+        } else {
+          console.log(`⚠️ No text channels available, clearing selection`);
+          setSelectedChannelId(null);
+          return;
+        }
+      }
+    }
+    
     // Load chat history for the selected conversation
     const fetchPayload = {
       conversationId: activeConversationId,
@@ -347,18 +470,20 @@ export const ServerView = () => {
     };
     console.log(`📥 Fetching chat history:`, fetchPayload);
     currentConnection.emit("chat:fetch", fetchPayload);
-  }, [activeConversationId, currentConnection]);
+  }, [activeConversationId, currentConnection, currentChannelId, isConnected, currentlyViewingServer, serverDetailsList]);
 
   // Check if we're trying to send to a voice channel's text chat
   const isVoiceChannelTextChat = activeConversationId === currentChannelId;
   const canSendToVoiceChannel = !isVoiceChannelTextChat || isConnected; // Allow if not voice channel text chat, or if connected to voice
+  const canViewVoiceChannelText = !isVoiceChannelTextChat || isConnected; // Same logic for viewing
   
   const canSend = chatText.trim().length > 0 && 
                   !!currentConnection && 
                   !!activeConversationId && 
                   !!localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`) && 
                   isUserAuthenticated() &&
-                  canSendToVoiceChannel;
+                  canSendToVoiceChannel &&
+                  !isRateLimited;
   
   // Debug canSend conditions
   useEffect(() => {
@@ -384,6 +509,7 @@ export const ServerView = () => {
     console.log(`📤 sendChat called:`, {
       body,
       canSend,
+      isRateLimited,
       hasConnection: !!currentConnection,
       hasConversationId: !!activeConversationId,
       hasAccessToken: !!localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`),
@@ -392,6 +518,10 @@ export const ServerView = () => {
     
     if (!canSend) {
       console.log(`❌ Cannot send: canSend is false`);
+      if (isRateLimited) {
+        console.log(`🚫 Rate limited - not sending message`);
+        return;
+      }
       if (isVoiceChannelTextChat && !isConnected) {
         toast.error("You must be connected to this voice channel to send messages");
       }
@@ -802,10 +932,17 @@ export const ServerView = () => {
     if (currentlyViewingServer) {
       const channels = serverDetailsList[currentlyViewingServer.host]?.channels || [];
       const firstTextChannel = channels.find((c) => c.type === "text");
+      
       if (firstTextChannel) {
         console.log("🔄 Auto-selecting first text channel after voice disconnect:", firstTextChannel.name);
         setSelectedChannelId(firstTextChannel.id);
+      } else {
+        console.log("⚠️ No text channels found, clearing selected channel");
+        setSelectedChannelId(null);
       }
+      
+      // Also clear any pending channel selection to ensure clean state
+      console.log("🔄 Voice disconnect - ensuring clean channel state");
     }
   };
 
@@ -866,7 +1003,7 @@ export const ServerView = () => {
               canSend={canSend}
               sendChat={sendChat}
               currentUserId={userId || undefined}
-              placeholder={activeChannelName ? `Message #${activeChannelName}` : undefined}
+              channelName={activeChannelName}
               currentUserNickname={nickname}
               socketConnection={currentConnection}
               memberList={memberLists[currentlyViewingServer.host]?.reduce((acc, member) => {
@@ -875,6 +1012,10 @@ export const ServerView = () => {
                 };
                 return acc;
               }, {} as Record<string, any>) || {}}
+              isRateLimited={isRateLimited}
+              rateLimitCountdown={rateLimitCountdown}
+              canViewVoiceChannelText={canViewVoiceChannelText}
+              isVoiceChannelTextChat={isVoiceChannelTextChat}
             />
           </Flex>
         )}
@@ -891,19 +1032,6 @@ export const ServerView = () => {
         )}
       </Flex>
 
-      {/* Remove Server Modal */}
-      <RemoveServerModal
-        isOpen={!!showRemoveServer}
-        onClose={() => setShowRemoveServer(null)}
-        onConfirm={() => {
-          if (showRemoveServer) {
-            console.log("🗑️ Confirming server removal:", showRemoveServer);
-            removeServer(showRemoveServer);
-          }
-        }}
-        serverName={currentlyViewingServer?.name}
-        serverHost={showRemoveServer || undefined}
-      />
     </>
   );
 };

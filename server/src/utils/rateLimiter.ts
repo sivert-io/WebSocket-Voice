@@ -71,7 +71,7 @@ class SlidingWindowLimiter {
 
 			// Check if score exceeds limit
 			if (currentScore > maxScore) {
-				const retryAfterMs = Math.max(0, (currentScore - maxScore) * scoreDecayMs);
+				const retryAfterMs = Math.max(0, currentScore * scoreDecayMs);
 				if (effective.banMs && !this.bans.has(k)) {
 					this.bans.set(k, now + effective.banMs);
 					consola.warn("🚫 Rate limit ban applied (score-based)", { key: k, score: currentScore, maxScore, banMs: effective.banMs });

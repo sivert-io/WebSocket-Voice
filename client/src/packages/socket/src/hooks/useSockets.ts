@@ -48,7 +48,9 @@ function useSocketsHook() {
   
   const { 
     servers, 
-    setServers, 
+    setServers,
+    currentlyViewingServer,
+    setCurrentlyViewingServer,
   } = useServerSettings();
   const [newServerInfo, setNewServerInfo] = useState<Server[]>([]);
   const [serverDetailsList, setServerDetailsList] = useState<serverDetailsList>(
@@ -124,13 +126,23 @@ function useSocketsHook() {
         const newServers = { ...servers, [server.host]: server };
         console.log("🔄 Adding server directly:", server.host);
         setServers(newServers);
+        
+        // Auto-focus the first newly added server if no server is currently being viewed
+        // Use setTimeout to ensure the server is added to state before focusing
+        if (!currentlyViewingServer && index === 0) {
+          console.log("🎯 SCHEDULING AUTO-FOCUS for first newly added server:", server.name, "host:", server.host);
+          setTimeout(() => {
+            console.log("🎯 EXECUTING DELAYED AUTO-FOCUS for server:", server.host);
+            setCurrentlyViewingServer(server.host);
+          }, 100); // Small delay to ensure state is updated
+        }
       });
       
       console.log("🔄 Clearing newServerInfo queue...");
       // Clear the processed server info
       setNewServerInfo([]);
     }
-  }, [newServerInfo, servers, setServers]);
+  }, [newServerInfo, servers, setServers, currentlyViewingServer, setCurrentlyViewingServer]);
 
   // Create sockets for all servers
   useEffect(() => {

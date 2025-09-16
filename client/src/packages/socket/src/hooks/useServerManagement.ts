@@ -32,6 +32,16 @@ function useServerManagementHook(): ServerManagement {
   
   const [showAddServer, setShowAddServer] = useState(false);
   const [showRemoveServer, setShowRemoveServer] = useState<string | null>(null);
+  const [pendingFocusServer, setPendingFocusServer] = useState<string | null>(null);
+
+  // Handle pending server focus after servers state is updated
+  useEffect(() => {
+    if (pendingFocusServer && servers[pendingFocusServer]) {
+      console.log("🎯 EXECUTING PENDING FOCUS for server:", pendingFocusServer);
+      setCurrentlyViewingServer(pendingFocusServer);
+      setPendingFocusServer(null);
+    }
+  }, [servers, pendingFocusServer, setCurrentlyViewingServer]);
 
   // Add a new server and optionally focus it
   const addServer = useCallback((server: Server, focusNewServer: boolean = true) => {
@@ -59,17 +69,15 @@ function useServerManagementHook(): ServerManagement {
     console.log("🔄 New servers object:", Object.keys(newServers));
     setServers(newServers);
     
-    // Auto-focus the newly added server if requested
+    // Set pending focus for the newly added server if requested
     if (focusNewServer) {
-      console.log("🎯 AUTO-FOCUSING newly added server:", server.name, "host:", server.host);
-      console.log("🎯 Current currentlyViewingServer before focus:", currentlyViewingServer?.host);
-      setCurrentlyViewingServer(server.host);
-      console.log("🎯 setCurrentlyViewingServer called with:", server.host);
+      console.log("🎯 SETTING PENDING FOCUS for server:", server.name, "host:", server.host);
+      setPendingFocusServer(server.host);
     }
     
     // Close the add server modal
     setShowAddServer(false);
-  }, [servers, setServers, setCurrentlyViewingServer, currentlyViewingServer]);
+  }, [servers, setServers, setCurrentlyViewingServer, currentlyViewingServer, setPendingFocusServer]);
 
   // Remove a server
   const removeServer = useCallback((host: string) => {

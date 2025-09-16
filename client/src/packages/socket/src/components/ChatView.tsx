@@ -1,4 +1,4 @@
-import { Box, Button, Card, Flex, Text, TextField } from "@radix-ui/themes";
+import { Box, Button, Card, Flex, ScrollArea, Text, TextField } from "@radix-ui/themes";
 import { useEffect,useMemo, useRef, useState } from "react";
 
 export type Reaction = {
@@ -192,10 +192,14 @@ export const ChatView = ({
   canSend,
   sendChat,
   currentUserId,
-  placeholder,
   currentUserNickname,
   socketConnection,
   memberList,
+  channelName,
+  isRateLimited,
+  rateLimitCountdown,
+  canViewVoiceChannelText,
+  isVoiceChannelTextChat,
 }: {
   chatMessages: ChatMessage[];
   chatText: string;
@@ -203,11 +207,23 @@ export const ChatView = ({
   canSend: boolean;
   sendChat: () => void;
   currentUserId?: string;
-  placeholder?: string;
   currentUserNickname?: string;
   socketConnection?: unknown; // Socket.IO connection
   memberList?: Record<string, { nickname: string; serverUserId: string; [key: string]: any }>; // Member list for nickname lookup
+  channelName?: string;
+  isRateLimited?: boolean;
+  rateLimitCountdown?: number;
+  canViewVoiceChannelText?: boolean;
+  isVoiceChannelTextChat?: boolean;
 }) => {
+  // Ref for the messages container to enable auto-scroll
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
   // Helper function to get nickname from serverUserId
   const getNicknameFromServerId = (serverUserId: string): string => {
     if (!memberList) return 'Unknown User';
@@ -317,8 +333,31 @@ export const ChatView = ({
         }}
       >
       <Flex height="100%" width="100%" direction="column" p="3">
-        <Flex direction="column" justify="end" flexGrow="1" style={{ gap: 12, overflowY: "auto", paddingBottom: "16px" }}>
-          {groups.length === 0 ? (
+        {/* Channel name header */}
+        {channelName && (
+          <Flex align="center" style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid var(--gray-6)" }}>
+            <Text size="4" weight="bold" style={{ color: "var(--gray-12)" }}>
+              #{channelName}
+            </Text>
+          </Flex>
+        )}
+        
+        {/* Voice channel restriction message */}
+        {isVoiceChannelTextChat && !canViewVoiceChannelText && (
+          <Flex align="center" justify="center" style={{ padding: "24px", textAlign: "center" }}>
+            <Text size="3" color="gray" style={{ maxWidth: "300px" }}>
+              🔒 You must be connected to this voice channel to view its messages
+            </Text>
+          </Flex>
+        )}
+        
+        <ScrollArea>
+        <Flex direction="column" justify="end" flexGrow="1" style={{ gap: 12, paddingBottom: "16px" }}>
+          {!canViewVoiceChannelText && isVoiceChannelTextChat ? (
+              <Text size="2" color="gray" style={{ textAlign: "center", padding: "16px" }}>
+                Voice channel messages are private to connected users
+              </Text>
+          ) : groups.length === 0 ? (
               <Text size="2">No messages yet</Text>
           ) : (
             groups.map((group, idx) => {
@@ -388,15 +427,27 @@ export const ChatView = ({
               );
             })
           )}
+          {/* Scroll target for auto-scroll */}
+          <div ref={messagesEndRef} />
         </Flex>
+        </ScrollArea>
 
         <Flex gap="2">
           <TextField.Root
             radius="full"
             style={{flexGrow: 1}}
-            placeholder={placeholder || "Chat with your friends!"}
+            placeholder={
+              !canViewVoiceChannelText && isVoiceChannelTextChat
+                ? "Connect to voice channel to send messages"
+                : isRateLimited && rateLimitCountdown 
+                  ? `Please wait ${rateLimitCountdown} seconds...`
+                  : channelName 
+                    ? `Message #${channelName}` 
+                    : "Chat with your friends!"
+            }
             value={chatText}
             onChange={(e) => setChatText(e.target.value)}
+            disabled={!canViewVoiceChannelText && isVoiceChannelTextChat}
             onKeyDown={(e) => {
               console.log("🔑 Key pressed:", e.key, "canSend:", canSend);
               if (e.key === "Enter" && canSend) {
@@ -417,7 +468,11 @@ export const ChatView = ({
               transition: "opacity 160ms ease",
             }}
           >
-            Send
+            {!canViewVoiceChannelText && isVoiceChannelTextChat 
+              ? "🔒" 
+              : isRateLimited && rateLimitCountdown 
+                ? `${rateLimitCountdown}s` 
+                : "Send"}
           </Button>
         </Flex>
       </Flex>

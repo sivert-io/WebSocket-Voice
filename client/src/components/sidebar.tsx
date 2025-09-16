@@ -20,7 +20,6 @@ import { useSettings } from "@/settings";
 import { useServerManagement, useSockets } from "@/socket";
 import { useSFU } from "@/webRTC";
 import { MiniControls } from "@/webRTC/src/components/miniControls";
-import { RemoveServerModal } from "@/socket/src/components/RemoveServerModal";
 
 interface SidebarProps {
   setShowAddServer: (show: boolean) => void;
@@ -39,7 +38,6 @@ export function Sidebar({ setShowAddServer }: SidebarProps) {
     currentlyViewingServer,
     showRemoveServer,
     setShowRemoveServer,
-    removeServer,
     switchToServer,
   } = useServerManagement();
   
@@ -227,22 +225,6 @@ export function Sidebar({ setShowAddServer }: SidebarProps) {
         </DropdownMenu.Root>
       </Flex>
 
-      {/* Remove Server Modal */}
-      <RemoveServerModal
-        isOpen={!!showRemoveServer}
-        onClose={() => {
-          console.log("🔄 Sidebar modal onClose called");
-          setShowRemoveServer(null);
-        }}
-        onConfirm={() => {
-          if (showRemoveServer) {
-            console.log("🗑️ Confirming server removal from sidebar:", showRemoveServer);
-            removeServer(showRemoveServer);
-          }
-        }}
-        serverName={showRemoveServer ? servers[showRemoveServer]?.name : undefined}
-        serverHost={showRemoveServer || undefined}
-      />
     </Flex>
   );
 }
