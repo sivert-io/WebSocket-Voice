@@ -15,6 +15,7 @@ The Gryt SFU (Selective Forwarding Unit) is a high-performance Go-based WebRTC m
 - **ICE Handling**: Robust NAT traversal and connection establishment
 - **STUN/TURN Support**: Configurable STUN/TURN servers for production deployment
 - **Connection Recovery**: Automatic handling of network changes and reconnections
+- **Rate Limiting**: Built-in protection against abuse and spam
 
 ### 🏗️ **Scalable Architecture**
 - **Modular Design**: Clean separation of concerns for maintainability

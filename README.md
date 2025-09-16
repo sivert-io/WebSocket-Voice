@@ -44,12 +44,15 @@ git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && helm 
 - **Loopback Monitoring**: Hear yourself to test audio setup
 - **Device Management**: Hot-swappable microphone and speaker selection
 - **Audio Quality Optimization**: Automatic gain control and dynamic range compression
+- **Smart Rate Limiting**: Score-based rate limiting with user-friendly error messages
 
 ### 🌐 **Multi-Server Architecture**
 - **Server Discovery**: Automatic server detection and connection
 - **Seamless Server Switching**: Switch between voice servers without disconnection
 - **Room Isolation**: Unique room IDs prevent cross-server interference
 - **Connection State Management**: Robust handling of network changes and reconnections
+- **Auto-Focus**: Automatically focuses the first available server on startup
+- **Server Management**: Add, remove, and switch between multiple servers with ease
 
 ### 🎨 **Modern User Interface**
 - **Beautiful Design**: Clean, modern interface built with Radix UI
@@ -187,7 +190,25 @@ SERVER_ICON="example.png"
 CORS_ORIGIN="https://gryt.chat"
 
 # Websocket secret token (also used for SFU authentication)
-SERVER_TOKEN="123"
+SERVER_TOKEN="your-secure-server-token-here"
+
+# ScyllaDB / Cassandra settings
+SCYLLA_CONTACT_POINTS=your-scylla-host.com
+SCYLLA_LOCAL_DATACENTER=datacenter1
+SCYLLA_KEYSPACE=your_keyspace_name
+SCYLLA_USERNAME=your_scylla_username
+SCYLLA_PASSWORD=your_scylla_password
+
+# S3 / Object storage (AWS S3, Cloudflare R2, Wasabi, MinIO)
+S3_REGION=auto
+S3_ENDPOINT=https://your-s3-endpoint.com
+S3_ACCESS_KEY_ID=your_s3_access_key
+S3_SECRET_ACCESS_KEY=your_s3_secret_key
+S3_BUCKET=your-bucket-name
+S3_FORCE_PATH_STYLE=true
+
+# Additional channels configuration
+ADDITIONAL_CHANNELS=[{"name":"Announcements","type":"text","id":"announcements","description":"Server announcements and important updates"}]
 ```
 
 **Web Client**:
@@ -229,6 +250,13 @@ Microphone → Noise Gate → Volume Control → Mute → SFU → Other Users
 - **Room Isolation**: Unique room IDs prevent conflicts between servers
 - **Connection Recovery**: Automatic reconnection with state preservation
 
+### Rate Limiting & Security
+- **Score-Based Rate Limiting**: Intelligent rate limiting that adapts to user behavior
+- **User-Friendly Messages**: Clear feedback when rate limited with wait times
+- **Action-Specific Limits**: Different limits for chat, reactions, server joins, etc.
+- **Automatic Decay**: Rate limits automatically decrease over time
+- **Abuse Prevention**: Protects against spam and malicious activity
+
 ## 🤝 Contributing
 
 We welcome contributions! Here's how to get started:
@@ -253,6 +281,7 @@ We welcome contributions! Here's how to get started:
 - **[Client Documentation](client/README.md)** - React app, audio processing, UI components
 - **[Server Documentation](server/README.md)** - Signaling server, room management
 - **[SFU Documentation](sfu-v2/README.md)** - Media forwarding, WebRTC implementation
+- **[Rate Limiting Guide](RATE_LIMITING.md)** - Score-based rate limiting system
 
 ## 🐛 Troubleshooting
 

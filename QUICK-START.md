@@ -30,32 +30,39 @@ git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && helm 
 
 ## 🎯 What You Get
 
-- **Voice Chat**: Crystal clear WebRTC audio
-- **Multiple Servers**: Connect to different communities  
-- **Real-time**: Instant voice activity indicators
-- **Modern UI**: Beautiful, responsive interface
-- **Production Ready**: Health checks, scaling, monitoring
+- **Voice Chat**: Crystal clear WebRTC audio with noise suppression
+- **Multiple Servers**: Connect to different communities with auto-focus
+- **Real-time**: Instant voice activity indicators and smooth animations
+- **Modern UI**: Beautiful, responsive interface with dark/light themes
+- **Smart Rate Limiting**: User-friendly rate limiting with clear feedback
+- **Production Ready**: Health checks, scaling, monitoring, and security
 
 ## 🔧 Configuration (Optional)
 
 All services work out-of-the-box, but you can customize:
 
 ### Environment Files
-- `server/.env` - Server configuration
-- `sfu-v2/.env` - SFU configuration  
-- `client/.env` - Client configuration
+- `server/example.env` → `server/.env` - Server configuration
+- `sfu-v2/env.example` → `sfu-v2/.env` - SFU configuration  
+- `client/example.env` → `client/.env` - Client configuration
 
 ### Key Settings
 ```env
 # Server
 SERVER_NAME="My Gryt Server"
 SERVER_TOKEN="your-secure-token"
+SFU_WS_HOST="wss://your-sfu-server.com"
+STUN_SERVERS="stun:stun.l.google.com:19302"
+
+# Database & Storage
+SCYLLA_CONTACT_POINTS=your-scylla-host.com
+S3_ENDPOINT=https://your-s3-endpoint.com
 
 # SFU  
 STUN_SERVERS="stun:stun.l.google.com:19302"
 
 # Client
-
+# No configuration required - servers added via UI
 ```
 
 ## 🆘 Troubleshooting

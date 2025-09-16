@@ -26,7 +26,8 @@ The Gryt Signaling Server is a Node.js/TypeScript application that manages WebRT
 - **Real-time Messaging**: Instant bidirectional communication
 - **Connection Recovery**: Automatic reconnection handling
 - **Event Broadcasting**: Efficient message distribution to room members
-- **Rate Limiting**: Protection against spam and abuse
+- **Smart Rate Limiting**: Score-based rate limiting with user-friendly feedback
+- **Abuse Prevention**: Protection against spam and malicious activity
 
 ## 🏗️ Architecture
 
@@ -272,6 +273,82 @@ interface RoomConfig {
   roomPrefix: string; // Server name prefix
 }
 ```
+
+## 🛡️ Rate Limiting & Security
+
+### Score-Based Rate Limiting
+
+Gryt implements an intelligent rate limiting system that adapts to user behavior:
+
+#### How It Works
+- **Score Accumulation**: Each action adds points to a user's score
+- **Automatic Decay**: Scores decrease over time (configurable decay rate)
+- **Threshold-Based Limiting**: When score exceeds maximum, rate limiting kicks in
+- **User-Friendly Feedback**: Clear messages with wait times
+
+#### Rate Limit Rules
+
+```typescript
+interface RateLimitRule {
+  limit: number;           // Max events in window
+  windowMs: number;        // Time window in milliseconds
+  banMs?: number;          // Optional temporary ban duration
+  scorePerAction?: number; // Points added per action (default: 1)
+  maxScore?: number;       // Max score before limiting (default: 10)
+  scoreDecayMs?: number;   // Score decay rate (default: 1000ms per point)
+}
+```
+
+#### Default Rules
+
+```typescript
+const RATE_LIMITS = {
+  CHAT_SEND: { 
+    limit: 20, windowMs: 10_000, banMs: 30_000,
+    scorePerAction: 1, maxScore: 10, scoreDecayMs: 2000
+  },
+  CHAT_REACT: { 
+    limit: 50, windowMs: 10_000, banMs: 15_000,
+    scorePerAction: 1, maxScore: 15, scoreDecayMs: 1500
+  },
+  SERVER_JOIN: { 
+    limit: 5, windowMs: 60_000, banMs: 60_000,
+    scorePerAction: 2, maxScore: 8, scoreDecayMs: 5000
+  }
+};
+```
+
+#### Client Feedback
+
+When rate limited, clients receive detailed error information:
+
+```typescript
+interface RateLimitError {
+  error: 'rate_limited';
+  retryAfterMs: number;    // Time until retry allowed
+  currentScore: number;    // User's current score
+  maxScore: number;        // Maximum allowed score
+  message: string;         // User-friendly message
+}
+```
+
+Example client message:
+```
+"You're doing things too quickly. Please wait 3 seconds."
+```
+
+### Configuration
+
+Rate limiting can be configured via environment variables:
+
+```env
+# Rate limiting settings
+RATE_LIMIT_CHAT_SEND=20:10000:30000:1:10:2000
+RATE_LIMIT_CHAT_REACT=50:10000:15000:1:15:1500
+RATE_LIMIT_SERVER_JOIN=5:60000:60000:2:8:5000
+```
+
+Format: `limit:windowMs:banMs:scorePerAction:maxScore:scoreDecayMs`
 
 ## 🎛️ Room Management
 

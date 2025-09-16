@@ -23,6 +23,8 @@ The Gryt Web Client is a sophisticated React application that provides a modern,
 - **Room Isolation**: Unique room IDs prevent cross-server interference
 - **Connection Recovery**: Robust reconnection with state preservation
 - **Server Discovery**: Automatic detection and connection to available servers
+- **Auto-Focus**: Automatically focuses the first available server on startup
+- **Smart Error Handling**: User-friendly rate limiting messages with wait times
 
 ### 🎨 **Modern User Interface**
 - **Radix UI Components**: Professional, accessible component library
@@ -165,6 +167,8 @@ const {
 - Real-time user state synchronization
 - Room and channel management
 - Automatic reconnection handling
+- Rate limiting error handling with user-friendly messages
+- Server auto-focus and management
 
 ## 🎛️ Audio Pipeline
 
