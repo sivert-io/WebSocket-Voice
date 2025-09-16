@@ -20,7 +20,6 @@ export interface MessageRecord {
   conversation_id: string;
   message_id: string; // uuid string
   sender_server_id: string; // Secret server user ID (never exposed)
-  sender_nickname: string;
   text: string | null;
   created_at: Date;
   attachments: string[] | null; // file_id uuid strings
@@ -99,7 +98,6 @@ export async function initScylla(): Promise<void> {
       created_at timestamp,
       message_id uuid,
       sender_server_id text,
-      sender_nickname text,
       text text,
       attachments list<text>,
       reactions text,
@@ -261,7 +259,6 @@ export async function insertMessage(record: Omit<MessageRecord, "message_id" | "
     conversation_id: record.conversation_id,
     message_id,
     sender_server_id: record.sender_server_id,
-    sender_nickname: record.sender_nickname,
     text_length: record.text?.length || 0,
     has_attachments: !!record.attachments?.length,
     has_reactions: !!record.reactions?.length
@@ -269,8 +266,8 @@ export async function insertMessage(record: Omit<MessageRecord, "message_id" | "
   
   try {
     await c.execute(
-      `INSERT INTO messages_by_conversation (conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [record.conversation_id, created_at, message_id, record.sender_server_id, record.sender_nickname, record.text ?? null, record.attachments ?? null, reactionsJson],
+      `INSERT INTO messages_by_conversation (conversation_id, created_at, message_id, sender_server_id, text, attachments, reactions) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [record.conversation_id, created_at, message_id, record.sender_server_id, record.text ?? null, record.attachments ?? null, reactionsJson],
       { prepare: true }
     );
     console.log(`✅ Message successfully inserted to ScyllaDB:`, { message_id });
@@ -293,7 +290,7 @@ export async function listMessages(conversationId: string, limit = 50, before?: 
   try {
     if (before) {
       const rs = await c.execute(
-        `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND created_at < ? LIMIT ?`,
+        `SELECT conversation_id, created_at, message_id, sender_server_id, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND created_at < ? LIMIT ?`,
         [conversationId, before, limit],
         { prepare: true }
       );
@@ -302,7 +299,6 @@ export async function listMessages(conversationId: string, limit = 50, before?: 
         created_at: r["created_at"],
         message_id: r["message_id"].toString(),
         sender_server_id: r["sender_server_id"],
-        sender_nickname: r["sender_nickname"],
         text: r["text"],
         attachments: r["attachments"] ?? null,
         reactions: r["reactions"] ? JSON.parse(r["reactions"]) : null,
@@ -311,7 +307,7 @@ export async function listMessages(conversationId: string, limit = 50, before?: 
       return messages;
     }
     const rs = await c.execute(
-      `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? LIMIT ?`,
+      `SELECT conversation_id, created_at, message_id, sender_server_id, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? LIMIT ?`,
       [conversationId, limit],
       { prepare: true }
     );
@@ -320,7 +316,6 @@ export async function listMessages(conversationId: string, limit = 50, before?: 
       created_at: r["created_at"],
       message_id: r["message_id"].toString(),
       sender_server_id: r["sender_server_id"],
-      sender_nickname: r["sender_nickname"],
       text: r["text"],
       attachments: r["attachments"] ?? null,
       reactions: r["reactions"] ? JSON.parse(r["reactions"]) : null,
@@ -387,7 +382,7 @@ export async function addReactionToMessage(
   try {
     // First, get the current message to retrieve existing reactions
     const rs = await c.execute(
-      `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND message_id = ?`,
+      `SELECT conversation_id, created_at, message_id, sender_server_id, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND message_id = ?`,
       [conversationId, messageId],
       { prepare: true }
     );
@@ -448,7 +443,6 @@ export async function addReactionToMessage(
       created_at: row["created_at"],
       message_id: row["message_id"].toString(),
       sender_server_id: row["sender_server_id"],
-      sender_nickname: row["sender_nickname"],
       text: row["text"],
       attachments: row["attachments"] ?? null,
       reactions: reactions.length > 0 ? reactions : null
@@ -477,7 +471,7 @@ export async function removeReactionFromMessage(
   try {
     // First, get the current message to retrieve existing reactions
     const rs = await c.execute(
-      `SELECT conversation_id, created_at, message_id, sender_server_id, sender_nickname, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND message_id = ?`,
+      `SELECT conversation_id, created_at, message_id, sender_server_id, text, attachments, reactions FROM messages_by_conversation WHERE conversation_id = ? AND message_id = ?`,
       [conversationId, messageId],
       { prepare: true }
     );
@@ -533,7 +527,6 @@ export async function removeReactionFromMessage(
       created_at: row["created_at"],
       message_id: row["message_id"].toString(),
       sender_server_id: row["sender_server_id"],
-      sender_nickname: row["sender_nickname"],
       text: row["text"],
       attachments: row["attachments"] ?? null,
       reactions: reactions.length > 0 ? reactions : null

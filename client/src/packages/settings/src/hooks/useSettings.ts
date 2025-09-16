@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { singletonHook } from "react-singleton-hook";
 
-import { Server, Servers } from "../types/server";
 
 interface Settings {
   micID?: string;
@@ -51,21 +50,8 @@ interface Settings {
   showNickname: boolean;
   setShowNickname: (value: boolean) => void;
 
-  showAddServer: boolean;
-  setShowAddServer: (value: boolean) => void;
-
-  servers: Servers;
-  addServer: (oldServers: Servers, server: Server) => void;
-
-  showRemoveServer: string | null;
-  setShowRemoveServer: (value: string | null) => void;
-  removeServer: (host: string) => void;
-
   hasSeenWelcome: boolean;
   updateHasSeenWelcome: () => void;
-
-  currentlyViewingServer: Server | null;
-  setCurrentlyViewingServer: (value: string) => void;
 
   showVoiceView: boolean;
   setShowVoiceView: (value: boolean) => void;
@@ -80,20 +66,11 @@ function updateStorage(key: string, value: string, state: (d: any) => void) {
   localStorage.setItem(key, value);
 }
 
-function updateStorageJson(
-  key: string,
-  value: object,
-  state: (d: any) => void
-) {
-  state(value);
-  localStorage.setItem(key, JSON.stringify(value));
-}
 
 function useSettingsHook() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState("appearance");
   const [showNickname, setShowNickname] = useState(false);
-  const [showAddServer, setShowAddServer] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(true);
   const [loopbackEnabled, setLoopbackEnabled] = useState(false);
   const [isMuted, setIsMutedState] = useState(false);
@@ -148,16 +125,6 @@ function useSettingsHook() {
     Number(localStorage.getItem("noiseGate")) || 10
   );
 
-  const [servers, setServers] = useState<Servers>(
-    JSON.parse(localStorage.getItem("servers") || "{}")
-  );
-
-  const [serverViewIndex, setServerViewIndex] = useState(0);
-
-  const [showRemoveServer, setShowRemoveServer] = useState<string | null>(null);
-
-  const [currentlyViewingServer, setCurrentlyViewingServer] =
-    useState<Server | null>(null);
 
   const [showVoiceView, setShowVoiceView] = useState(true);
 
@@ -244,25 +211,6 @@ function useSettingsHook() {
     }
   }
 
-  function updateServers(newServers: Servers) {
-    updateStorageJson("servers", newServers, setServers);
-  }
-
-  function addServer(oldServers: Servers, server: Server) {
-    console.log("adding server", server);
-
-    const newServers = { ...oldServers, [server.host]: server };
-    // Keep viewing the first server; do not switch to the newly added one
-    updateServers(newServers);
-  }
-
-  function removeServer(host: string) {
-    const newServers = { ...servers };
-    delete newServers[host];
-    // Always keep focus on the first server in the list
-    setServerViewIndex(0);
-    updateServers(newServers);
-  }
 
   function updateHasSeenWelcome() {
     updateStorage("hasSeenWelcome", "true", setHasSeenWelcome);
@@ -278,9 +226,6 @@ function useSettingsHook() {
     setShowSettings(true);
   }
 
-  function updateCurrentServer(host: string) {
-    setCurrentlyViewingServer(servers[host]);
-  }
 
   // Enhanced mute/deafen logic with state coordination
   function setIsMuted(muted: boolean) {
@@ -328,15 +273,6 @@ function useSettingsHook() {
     }
   }, []);
 
-  // Update the currently viewing server when the server view index changes
-  useEffect(() => {
-    const keys = Object.keys(servers);
-    if (keys.length > 0) {
-      // Force index to 0 on load/changes so first server is focused
-      if (serverViewIndex !== 0) setServerViewIndex(0);
-      updateCurrentServer(keys[0]);
-    }
-  }, [serverViewIndex, servers]);
 
   return {
     micID,
@@ -362,17 +298,8 @@ function useSettingsHook() {
     openSettings,
     showNickname,
     setShowNickname,
-    servers,
     hasSeenWelcome,
     updateHasSeenWelcome,
-    showAddServer,
-    setShowAddServer,
-    currentlyViewingServer,
-    setCurrentlyViewingServer: updateCurrentServer,
-    addServer,
-    removeServer,
-    showRemoveServer,
-    setShowRemoveServer,
     showVoiceView,
     setShowVoiceView,
     // Voice call settings
@@ -421,21 +348,10 @@ const init: Settings = {
   nickname: localStorage.getItem("nickname") || "Unknown",
   setNickname: () => {},
 
-  servers: JSON.parse(localStorage.getItem("servers") || "{}"),
 
   hasSeenWelcome: !!localStorage.getItem("hasSeenWelcome"),
   updateHasSeenWelcome: () => {},
 
-  showAddServer: false,
-  setShowAddServer: () => {},
-  addServer: () => {},
-
-  showRemoveServer: null,
-  setShowRemoveServer: () => {},
-  removeServer: () => {},
-
-  currentlyViewingServer: null,
-  setCurrentlyViewingServer: () => {},
 
   showVoiceView: true,
   setShowVoiceView: () => {},

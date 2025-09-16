@@ -16,6 +16,7 @@ import { MdAdd, MdMic } from "react-icons/md";
 
 import { useAccount } from "@/common";
 import { useSettings } from "@/settings";
+import { useServerManagement } from "@/socket";
 import { useSFU } from "@/webRTC";
 import { MiniControls } from "@/webRTC/src/components/miniControls";
 
@@ -24,13 +25,16 @@ export function Sidebar() {
   const {
     nickname,
     setShowNickname,
-    servers,
-    setShowAddServer,
-    setShowRemoveServer,
-    setCurrentlyViewingServer,
-    currentlyViewingServer,
     setShowSettings,
   } = useSettings();
+  
+  const {
+    servers,
+    currentlyViewingServer,
+    setShowAddServer,
+    setShowRemoveServer,
+    switchToServer,
+  } = useServerManagement();
 
   const { currentServerConnected, isConnected } = useSFU();
 
@@ -63,7 +67,7 @@ export function Sidebar() {
                         style={{
                           padding: "0",
                         }}
-                        onClick={() => setCurrentlyViewingServer(host)}
+                        onClick={() => switchToServer(host)}
                       ></Button>
                     </Avatar>
                     

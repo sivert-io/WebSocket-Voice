@@ -41,7 +41,6 @@ messagesRouter.post(
 				return insertMessage({
 					conversation_id: conversationId,
 					sender_server_id: senderServerId,
-					sender_nickname: user.nickname,
 					text: text ?? null,
 					attachments: attachments ?? null,
 					reactions: null,
@@ -50,4 +49,4 @@ messagesRouter.post(
 			.then((created) => res.status(201).json(created))
 			.catch(next);
 	}
-); 
+);

@@ -1,4 +1,4 @@
-import { Box, Flex } from "@radix-ui/themes";
+import { Box, Flex, Spinner, Text } from "@radix-ui/themes";
 import { useEffect, useMemo, useRef,useState } from "react";
 import toast from "react-hot-toast";
 import { v4 as uuidv4 } from "uuid";
@@ -11,6 +11,7 @@ import { Channel } from "@/settings/src/types/server";
 import { useSFU } from "@/webRTC";
 
 import { useSockets } from "../hooks/useSockets";
+import { useServerManagement } from "../hooks/useServerManagement";
 import { shouldRefreshToken } from "../utils/tokenManager";
 import { ChannelList } from "./ChannelList";
 import { ChatMessage, ChatView } from "./ChatView";
@@ -28,8 +29,6 @@ export const ServerView = () => {
   const isMobile = useIsMobile();
 
   const {
-    currentlyViewingServer,
-    setShowRemoveServer,
     showVoiceView,
     setShowVoiceView,
     nickname,
@@ -41,6 +40,11 @@ export const ServerView = () => {
     afkTimeoutMinutes,
     noiseGate,
   } = useSettings();
+  
+  const {
+    currentlyViewingServer,
+    setShowRemoveServer,
+  } = useServerManagement();
 
   const {
     connect,
@@ -122,6 +126,31 @@ export const ServerView = () => {
       currentlyViewingServer ? sockets[currentlyViewingServer.host] : null,
     [currentlyViewingServer, sockets]
   );
+
+  // Handle chat errors (including rate limiting)
+  useEffect(() => {
+    if (!currentConnection) return;
+
+    const handleChatError = (error: string | { error: string; message?: string; retryAfterMs?: number; currentScore?: number; maxScore?: number }) => {
+      console.error("❌ Chat error:", error);
+      
+      // Handle rate limiting with user-friendly message
+      if (typeof error === 'object' && error.error === 'rate_limited' && error.message) {
+        toast.error(error.message);
+        return;
+      }
+      
+      // Handle other chat errors
+      const errorMessage = typeof error === 'string' ? error : error.error || 'Unknown chat error';
+      toast.error(`Chat error: ${errorMessage}`);
+    };
+
+    currentConnection.on("chat:error", handleChatError);
+
+    return () => {
+      currentConnection.off("chat:error", handleChatError);
+    };
+  }, [currentConnection]);
 
   const [chatText, setChatText] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -250,7 +279,16 @@ export const ServerView = () => {
     currentConnection.emit("chat:fetch", fetchPayload);
   }, [activeConversationId, currentConnection]);
 
-  const canSend = chatText.trim().length > 0 && !!currentConnection && !!activeConversationId && !!localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`) && isUserAuthenticated();
+  // Check if we're trying to send to a voice channel's text chat
+  const isVoiceChannelTextChat = activeConversationId === currentChannelId;
+  const canSendToVoiceChannel = !isVoiceChannelTextChat || isConnected; // Allow if not voice channel text chat, or if connected to voice
+  
+  const canSend = chatText.trim().length > 0 && 
+                  !!currentConnection && 
+                  !!activeConversationId && 
+                  !!localStorage.getItem(`accessToken_${currentlyViewingServer?.host}`) && 
+                  isUserAuthenticated() &&
+                  canSendToVoiceChannel;
   
   // Debug canSend conditions
   useEffect(() => {
@@ -263,9 +301,13 @@ export const ServerView = () => {
       hasAccessToken: hasAccessToken,
       isAuthenticated: isAuthenticated,
       activeConversationId: activeConversationId,
+      currentChannelId: currentChannelId,
+      isVoiceChannelTextChat: isVoiceChannelTextChat,
+      isConnected: isConnected,
+      canSendToVoiceChannel: canSendToVoiceChannel,
       canSend: canSend
     });
-  }, [chatText, currentConnection, activeConversationId, canSend, currentlyViewingServer]);
+  }, [chatText, currentConnection, activeConversationId, canSend, currentlyViewingServer, currentChannelId, isVoiceChannelTextChat, isConnected, canSendToVoiceChannel]);
 
   const sendChat = () => {
     const body = chatText.trim();
@@ -280,6 +322,9 @@ export const ServerView = () => {
     
     if (!canSend) {
       console.log(`❌ Cannot send: canSend is false`);
+      if (isVoiceChannelTextChat && !isConnected) {
+        toast.error("You must be connected to this voice channel to send messages");
+      }
       return;
     }
     
@@ -295,7 +340,6 @@ export const ServerView = () => {
       conversation_id: activeConversationId,
       message_id: pendingId,
       sender_server_id: "temp", // Will be replaced with actual server ID when server responds
-      sender_nickname: "You", // Will be replaced with actual nickname when server responds
       text: body,
       attachments: null,
       created_at: new Date(),
@@ -527,6 +571,19 @@ export const ServerView = () => {
 
   if (!currentlyViewingServer) return null;
 
+  // Check if server details are still loading
+  const serverDetails = serverDetailsList[currentlyViewingServer.host];
+  if (!serverDetails) {
+    console.log("🔄 Server details not yet loaded for:", currentlyViewingServer.host);
+    console.log("📊 Available server details:", Object.keys(serverDetailsList));
+    return (
+      <Flex direction="column" align="center" justify="center" height="100%" gap="4">
+        <Spinner size="3" />
+        <Text size="2" color="gray">Loading server details...</Text>
+      </Flex>
+    );
+  }
+
   const handleChannelClick = async (channel: Channel) => {
     switch (channel.type) {
       case "voice": {
@@ -670,6 +727,7 @@ export const ServerView = () => {
               placeholder={activeChannelName ? `Message #${activeChannelName}` : undefined}
               currentUserNickname={nickname}
               socketConnection={currentConnection}
+              memberList={clients[currentlyViewingServer.host] as any || {}}
             />
           </Flex>
         )}

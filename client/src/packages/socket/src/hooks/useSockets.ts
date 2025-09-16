@@ -8,6 +8,7 @@ import useSound from "use-sound";
 import connectMp3 from "@/audio/src/assets/connect.mp3";
 import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
+import { useServerManagement } from "./useServerManagement";
 import { checkAuthenticationOnLaunch, canUseServer, forceSignOutWithAccount } from "@/common";
 import { useAccount } from "@/common";
 // import { useUserId } from "@/common"; // No longer needed with JWT system
@@ -31,8 +32,6 @@ function useSocketsHook() {
   }, []);
   // const userId = useUserId(); // No longer needed with JWT system
   const { 
-    servers, 
-    addServer, 
     nickname,
     isMuted,
     isDeafened,
@@ -44,6 +43,11 @@ function useSocketsHook() {
     customConnectSoundFile,
     customDisconnectSoundFile,
   } = useSettings();
+  
+  const { 
+    servers, 
+    addServer, 
+  } = useServerManagement();
   const [newServerInfo, setNewServerInfo] = useState<Server[]>([]);
   const [serverDetailsList, setServerDetailsList] = useState<serverDetailsList>(
     {}
@@ -88,11 +92,11 @@ function useSocketsHook() {
   useEffect(() => {
     const info = [...newServerInfo];
     newServerInfo.forEach((server) => {
-      addServer(servers, server);
+      addServer(server, false); // Don't auto-focus when adding from socket discovery
       info.splice(info.indexOf(server), 1);
     });
     if (info.length !== newServerInfo.length) setNewServerInfo(info);
-  }, [servers, newServerInfo]);
+  }, [newServerInfo, addServer]);
 
   // Create sockets for all servers
   useEffect(() => {
@@ -105,6 +109,7 @@ function useSocketsHook() {
         const accessToken = localStorage.getItem(`accessToken_${host}`);
         
         console.log(`🔌 Connecting to server ${host} with token:`, servers[host].token);
+        console.log(`📊 Current server details keys:`, Object.keys(serverDetailsList));
         
         const socket = io(`wss://${host}`, {
           auth: {
@@ -235,6 +240,7 @@ function useSocketsHook() {
 
         socket.on("details", (data: serverDetails) => {
           console.log(`📥 Received details from server ${host}:`, data);
+          console.log(`📊 Server details before update:`, Object.keys(serverDetailsList));
           
           // Check if server details were denied due to missing token
           if (data.error === "token_required") {
@@ -270,10 +276,14 @@ function useSocketsHook() {
             stun_hosts: data.stun_hosts?.length || 0
           });
           
-          setServerDetailsList((old) => ({
-            ...old,
-            [host]: data,
-          }));
+          setServerDetailsList((old) => {
+            const updated = {
+              ...old,
+              [host]: data,
+            };
+            console.log(`📊 Server details after update:`, Object.keys(updated));
+            return updated;
+          });
         });
 
         // Handle server join response
@@ -290,8 +300,14 @@ function useSocketsHook() {
         });
 
         // Handle server join errors - don't force sign out, just show error
-        socket.on("server:error", (errorInfo: { error: string }) => {
+        socket.on("server:error", (errorInfo: { error: string; message?: string; retryAfterMs?: number; currentScore?: number; maxScore?: number }) => {
           console.error(`❌ Server join failed for ${host}:`, errorInfo);
+          
+          // Handle rate limiting with user-friendly message
+          if (errorInfo.error === 'rate_limited' && errorInfo.message) {
+            toast.error(errorInfo.message);
+            return;
+          }
           
           // Handle specific token errors
           if (errorInfo.error === 'token_invalid') {

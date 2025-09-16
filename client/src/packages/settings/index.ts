@@ -1,5 +1,6 @@
 // Hooks
 export * from "./src/hooks/useSettings";
+export * from "./src/hooks/useServerSettings";
 
 // Components
 export * from "./src/components/addServer";

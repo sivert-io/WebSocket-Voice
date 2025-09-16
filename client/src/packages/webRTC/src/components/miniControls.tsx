@@ -5,7 +5,7 @@ import { ImPhoneHangUp } from "react-icons/im";
 import { MdArrowForward, MdMic, MdMicOff } from "react-icons/md";
 
 import { useSettings } from "@/settings";
-import { useSockets } from "@/socket";
+import { useSockets, useServerManagement } from "@/socket";
 
 import { useSFU } from "../hooks/useSFU";
 
@@ -29,8 +29,6 @@ export function MiniControls({
   direction: "row" | "column";
 }) {
   const {
-    setCurrentlyViewingServer,
-    currentlyViewingServer,
     isMuted,
     setIsMuted,
     isDeafened,
@@ -38,6 +36,11 @@ export function MiniControls({
     setShowVoiceView,
     setIsDeafened,
   } = useSettings();
+  
+  const {
+    switchToServer,
+    currentlyViewingServer,
+  } = useServerManagement();
 
   const {
     currentServerConnected,
@@ -119,7 +122,7 @@ export function MiniControls({
                     }}
                     color="gray"
                     onClick={() => {
-                      setCurrentlyViewingServer(currentServerConnected);
+                      switchToServer(currentServerConnected);
                       setShowVoiceView(true);
                     }}
                   >

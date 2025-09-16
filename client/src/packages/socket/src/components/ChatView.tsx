@@ -11,7 +11,6 @@ export type ChatMessage = {
   conversation_id: string;
   message_id: string;
   sender_server_id: string;
-  sender_nickname: string;
   text: string | null;
   attachments: string[] | null;
   created_at: string | Date;
@@ -196,6 +195,7 @@ export const ChatView = ({
   placeholder,
   currentUserNickname,
   socketConnection,
+  memberList,
 }: {
   chatMessages: ChatMessage[];
   chatText: string;
@@ -206,7 +206,17 @@ export const ChatView = ({
   placeholder?: string;
   currentUserNickname?: string;
   socketConnection?: unknown; // Socket.IO connection
+  memberList?: Record<string, { nickname: string; serverUserId: string; [key: string]: any }>; // Member list for nickname lookup
 }) => {
+  // Helper function to get nickname from serverUserId
+  const getNicknameFromServerId = (serverUserId: string): string => {
+    if (!memberList) return 'Unknown User';
+    
+    // Find the member with this serverUserId
+    const member = Object.values(memberList).find(m => m.serverUserId === serverUserId);
+    return member?.nickname || 'Unknown User';
+  };
+
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
     message: ChatMessage;
@@ -316,7 +326,7 @@ export const ChatView = ({
               return (
                 <Flex key={`${group.senderId}-${idx}`} direction="column" style={{ width: "100%" }} align={isSelf ? "end" : "start"}>
                   <Text size="1" color="gray" style={{ marginBottom: 6 }}>
-                    {isSelf ? (currentUserNickname || group.messages[0].sender_nickname || "You") : group.messages[0].sender_nickname}
+                    {isSelf ? (currentUserNickname || "You") : getNicknameFromServerId(group.messages[0].sender_server_id)}
                   </Text>
                   <Flex direction="column" style={{ gap: 6, width: "100%" }}>
                     {group.messages.map((m) => (

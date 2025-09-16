@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { FiWifi, FiX } from "react-icons/fi";
 import { io, Socket } from "socket.io-client";
 
-import { useSettings } from "../hooks/useSettings";
+import { useServerManagement } from "../../../socket/src/hooks/useServerManagement";
 
 export type FetchInfo = {
   name: string;
@@ -25,7 +25,7 @@ export type FetchInfo = {
 };
 
 export function AddNewServer() {
-  const { showAddServer, setShowAddServer, addServer, servers } = useSettings();
+  const { showAddServer, setShowAddServer, addServer } = useServerManagement();
   const [serverHost, setServerHost] = useState("");
   const [serverInfo, setServerInfo] = useState<FetchInfo | null>(null);
   const [hasError, setHasError] = useState("");
@@ -45,11 +45,11 @@ export function AddNewServer() {
 
   function joinServer() {
     if (serverInfo) {
-      addServer(servers, {
+      addServer({
         name: serverInfo.name,
         host: serverHost,
         token: "123",
-      });
+      }, true); // Auto-focus the new server
 
       closeDialog();
 

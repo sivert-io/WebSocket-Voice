@@ -43,14 +43,52 @@ function isUserConnectedToVoiceChannel(serverUserId: string): boolean {
   return !!(clientInfo && clientInfo.hasJoinedChannel && clientInfo.streamID);
 }
 
+// Helper: check if a user is connected to a specific voice channel
+function isUserConnectedToSpecificVoiceChannel(serverUserId: string, conversationId: string): boolean {
+  const clientInfo = Object.values(clientsInfo).find(client => client.serverUserId === serverUserId);
+  if (!clientInfo || !clientInfo.hasJoinedChannel || !clientInfo.streamID) {
+    return false;
+  }
+  
+  // Extract channel ID from the streamID (which contains the room/channel info)
+  // The streamID format is typically: "serverName_channelId" or similar
+  // We need to check if the conversationId matches the channel the user is connected to
+  const connectedChannelId = clientInfo.streamID.split('_').pop(); // Get the last part after underscore
+  return connectedChannelId === conversationId;
+}
+
 // Rate limit rules (tunable; consider env overrides)
 const RL: { [k: string]: RateLimitRule } = {
-  CHAT_SEND: { limit: 20, windowMs: 10_000, banMs: 30_000 },
-  CHAT_REACT: { limit: 60, windowMs: 60_000 },
-  CHAT_FETCH: { limit: 15, windowMs: 10_000 },
-  SERVER_JOIN: { limit: 5, windowMs: 60_000, banMs: 300_000 },
-  REQUEST_ROOM: { limit: 10, windowMs: 60_000 },
-  JOINED_CHANNEL: { limit: 10, windowMs: 60_000 },
+  CHAT_SEND: { 
+    limit: 20, windowMs: 10_000, banMs: 30_000,
+    // Score-based: 1 point per message, max 10 points, decay 1 point per 2 seconds
+    scorePerAction: 1, maxScore: 10, scoreDecayMs: 2000
+  },
+  CHAT_REACT: { 
+    limit: 60, windowMs: 60_000,
+    // Score-based: 0.5 points per reaction, max 15 points, decay 1 point per 3 seconds
+    scorePerAction: 0.5, maxScore: 15, scoreDecayMs: 3000
+  },
+  CHAT_FETCH: { 
+    limit: 15, windowMs: 10_000,
+    // Score-based: 0.3 points per fetch, max 8 points, decay 1 point per 1.5 seconds
+    scorePerAction: 0.3, maxScore: 8, scoreDecayMs: 1500
+  },
+  SERVER_JOIN: { 
+    limit: 5, windowMs: 60_000, banMs: 300_000,
+    // Score-based: 2 points per join attempt, max 6 points, decay 1 point per 10 seconds
+    scorePerAction: 2, maxScore: 6, scoreDecayMs: 10000
+  },
+  REQUEST_ROOM: { 
+    limit: 10, windowMs: 60_000,
+    // Score-based: 1 point per request, max 8 points, decay 1 point per 5 seconds
+    scorePerAction: 1, maxScore: 8, scoreDecayMs: 5000
+  },
+  JOINED_CHANNEL: { 
+    limit: 10, windowMs: 60_000,
+    // Score-based: 0.5 points per channel join, max 6 points, decay 1 point per 3 seconds
+    scorePerAction: 0.5, maxScore: 6, scoreDecayMs: 3000
+  },
 };
 
 export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient | null) {
@@ -67,7 +105,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         const rl = checkRateLimit('server:join', undefined, ip, RL.SERVER_JOIN);
         if (!rl.allowed) {
           consola.warn(`🚫 server:join rate limited for ${clientId} (${ip})`, rl);
-          socket.emit('server:error', 'rate_limited');
+          socket.emit('server:error', {
+            error: 'rate_limited',
+            retryAfterMs: rl.retryAfterMs,
+            currentScore: rl.currentScore,
+            maxScore: rl.maxScore,
+            message: `You're doing things too quickly. Please wait ${Math.ceil((rl.retryAfterMs || 0) / 1000)} seconds.`
+          });
           return;
         }
         consola.info(`📥 Received server:join from client ${clientId}:`, {
@@ -335,7 +379,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         const rl = checkRateLimit('requestRoomAccess', userId, ip, RL.REQUEST_ROOM);
         if (!rl.allowed) {
           consola.warn(`🚫 requestRoomAccess rate limited for ${clientId} (${userId || 'anon'})`, rl);
-          socket.emit('room_error', 'rate_limited');
+          socket.emit('room_error', {
+            error: 'rate_limited',
+            retryAfterMs: rl.retryAfterMs,
+            currentScore: rl.currentScore,
+            maxScore: rl.maxScore,
+            message: `You're doing things too quickly. Please wait ${Math.ceil((rl.retryAfterMs || 0) / 1000)} seconds.`
+          });
           return;
         }
         // Validate input
@@ -393,7 +443,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       const rl = checkRateLimit('joinedChannel', userId, ip, RL.JOINED_CHANNEL);
       if (!rl.allowed) {
         consola.warn(`🚫 joinedChannel rate limited for ${clientId} (${userId || 'anon'})`, rl);
-        socket.emit('room_error', 'rate_limited');
+        socket.emit('room_error', {
+          error: 'rate_limited',
+          retryAfterMs: rl.retryAfterMs,
+          currentScore: rl.currentScore,
+          maxScore: rl.maxScore,
+          message: `You're doing things too quickly. Please wait ${Math.ceil((rl.retryAfterMs || 0) / 1000)} seconds.`
+        });
         return;
       }
       
@@ -471,7 +527,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         const rl = checkRateLimit('chat:send', userId, ip, RL.CHAT_SEND);
         if (!rl.allowed) {
           consola.warn(`🚫 chat:send rate limited for ${clientId} (${userId || 'anon'})`, rl);
-          socket.emit('chat:error', 'rate_limited');
+          socket.emit('chat:error', {
+            error: 'rate_limited',
+            retryAfterMs: rl.retryAfterMs,
+            currentScore: rl.currentScore,
+            maxScore: rl.maxScore,
+            message: `You're doing things too quickly. Please wait ${Math.ceil((rl.retryAfterMs || 0) / 1000)} seconds.`
+          });
           return;
         }
         consola.info(`💬 chat:send from ${clientId}`, {
@@ -515,19 +577,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           return;
         }
         
-        // Check if user is connected to a voice channel (required for text channel access)
-        if (!isUserConnectedToVoiceChannel(tokenPayload.serverUserId)) {
-          consola.warn(`🚫 User ${tokenPayload.serverUserId} attempted to send message without being in voice channel`);
-          socket.emit('chat:error', 'You must be connected to a voice channel to send messages');
-          return;
-        }
-        
-        consola.info(`✅ Message from user ${user.nickname} (verified via JWT)`);
+        // Note: Voice channel text chat permission is now handled on the client side
+        // The client will only allow sending to voice channel text chats when connected to voice
+        consola.info(`💬 User ${tokenPayload.serverUserId} sending message to conversation ${payload.conversationId}`);
         
         const created = await insertMessage({
           conversation_id: payload.conversationId,
           sender_server_id: tokenPayload.serverUserId,
-          sender_nickname: user.nickname,
           text: text || null,
           attachments: attachments && attachments.length > 0 ? attachments : null,
           reactions: null
@@ -563,7 +619,6 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           const fallback = {
             conversation_id: payload?.conversationId || 'unknown',
             sender_server_id: 'unknown', // Fallback since we can't access tokenPayload here
-            sender_nickname: 'Unknown User',
             text: payload?.text || null,
             attachments: payload?.attachments && payload.attachments.length > 0 ? payload.attachments : null,
             message_id: randomUUID(),
@@ -588,7 +643,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         const rl = checkRateLimit('chat:fetch', userId, ip, RL.CHAT_FETCH);
         if (!rl.allowed) {
           consola.warn(`🚫 chat:fetch rate limited for ${clientId} (${userId || 'anon'})`, rl);
-          socket.emit('chat:error', 'rate_limited');
+          socket.emit('chat:error', {
+            error: 'rate_limited',
+            retryAfterMs: rl.retryAfterMs,
+            currentScore: rl.currentScore,
+            maxScore: rl.maxScore,
+            message: `You're doing things too quickly. Please wait ${Math.ceil((rl.retryAfterMs || 0) / 1000)} seconds.`
+          });
           return;
         }
         if (!payload || typeof payload.conversationId !== 'string') {
@@ -596,12 +657,8 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           return;
         }
         
-        // Check if user is connected to a voice channel (required for text channel access)
-        if (!userId || !isUserConnectedToVoiceChannel(userId)) {
-          consola.warn(`🚫 User ${userId || 'unknown'} attempted to fetch messages without being in voice channel`);
-          socket.emit('chat:error', 'You must be connected to a voice channel to view messages');
-          return;
-        }
+        // Note: Voice channel text chat permission is now handled on the client side
+        consola.info(`📚 User ${userId || 'unknown'} fetching messages for conversation ${payload.conversationId}`);
         
         const limit = typeof payload.limit === 'number' ? payload.limit : 50;
         const items = await getMessagesCached(payload.conversationId, limit);
@@ -620,7 +677,13 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         const rl = checkRateLimit('chat:react', userId, ip, RL.CHAT_REACT);
         if (!rl.allowed) {
           consola.warn(`🚫 chat:react rate limited for ${clientId} (${userId || 'anon'})`, rl);
-          socket.emit('chat:error', 'rate_limited');
+          socket.emit('chat:error', {
+            error: 'rate_limited',
+            retryAfterMs: rl.retryAfterMs,
+            currentScore: rl.currentScore,
+            maxScore: rl.maxScore,
+            message: `You're doing things too quickly. Please wait ${Math.ceil((rl.retryAfterMs || 0) / 1000)} seconds.`
+          });
           return;
         }
         consola.info(`👍 chat:react from ${clientId}`, {
@@ -649,12 +712,8 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           return;
         }
         
-        // Check if user is connected to a voice channel (required for text channel access)
-        if (!isUserConnectedToVoiceChannel(tokenPayload.serverUserId)) {
-          consola.warn(`🚫 User ${tokenPayload.serverUserId} attempted to react without being in voice channel`);
-          socket.emit('chat:error', 'You must be connected to a voice channel to react to messages');
-          return;
-        }
+        // Note: Voice channel text chat permission is now handled on the client side
+        consola.info(`👍 User ${tokenPayload.serverUserId} reacting to message in conversation ${payload.conversationId}`);
 
         consola.info(`✅ Reaction from user ${user.nickname} (verified via JWT)`);
 

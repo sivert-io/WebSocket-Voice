@@ -8,7 +8,7 @@ import { useMicrophone, useSpeakers } from "@/audio";
 import connectMp3 from "@/audio/src/assets/connect.mp3";
 import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
-import { useSockets } from "@/socket";
+import { useSockets, useServerManagement } from "@/socket";
 
 import { SFUConnectionState,SFUInterface, Streams, StreamSources } from "../types/SFU";
 
@@ -88,8 +88,6 @@ function useSfuHook(): SFUInterface {
 
   // Dependencies
   const { 
-    currentlyViewingServer, 
-    servers,
     outputVolume,
     connectSoundEnabled,
     disconnectSoundEnabled,
@@ -100,6 +98,12 @@ function useSfuHook(): SFUInterface {
     isDeafened,
     micID,
   } = useSettings();
+  
+  const { 
+    currentlyViewingServer, 
+    servers,
+  } = useServerManagement();
+  
   const { sockets, serverDetailsList } = useSockets();
   
   // Sound hooks with dynamic settings
@@ -545,10 +549,19 @@ function useSfuHook(): SFUInterface {
         resolve(roomData);
       };
 
-      const onRoomError = (error: string) => {
+      const onRoomError = (error: string | { error: string; message?: string; retryAfterMs?: number; currentScore?: number; maxScore?: number }) => {
         cleanup();
         console.error("❌ Room access denied:", error);
-        reject(new Error(`Room access denied: ${error}`));
+        
+        // Handle rate limiting with user-friendly message
+        if (typeof error === 'object' && error.error === 'rate_limited' && error.message) {
+          toast.error(error.message);
+          reject(new Error(error.message));
+          return;
+        }
+        
+        const errorMessage = typeof error === 'string' ? error : error.error || 'Unknown error';
+        reject(new Error(`Room access denied: ${errorMessage}`));
       };
 
       socket.once("room_access_granted", onAccessGranted);

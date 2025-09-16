@@ -10,13 +10,23 @@ export interface RateLimitRule {
 	limit: number; // max events
 	windowMs: number; // sliding window size
 	banMs?: number; // optional temporary ban duration when exceeded
+	// Score-based limiting
+	scorePerAction?: number; // points added per action (default: 1)
+	maxScore?: number; // max score before rate limiting kicks in
+	scoreDecayMs?: number; // how fast score decays (default: 1000ms per point)
 }
 
 type TimestampQueue = number[];
 
+interface ScoreData {
+	score: number;
+	lastUpdate: number;
+}
+
 class SlidingWindowLimiter {
 	private buckets: Map<string, TimestampQueue> = new Map();
 	private bans: Map<string, number> = new Map();
+	private scores: Map<string, ScoreData> = new Map();
 
 	constructor(private defaultRule: RateLimitRule) {}
 
@@ -26,7 +36,7 @@ class SlidingWindowLimiter {
 		return `${parts.event}:${uid}:${ip}`;
 	}
 
-	check(parts: RateLimitKeyParts, rule?: RateLimitRule): { allowed: boolean; retryAfterMs?: number; bannedUntil?: number } {
+	check(parts: RateLimitKeyParts, rule?: RateLimitRule): { allowed: boolean; retryAfterMs?: number; bannedUntil?: number; currentScore?: number; maxScore?: number } {
 		const now = Date.now();
 		const effective = rule || this.defaultRule;
 		const k = this.key(parts);
@@ -38,6 +48,47 @@ class SlidingWindowLimiter {
 			this.bans.delete(k);
 		}
 
+		// Score-based limiting (if enabled)
+		if (effective.maxScore && effective.scorePerAction) {
+			const scoreData = this.scores.get(k);
+			const scorePerAction = effective.scorePerAction;
+			const maxScore = effective.maxScore;
+			const scoreDecayMs = effective.scoreDecayMs || 1000;
+
+			let currentScore = 0;
+			if (scoreData) {
+				// Decay score based on time passed
+				const timePassed = now - scoreData.lastUpdate;
+				const decayAmount = Math.floor(timePassed / scoreDecayMs);
+				currentScore = Math.max(0, scoreData.score - decayAmount);
+			}
+
+			// Add score for this action
+			currentScore += scorePerAction;
+
+			// Update score data
+			this.scores.set(k, { score: currentScore, lastUpdate: now });
+
+			// Check if score exceeds limit
+			if (currentScore > maxScore) {
+				const retryAfterMs = Math.max(0, (currentScore - maxScore) * scoreDecayMs);
+				if (effective.banMs && !this.bans.has(k)) {
+					this.bans.set(k, now + effective.banMs);
+					consola.warn("🚫 Rate limit ban applied (score-based)", { key: k, score: currentScore, maxScore, banMs: effective.banMs });
+				}
+				return { 
+					allowed: false, 
+					retryAfterMs, 
+					bannedUntil: this.bans.get(k),
+					currentScore,
+					maxScore
+				};
+			}
+
+			// Score-based limiting passed, but still check traditional window-based limiting
+		}
+
+		// Traditional sliding window limiting
 		let q = this.buckets.get(k);
 		if (!q) {
 			q = [];
@@ -52,7 +103,7 @@ class SlidingWindowLimiter {
 			const retryAfterMs = Math.max(0, (q[0] + effective.windowMs) - now);
 			if (effective.banMs && !this.bans.has(k)) {
 				this.bans.set(k, now + effective.banMs);
-				consola.warn("🚫 Rate limit ban applied", { key: k, banMs: effective.banMs });
+				consola.warn("🚫 Rate limit ban applied (window-based)", { key: k, banMs: effective.banMs });
 			}
 			return { allowed: false, retryAfterMs, bannedUntil: this.bans.get(k) };
 		}

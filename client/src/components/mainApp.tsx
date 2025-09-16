@@ -1,12 +1,12 @@
 import { Flex } from "@radix-ui/themes";
 
-import { useSettings } from "@/settings";
+import { useServerManagement } from "@/socket";
 import { ServerView } from "@/socket/src/components/serverView";
 
 import { Sidebar } from "./sidebar";
 
 export function MainApp() {
-  const { servers } = useSettings();
+  const { servers } = useServerManagement();
 
   return (
     <Flex

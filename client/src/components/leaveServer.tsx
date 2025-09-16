@@ -1,10 +1,10 @@
 import { AlertDialog, Button, Flex } from "@radix-ui/themes";
 
-import { useSettings } from "@/settings";
+import { useServerManagement } from "@/socket";
 
 export function LeaveServer() {
   const { removeServer, showRemoveServer, setShowRemoveServer, servers } =
-    useSettings();
+    useServerManagement();
 
   function handleRemoveServer(remove: boolean) {
     if (!showRemoveServer) return;
