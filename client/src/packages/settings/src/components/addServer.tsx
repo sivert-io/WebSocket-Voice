@@ -18,6 +18,7 @@ import { FiWifi, FiX } from "react-icons/fi";
 import { io, Socket } from "socket.io-client";
 
 import { useServerManagement } from "../../../socket/src/hooks/useServerManagement";
+import { SkeletonBase } from "../../../socket/src/components/skeletons";
 
 export type FetchInfo = {
   name: string;
@@ -137,9 +138,11 @@ export function AddNewServer() {
                 onClick={getServerInfo}
                 disabled={isSearching || serverHost.length === 0}
               >
-                <Spinner loading={isSearching}>
+                {isSearching ? (
+                  <SkeletonBase width="16px" height="16px" borderRadius="50%" />
+                ) : (
                   <FiWifi />
-                </Spinner>
+                )}
                 {isSearching ? "Connecting" : "Connect"}
               </Button>
             </Flex>

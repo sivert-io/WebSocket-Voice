@@ -1,8 +1,9 @@
-import { Button, Flex, Spinner } from "@radix-ui/themes";
+import { Button, Flex } from "@radix-ui/themes";
 import { AnimatePresence, motion } from "motion/react";
 import { ChatBubbleIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 import { Channel } from "@/settings/src/types/server";
 import { ConnectedUser } from "./connectedUser";
+import { SkeletonBase } from "./skeletons";
 
 export const ChannelList = ({
   channels,
@@ -63,7 +64,12 @@ export const ChannelList = ({
               isConnecting &&
               channel.id === currentChannelId &&
               serverHost === currentServerConnected && (
-                <Spinner size="1" style={{ marginLeft: "auto" }} />
+                <SkeletonBase 
+                  width="16px" 
+                  height="16px" 
+                  borderRadius="50%" 
+                  style={{ marginLeft: "auto" }} 
+                />
               )}
           </Button>
 

@@ -11,6 +11,7 @@ import { useSettings } from "@/settings";
 import { useServerManagement } from "./useServerManagement";
 import { checkAuthenticationOnLaunch, canUseServer, forceSignOutWithAccount } from "@/common";
 import { useAccount } from "@/common";
+import { handleRateLimitError } from "../utils/rateLimitHandler";
 // import { useUserId } from "@/common"; // No longer needed with JWT system
 import {
   Server,
@@ -305,7 +306,7 @@ function useSocketsHook() {
           
           // Handle rate limiting with user-friendly message
           if (errorInfo.error === 'rate_limited' && errorInfo.message) {
-            toast.error(errorInfo.message);
+            handleRateLimitError(errorInfo, "Server connection");
             return;
           }
           

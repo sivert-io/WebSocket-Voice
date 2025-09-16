@@ -1,9 +1,10 @@
-import { Avatar, Flex, Spinner, Text } from "@radix-ui/themes";
+import { Avatar, Flex, Text } from "@radix-ui/themes";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef } from "react";
 import { BsVolumeOffFill } from "react-icons/bs";
 import { MdMicOff } from "react-icons/md";
 import { Controls } from "@/webRTC";
+import { SkeletonBase } from "./skeletons";
 
 export const VoiceView = ({
   showVoiceView,
@@ -126,7 +127,11 @@ export const VoiceView = ({
                                 borderRadius: "50%",
                               }}
                             >
-                              <Spinner size="2" />
+                              <SkeletonBase 
+                                width="24px" 
+                                height="24px" 
+                                borderRadius="50%" 
+                              />
                             </Flex>
                           )}
                           {(client.isMuted || client.isDeafened || client.isAFK) && (

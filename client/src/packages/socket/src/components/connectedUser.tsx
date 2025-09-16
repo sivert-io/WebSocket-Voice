@@ -1,8 +1,9 @@
-import { Avatar, Flex, Spinner,Text } from "@radix-ui/themes";
+import { Avatar, Flex, Text } from "@radix-ui/themes";
 import { motion } from "motion/react";
 import { useEffect } from "react";
 import { BsVolumeOffFill } from "react-icons/bs";
 import { MdMicOff } from "react-icons/md";
+import { SkeletonBase } from "./skeletons";
 
 export function ConnectedUser({
   isSpeaking,
@@ -65,7 +66,7 @@ export function ConnectedUser({
 
         <Flex gap="1" align="center">
           {isConnectingToVoice && (
-            <Spinner size="1" />
+            <SkeletonBase width="12px" height="12px" borderRadius="50%" />
           )}
           {isDeafened ? (
             <BsVolumeOffFill color="var(--red-8)" />

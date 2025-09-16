@@ -1,4 +1,4 @@
-import { Box, Flex, Spinner, Text } from "@radix-ui/themes";
+import { Box, Flex } from "@radix-ui/themes";
 import { useEffect, useMemo, useRef,useState } from "react";
 import toast from "react-hot-toast";
 import { v4 as uuidv4 } from "uuid";
@@ -13,10 +13,12 @@ import { useSFU } from "@/webRTC";
 import { useSockets } from "../hooks/useSockets";
 import { useServerManagement } from "../hooks/useServerManagement";
 import { shouldRefreshToken } from "../utils/tokenManager";
+import { handleRateLimitError } from "../utils/rateLimitHandler";
 import { ChannelList } from "./ChannelList";
 import { ChatMessage, ChatView } from "./ChatView";
 import { ServerHeader } from "./ServerHeader";
 import { VoiceView } from "./VoiceView";
+import { ServerDetailsSkeleton } from "./skeletons";
 
 export const ServerView = () => {
   const [clientsSpeaking, setClientsSpeaking] = useState<{
@@ -132,17 +134,7 @@ export const ServerView = () => {
     if (!currentConnection) return;
 
     const handleChatError = (error: string | { error: string; message?: string; retryAfterMs?: number; currentScore?: number; maxScore?: number }) => {
-      console.error("❌ Chat error:", error);
-      
-      // Handle rate limiting with user-friendly message
-      if (typeof error === 'object' && error.error === 'rate_limited' && error.message) {
-        toast.error(error.message);
-        return;
-      }
-      
-      // Handle other chat errors
-      const errorMessage = typeof error === 'string' ? error : error.error || 'Unknown chat error';
-      toast.error(`Chat error: ${errorMessage}`);
+      handleRateLimitError(error, "Chat");
     };
 
     currentConnection.on("chat:error", handleChatError);
@@ -577,9 +569,10 @@ export const ServerView = () => {
     console.log("🔄 Server details not yet loaded for:", currentlyViewingServer.host);
     console.log("📊 Available server details:", Object.keys(serverDetailsList));
     return (
-      <Flex direction="column" align="center" justify="center" height="100%" gap="4">
-        <Spinner size="3" />
-        <Text size="2" color="gray">Loading server details...</Text>
+      <Flex width="100%" height="100%" gap="4">
+        <Box width={{ sm: "240px", initial: "100%" }}>
+          <ServerDetailsSkeleton />
+        </Box>
       </Flex>
     );
   }

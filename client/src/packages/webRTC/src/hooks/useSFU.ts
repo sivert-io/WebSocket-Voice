@@ -9,6 +9,7 @@ import connectMp3 from "@/audio/src/assets/connect.mp3";
 import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
 import { useSockets, useServerManagement } from "@/socket";
+import { handleRateLimitError } from "@/socket/src/utils/rateLimitHandler";
 
 import { SFUConnectionState,SFUInterface, Streams, StreamSources } from "../types/SFU";
 
@@ -555,7 +556,7 @@ function useSfuHook(): SFUInterface {
         
         // Handle rate limiting with user-friendly message
         if (typeof error === 'object' && error.error === 'rate_limited' && error.message) {
-          toast.error(error.message);
+          handleRateLimitError(error, "Voice connection");
           reject(new Error(error.message));
           return;
         }
