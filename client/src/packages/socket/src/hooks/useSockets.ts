@@ -601,9 +601,15 @@ function useSocketsHook() {
             host
           });
           
+          // Override all member colors to gray for consistency
+          const membersWithGrayColor = data.map(member => ({
+            ...member,
+            color: "var(--gray-6)" // Use a consistent gray color
+          }));
+          
           setMemberLists((old) => ({
             ...old,
-            [host]: data,
+            [host]: membersWithGrayColor,
           }));
         });
 

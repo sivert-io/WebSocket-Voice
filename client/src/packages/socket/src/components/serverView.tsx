@@ -170,6 +170,11 @@ export const ServerView = () => {
     } 
   }, [currentlyViewingServer, serverDetailsList, failedServerDetails, serverLoadingTimeouts]);
 
+  // Clear selected channel when switching servers to allow restoration
+  useEffect(() => {
+    setSelectedChannelId(null);
+  }, [currentlyViewingServer?.host]);
+
   // When viewing a server, default to the last selected channel or first text channel
   useEffect(() => {
     if (!currentlyViewingServer) return;

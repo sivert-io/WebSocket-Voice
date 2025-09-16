@@ -1,5 +1,4 @@
 import { Avatar, Flex, Text, Box } from "@radix-ui/themes";
-import { motion } from "motion/react";
 import { BsVolumeOffFill } from "react-icons/bs";
 import { MdMicOff } from "react-icons/md";
 import { HiSpeakerWave } from "react-icons/hi2";
@@ -112,23 +111,19 @@ export const MemberSidebar = ({
 
         {/* Member List */}
         <Flex direction="column" gap="2" style={{ overflow: "auto", flex: 1 }}>
-          {memberList.map((member, index) => {
+          {memberList.map((member) => {
             const isSpeaking = clientsSpeaking[member.serverUserId] || false;
             const statusColor = getStatusColor(member);
             const statusText = getStatusText(member);
 
             return (
-              <motion.div
+              <div
                 key={member.serverUserId}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2, delay: index * 0.05 }}
                 style={{
                   background: isSpeaking ? "var(--accent-4)" : "var(--gray-4)",
                   borderRadius: "16px",
                   padding: "8px 12px",
                   border: isSpeaking ? "1px solid var(--accent-6)" : "1px solid transparent",
-                  transition: "all 0.2s ease",
                   cursor: 'default',
                   opacity: member.status === 'offline' ? 0.6 : 1,
                 }}
@@ -141,7 +136,6 @@ export const MemberSidebar = ({
                       fallback={member.nickname[0]}
                       style={{
                         outline: isSpeaking ? "2px solid var(--accent-9)" : "2px solid transparent",
-                        transition: "outline-color 0.2s ease",
                         backgroundColor: member.color,
                       }}
                     />
@@ -201,7 +195,7 @@ export const MemberSidebar = ({
                     </Flex>
                   </Flex>
                 </Flex>
-              </motion.div>
+              </div>
             );
           })}
         </Flex>
