@@ -14,7 +14,6 @@ import { useEffect, useMemo,useRef, useState } from "react";
 
 import { useMicrophone } from "@/audio";
 import { useSettings } from "@/settings";
-import { useSFU } from "@/webRTC";
 
 export function MicrophoneSettings() {
   const {
@@ -32,11 +31,9 @@ export function MicrophoneSettings() {
     setAfkTimeoutMinutes,
   } = useSettings();
 
-  const { isConnected } = useSFU();
-  
-  // Only create a microphone handle if we're not connected to a voice channel
-  // If connected, just access the shared buffer; if not connected, create a handle for testing
-  const { devices, microphoneBuffer, getDevices, getVisualizerData, audioContext } = useMicrophone(!isConnected);
+  // Always create a microphone handle to ensure audio processing works
+  // The microphone needs to be active both for testing and for voice chat transmission
+  const { devices, microphoneBuffer, getDevices, getVisualizerData, audioContext } = useMicrophone(true);
 
   const [micLiveVolume, setMicLiveVolume] = useState(0); // Final processed volume for general display
   const [micRawVolume, setMicRawVolume] = useState(0); // Raw input volume for noise gate visualization
@@ -343,7 +340,7 @@ export function MicrophoneSettings() {
                 border: '1px solid var(--gray-6)', 
                 borderRadius: '4px', 
                 padding: '4px',
-                backgroundColor: 'var(--color-panel)',
+                backgroundColor: 'var(--gray-3)',
                 minHeight: '48px',
                 display: 'flex',
                 alignItems: 'center',

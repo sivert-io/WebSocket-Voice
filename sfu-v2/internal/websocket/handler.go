@@ -175,7 +175,7 @@ func (h *Handler) handleServerRegistration(conn *ThreadSafeWriter, clientID, dat
 
 	h.debugLog("🖥️  Server registration attempt: ServerID=%s, RoomID=%s", regData.ServerID, regData.RoomID)
 
-	if err := h.roomManager.RegisterServer(regData.ServerID, regData.ServerToken, regData.RoomID); err != nil {
+	if err := h.roomManager.RegisterServer(regData.ServerID, regData.ServerPassword, regData.RoomID); err != nil {
 		h.debugLog("❌ Server registration failed for %s: %v", regData.ServerID, err)
 		h.sendErrorToConnection(conn, "Registration failed: "+err.Error())
 		return err
@@ -229,7 +229,7 @@ func (h *Handler) handleClientConnection(conn *ThreadSafeWriter, clientID string
 		h.debugLog("👤 Client %s attempting to join room '%s' (Server: %s)", clientID, joinData.RoomID, joinData.ServerID)
 
 		// Validate client can join the room
-		if err := h.roomManager.ValidateClientJoin(joinData.RoomID, joinData.ServerID, joinData.ServerToken); err != nil {
+		if err := h.roomManager.ValidateClientJoin(joinData.RoomID, joinData.ServerID, joinData.ServerPassword); err != nil {
 			h.debugLog("❌ Client join validation failed for %s: %v", clientID, err)
 			h.sendErrorToConnection(conn, "Join validation failed: "+err.Error())
 			return err

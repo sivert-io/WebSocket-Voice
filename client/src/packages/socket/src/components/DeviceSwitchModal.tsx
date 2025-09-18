@@ -57,7 +57,7 @@ export function DeviceSwitchModal() {
               gap="2" 
               p="3" 
               style={{ 
-                backgroundColor: "var(--gray-2)", 
+                backgroundColor: "var(--gray-3)", 
                 borderRadius: "8px",
                 width: "100%"
               }}

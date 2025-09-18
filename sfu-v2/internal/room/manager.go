@@ -27,7 +27,7 @@ type Room struct {
 type Manager struct {
 	rooms             map[string]*Room
 	serverToRooms     map[string][]string
-	registeredServers map[string]string // serverID -> serverToken
+	registeredServers map[string]string // serverID -> serverPassword
 	mutex             sync.RWMutex
 	debug             bool
 }
@@ -50,7 +50,7 @@ func (m *Manager) debugLog(format string, args ...interface{}) {
 }
 
 // RegisterServer registers a server and creates a room for it
-func (m *Manager) RegisterServer(serverID, serverToken, roomID string) error {
+func (m *Manager) RegisterServer(serverID, serverPassword, roomID string) error {
 	return recovery.SafeExecuteWithContext("ROOM_MANAGER", "REGISTER_SERVER", "", roomID, fmt.Sprintf("Server: %s", serverID), func() error {
 		m.mutex.Lock()
 		defer m.mutex.Unlock()
@@ -58,14 +58,14 @@ func (m *Manager) RegisterServer(serverID, serverToken, roomID string) error {
 		m.debugLog("Attempting to register server '%s' with room '%s'", serverID, roomID)
 
 		// Check if server is already registered
-		if existingToken, exists := m.registeredServers[serverID]; exists {
-			if existingToken != serverToken {
-				m.debugLog("❌ Server '%s' registration failed: token mismatch", serverID)
-				return fmt.Errorf("server %s already registered with different token", serverID)
+		if existingPassword, exists := m.registeredServers[serverID]; exists {
+			if existingPassword != serverPassword {
+				m.debugLog("❌ Server '%s' registration failed: password mismatch", serverID)
+				return fmt.Errorf("server %s already registered with different password", serverID)
 			}
-			m.debugLog("✅ Server '%s' already registered with matching token", serverID)
+			m.debugLog("✅ Server '%s' already registered with matching password", serverID)
 		} else {
-			m.registeredServers[serverID] = serverToken
+			m.registeredServers[serverID] = serverPassword
 			m.debugLog("✅ Server '%s' registered successfully", serverID)
 		}
 
@@ -100,7 +100,7 @@ func (m *Manager) RegisterServer(serverID, serverToken, roomID string) error {
 }
 
 // ValidateClientJoin validates that a client can join a room and creates the room if it doesn't exist
-func (m *Manager) ValidateClientJoin(roomID, serverID, serverToken string) error {
+func (m *Manager) ValidateClientJoin(roomID, serverID, serverPassword string) error {
 	return recovery.SafeExecuteWithContext("ROOM_MANAGER", "VALIDATE_CLIENT_JOIN", "", roomID, fmt.Sprintf("Server: %s", serverID), func() error {
 		m.mutex.Lock() // Use Lock instead of RLock since we might need to create a room
 		defer m.mutex.Unlock()
@@ -108,15 +108,15 @@ func (m *Manager) ValidateClientJoin(roomID, serverID, serverToken string) error
 		m.debugLog("Validating client join: room='%s', server='%s'", roomID, serverID)
 
 		// Check if server is registered
-		registeredToken, exists := m.registeredServers[serverID]
+		registeredPassword, exists := m.registeredServers[serverID]
 		if !exists {
 			m.debugLog("❌ Validation failed: server '%s' not registered", serverID)
 			return fmt.Errorf("server %s not registered", serverID)
 		}
 
-		if registeredToken != serverToken {
-			m.debugLog("❌ Validation failed: invalid token for server '%s'", serverID)
-			return fmt.Errorf("invalid server token for server %s", serverID)
+		if registeredPassword != serverPassword {
+			m.debugLog("❌ Validation failed: invalid password for server '%s'", serverID)
+			return fmt.Errorf("invalid server password for server %s", serverID)
 		}
 
 		// Check if room exists - if not, create it automatically

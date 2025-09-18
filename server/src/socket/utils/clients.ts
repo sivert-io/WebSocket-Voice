@@ -64,34 +64,36 @@ export async function broadcastMemberList(io: Server, clientsInfo: Clients) {
       }
     });
     
-    // Combine registered users with online status
-    const members = registeredUsers.map(user => {
-      const onlineClient = onlineUsers.get(user.server_user_id);
-      
-      let status: 'online' | 'in_voice' | 'afk' | 'offline' = 'offline';
-      if (onlineClient) {
-        if (onlineClient.isAFK) {
-          status = 'afk';
-        } else if (onlineClient.isConnectedToVoice && onlineClient.hasJoinedChannel) {
-          status = 'in_voice';
-        } else {
-          status = 'online';
+    // Combine registered users with online status, filtering out inactive users
+    const members = registeredUsers
+      .filter(user => user.is_active) // Only include active users
+      .map(user => {
+        const onlineClient = onlineUsers.get(user.server_user_id);
+        
+        let status: 'online' | 'in_voice' | 'afk' | 'offline' = 'offline';
+        if (onlineClient) {
+          if (onlineClient.isAFK) {
+            status = 'afk';
+          } else if (onlineClient.isConnectedToVoice && onlineClient.hasJoinedChannel) {
+            status = 'in_voice';
+          } else {
+            status = 'online';
+          }
         }
-      }
-      
-      return {
-        serverUserId: user.server_user_id,
-        nickname: user.nickname,
-        status,
-        lastSeen: user.last_seen,
-        isMuted: onlineClient?.isMuted || false,
-        isDeafened: onlineClient?.isDeafened || false,
-        color: onlineClient?.color || '#666666',
-        isConnectedToVoice: onlineClient?.isConnectedToVoice || false,
-        hasJoinedChannel: onlineClient?.hasJoinedChannel || false,
-        streamID: onlineClient?.streamID || '',
-      };
-    });
+        
+        return {
+          serverUserId: user.server_user_id,
+          nickname: user.nickname,
+          status,
+          lastSeen: user.last_seen,
+          isMuted: onlineClient?.isMuted || false,
+          isDeafened: onlineClient?.isDeafened || false,
+          color: onlineClient?.color || '#666666',
+          isConnectedToVoice: onlineClient?.isConnectedToVoice || false,
+          hasJoinedChannel: onlineClient?.hasJoinedChannel || false,
+          streamID: onlineClient?.streamID || '',
+        };
+      });
     
     console.log(`📡 Broadcasting member list with ${members.length} registered users to verifiedClients`);
     io.to("verifiedClients").emit("members:list", members);

@@ -328,7 +328,7 @@ export const ChatView = ({
         overflow="hidden"
         flexGrow="1"
         style={{
-          background: "var(--color-panel)",
+          background: "var(--gray-3)",
           borderRadius: "12px",
         }}
       >

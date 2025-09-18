@@ -32,18 +32,16 @@ export function sendInfo(socket: Socket) {
 }
 
 export function sendServerDetails(socket: Socket, clientsInfo: Clients) {
-  // Check if client has valid server token
+  // Only send server details to registered users
   const clientId = socket.id;
   const client = clientsInfo[clientId];
-  const expectedServerToken = process.env.SERVER_TOKEN;
   
-  // Only check token if the client has already attempted to join
-  // This allows initial connection and server info to be sent
-  if (expectedServerToken && client && (!client.serverToken || client.serverToken !== expectedServerToken)) {
-    consola.warn(`🚫 Client ${clientId} requested server details without valid token`);
+  // Check if client has joined the server (is a registered user)
+  if (!client || !client.grytUserId) {
+    consola.warn(`🚫 Client ${clientId} requested server details without joining`);
     socket.emit("details", {
-      error: "token_required",
-      message: "Server token required to access details"
+      error: "join_required",
+      message: "Please join the server first"
     });
     return;
   }
@@ -79,10 +77,20 @@ export function sendServerDetails(socket: Socket, clientsInfo: Clients) {
     }
   }
 
+  // Filter to only include registered users (those with real serverUserId, not temp IDs)
+  const registeredClients: Clients = {};
+  Object.entries(clientsInfo).forEach(([clientId, client]) => {
+    // Only include clients who have been properly registered in the database
+    // (i.e., have a real serverUserId that doesn't start with "temp_")
+    if (client.serverUserId && !client.serverUserId.startsWith('temp_')) {
+      registeredClients[clientId] = client;
+    }
+  });
+
   const serverDetails = {
     sfu_host: sfuHost,
     stun_hosts: stunHosts,
-    clients: clientsInfo,
+    clients: registeredClients, // Only send registered users, not temporary connections
     channels,
     server_info: {
       name: process.env.SERVER_NAME || "Unknown Server",

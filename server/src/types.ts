@@ -15,6 +15,5 @@ export interface Clients {
     status?: UserStatus;
     lastSeen?: Date;
     accessToken?: string; // JWT access token for this server
-    serverToken?: string; // Server token for access control
   };
 }

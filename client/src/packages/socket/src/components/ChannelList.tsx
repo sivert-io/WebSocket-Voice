@@ -87,7 +87,7 @@ export const ChannelList = ({
                     pt="2"
                     direction="column"
                     style={{
-                      background: "var(--color-panel)",
+                      background: "var(--gray-3)",
                       borderRadius: "0 0 12px 12px",
                     }}
                   >

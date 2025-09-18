@@ -33,10 +33,20 @@ initScylla()
 let sfuClient: SFUClient | null = null;
 
 if (process.env.SFU_WS_HOST) {
-	const serverId = process.env.SERVER_NAME?.replace(/\s+/g, '_').toLowerCase() || 'unknown_server';
-	const serverToken = process.env.SERVER_TOKEN || 'default_token';
+	// Create unique server ID by combining SERVER_NAME with PORT and SCYLLA_KEYSPACE
+	// This ensures each server instance gets a unique ID even if SERVER_NAME is the same
+	const serverName = process.env.SERVER_NAME?.replace(/\s+/g, '_').toLowerCase() || 'unknown_server';
+	const port = process.env.PORT || '5000';
+	const keyspace = process.env.SCYLLA_KEYSPACE || 'default';
+	const serverId = `${serverName}_${port}_${keyspace}`;
+	const serverPassword = process.env.SERVER_PASSWORD || 'default_password';
 	
-	sfuClient = new SFUClient(serverId, serverToken, process.env.SFU_WS_HOST);
+	sfuClient = new SFUClient(serverId, serverPassword, process.env.SFU_WS_HOST);
+	
+	consola.info(`🔧 SFU Client initialized with unique server ID: ${serverId}`);
+	consola.info(`   - Server Name: ${serverName}`);
+	consola.info(`   - Port: ${port}`);
+	consola.info(`   - Keyspace: ${keyspace}`);
 	
 	// Connect to SFU server
 	sfuClient.connect().catch((error) => {

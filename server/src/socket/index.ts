@@ -5,9 +5,9 @@ import { Server, Socket } from "socket.io";
 import { syncAllClients, verifyClient, broadcastMemberList } from "./utils/clients";
 import { sendInfo, sendServerDetails } from "./utils/server";
 import { SFUClient } from "../sfu/client";
-import { insertMessage, listMessages, MessageRecord, upsertUser, getUserByGrytId, getUserByServerId, addReactionToMessage, getAllRegisteredUsers } from "../db/scylla";
+import { insertMessage, listMessages, MessageRecord, upsertUser, getUserByGrytId, getUserByServerId, addReactionToMessage, getAllRegisteredUsers, verifyUserIdentity, setUserInactive } from "../db/scylla";
 import { generateAccessToken, verifyAccessToken, refreshToken, TokenPayload } from "../utils/jwt";
-import { verifyJoinToken } from "../services/grytAuth";
+// Removed Gryt Auth verification - now using simple password system
 import { checkRateLimit, RateLimitRule } from "../utils/rateLimiter";
 
 import { randomUUID } from "crypto";
@@ -139,8 +139,8 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
 
   // Enhanced event handlers with better error handling and validation
   const eventHandlers: { [event: string]: (...args: any[]) => void } = {
-    // Join server with join token
-    'server:join': async (payload: { joinToken: string; nickname?: string; serverToken?: string }) => {
+    // Join server with password
+    'server:join': async (payload: { password?: string; nickname?: string }) => {
       try {
         // Rate limit join attempts per IP
         const ip = getClientIp(socket);
@@ -157,55 +157,32 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           return;
         }
         consola.info(`📥 Received server:join from client ${clientId}:`, {
-          hasJoinToken: !!payload?.joinToken,
-          hasNickname: !!payload?.nickname,
-          hasServerToken: !!payload?.serverToken
+          hasPassword: !!payload?.password,
+          hasNickname: !!payload?.nickname
         });
         
-        if (!payload || typeof payload.joinToken !== 'string') {
-          socket.emit('server:error', 'Invalid join payload - joinToken required');
-          return;
-        }
-        
-        // Validate server token if provided
-        const expectedServerToken = process.env.SERVER_TOKEN;
-        if (expectedServerToken && (!payload.serverToken || payload.serverToken !== expectedServerToken)) {
-          consola.warn(`❌ Invalid server token from client ${clientId}`);
-          socket.emit('server:error', 'token_invalid');
-          return;
-        }
-        
-        // Verify the join token with Gryt Auth
-        const verification = await verifyJoinToken(payload.joinToken, socket.handshake.headers.host);
-        
-        if (!verification.valid || !verification.user) {
-          consola.warn(`❌ Invalid join token from client ${clientId}`);
-          
-          // Send specific error codes for better client handling
-          if (verification.error?.includes('not found') || verification.error?.includes('not authorized')) {
+        // Check server password
+        const serverPassword = process.env.SERVER_PASSWORD;
+        if (serverPassword) {
+          // Server has a password - check if provided password matches
+          if (!payload.password || payload.password !== serverPassword) {
+            consola.warn(`❌ Invalid password from client ${clientId}`);
             socket.emit('server:error', {
-              error: 'user_not_authorized',
-              message: 'You are not authorized to join this server. Please contact the server administrator or re-apply if this is an open server.',
-              canReapply: true // Assume servers can be open for now
-            });
-          } else if (verification.error?.includes('expired') || verification.error?.includes('invalid')) {
-            socket.emit('server:error', {
-              error: 'join_token_invalid',
-              message: 'Your join token is invalid or expired. Please get a new token and try again.',
+              error: 'invalid_password',
+              message: 'Invalid server password. Please check with the server administrator.',
               canReapply: true
             });
-          } else {
-            socket.emit('server:error', {
-              error: 'join_verification_failed',
-              message: verification.error || 'Failed to verify your access to this server.',
-              canReapply: true
-            });
+            return;
           }
-          return;
+          consola.info(`✅ Valid password provided by client ${clientId}`);
+        } else {
+          // No server password - allow anyone to join
+          consola.info(`ℹ️ No server password set - allowing client ${clientId} to join`);
         }
         
-        const grytUserId = verification.user.userId;
-        const nickname = payload.nickname || verification.user.nickname || 'Anonymous';
+        // Generate a unique user ID for this connection
+        const grytUserId = `user_${randomUUID()}`;
+        const nickname = payload.nickname || 'User';
         
         if (nickname.length > 50) {
           socket.emit('server:error', 'Nickname too long (max 50 characters)');
@@ -232,7 +209,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           clientsInfo[clientId].serverUserId = user.server_user_id;
           clientsInfo[clientId].nickname = user.nickname;
           clientsInfo[clientId].accessToken = accessToken;
-          clientsInfo[clientId].serverToken = payload.serverToken; // Store server token
+          // Client successfully authenticated with password
         }
         
         // Send back access token and user info
@@ -257,6 +234,54 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       }
     },
 
+    // Leave server and set user as inactive (remove from members list)
+    'server:leave': async () => {
+      try {
+        consola.info(`📤 Received server:leave from client ${clientId}`);
+        
+        const clientInfo = clientsInfo[clientId];
+        if (!clientInfo || !clientInfo.serverUserId || clientInfo.serverUserId.startsWith('temp_')) {
+          consola.warn(`❌ Client ${clientId} attempted to leave but is not a registered user`);
+          socket.emit('server:error', 'You are not a registered user');
+          return;
+        }
+
+        // Set user as inactive in database (removes them from members list)
+        await setUserInactive(clientInfo.serverUserId);
+        consola.info(`✅ User ${clientInfo.serverUserId} set as inactive (removed from members list)`);
+
+        // Clean up SFU tracking if this client was connected to voice
+        if (clientInfo.hasJoinedChannel && sfuClient) {
+          sfuClient.untrackUserConnection(clientInfo.serverUserId);
+        }
+
+        // Remove from clients info
+        delete clientsInfo[clientId];
+
+        // Broadcast updated member list to all clients
+        syncAllClients(io, clientsInfo);
+        broadcastMemberList(io, clientsInfo);
+
+        // Send confirmation to client
+        socket.emit('server:left', { message: 'Successfully left the server' });
+        consola.info(`📤 Client ${clientId} successfully left the server`);
+
+      } catch (err) {
+        consola.error('server:leave failed', err);
+        socket.emit('server:error', 'Failed to leave server');
+      }
+    },
+
+    // Request server details (channels, config, etc.)
+    'server:details': () => {
+      try {
+        consola.info(`📤 Received server:details request from client ${clientId}`);
+        sendServerDetails(socket, clientsInfo);
+      } catch (err) {
+        consola.error('server:details failed', err);
+        socket.emit('server:error', 'Failed to get server details');
+      }
+    },
 
     updateClientState: (clientState: { isMuted: boolean; isDeafened: boolean; isAFK: boolean; nickname: string }) => {
       if (!clientsInfo[clientId]) return;
@@ -475,8 +500,16 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         consola.info(`Processing room access request: ${clientId} -> ${roomId}`);
 
         // Create unique room ID by prefixing with server ID
-        const serverId = process.env.SERVER_NAME?.replace(/\s+/g, '_').toLowerCase() || 'unknown_server';
+        // Use the same unique server ID generation logic as in index.ts
+        const serverName = process.env.SERVER_NAME?.replace(/\s+/g, '_').toLowerCase() || 'unknown_server';
+        const port = process.env.PORT || '5000';
+        const keyspace = process.env.SCYLLA_KEYSPACE || 'default';
+        const serverId = `${serverName}_${port}_${keyspace}`;
         const uniqueRoomId = `${serverId}_${roomId}`;
+
+        consola.info(`🏠 Creating unique room ID: ${uniqueRoomId} (original: ${roomId})`);
+        consola.info(`   - Server ID: ${serverId}`);
+        consola.info(`   - Channel ID: ${roomId}`);
 
         // Register room with SFU using unique room ID
         await sfuClient.registerRoom(uniqueRoomId);
@@ -602,6 +635,25 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
             message: `You're doing things too quickly. Please wait ${Math.ceil((rl.retryAfterMs || 0) / 1000)} seconds.`
           });
           return;
+        }
+
+        // Verify user identity before allowing message sending
+        if (userId && payload.accessToken) {
+          const tokenPayload = verifyAccessToken(payload.accessToken);
+          if (!tokenPayload || !tokenPayload.grytUserId) {
+            consola.warn(`🚫 chat:send identity verification failed for ${clientId} - invalid token`);
+            socket.emit('chat:error', 'Invalid access token');
+            return;
+          }
+          
+          const identityValid = await verifyUserIdentity(userId, tokenPayload.grytUserId);
+          if (!identityValid) {
+            consola.warn(`🚫 chat:send identity verification failed for ${clientId} - identity mismatch`);
+            socket.emit('chat:error', 'Identity verification failed');
+            return;
+          }
+          
+          consola.info(`✅ chat:send identity verified for ${clientId} (${tokenPayload.grytUserId})`);
         }
         // Check if this is a voice channel and if user is connected to it
         if (userId && isConversationAVoiceChannel(payload.conversationId, sfuClient)) {
@@ -986,43 +1038,25 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       sfuClient.untrackUserConnection(clientInfo.serverUserId);
     }
     
+    // Only broadcast updates if the disconnected user was actually a registered member
+    const wasRegisteredMember = clientInfo && clientInfo.serverUserId && !clientInfo.serverUserId.startsWith('temp_');
+    
     delete clientsInfo[clientId];
-    syncAllClients(io, clientsInfo);
-    broadcastMemberList(io, clientsInfo);
+    
+    if (wasRegisteredMember) {
+      consola.info(`📡 Broadcasting member updates for disconnected registered user: ${clientId}`);
+      syncAllClients(io, clientsInfo);
+      broadcastMemberList(io, clientsInfo);
+    } else {
+      consola.info(`📡 No member updates needed for disconnected temp user: ${clientId}`);
+    }
   });
 
   // Send initial info
   sendInfo(socket);
 
-  // Authenticate client
-  const clientToken = socket.handshake.auth?.token;
-  const expectedToken = process.env.SERVER_TOKEN;
-  
-  consola.info(`🔐 Auth check for ${clientId}:`, {
-    clientToken: clientToken ? 'present' : 'missing',
-    expectedToken: expectedToken ? 'configured' : 'missing',
-    authObject: socket.handshake.auth
-  });
-
-  if (!expectedToken) {
-    consola.error("SERVER_TOKEN not configured!");
-    socket.disconnect(true);
-    return;
-  }
-
-  if (clientToken !== expectedToken) {
-    consola.warn(`❌ Authentication failed for ${clientId}:`, {
-      clientToken,
-      expectedToken,
-      match: clientToken === expectedToken
-    });
-    socket.emit('auth_error', 'Invalid authentication token');
-    socket.disconnect(true);
-    return;
-  }
-
-  // Client authenticated successfully
-  consola.success(`Client authenticated: ${clientId}`);
+  // Client connected successfully - authentication will be handled during server:join
+  consola.info(`✅ Client ${clientId} connected successfully`);
 
   // Initialize client info
   clientsInfo[clientId] = {
@@ -1053,11 +1087,10 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     consola.info(`ℹ️ Client ${clientId} has no access token - will need to join server`);
   }
 
-  // Send client verification and details
+  // Send client verification (but not details - they need to join first)
   verifyClient(socket);
-  sendServerDetails(socket, clientsInfo);
-  syncAllClients(io, clientsInfo);
-  broadcastMemberList(io, clientsInfo);
+  // Note: We don't send server details or sync clients here because the user hasn't joined the server yet
+  // This will be done when they actually call 'server:join'
 
   // Register all event handlers
   Object.entries(eventHandlers).forEach(([event, handler]) => {

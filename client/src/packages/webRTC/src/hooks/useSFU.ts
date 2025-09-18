@@ -143,9 +143,9 @@ function useSfuHook(): SFUInterface {
            connectionState.state === SFUConnectionState.REQUESTING_ACCESS;
   }, [connectionState.state]);
 
-  // Access shared microphone buffer without creating our own handle
-  // ServerView manages the microphone access, we just use the shared singleton buffer
-  const { microphoneBuffer } = useMicrophone(false);
+  // Access shared microphone buffer - create handle when connecting to ensure mic is available
+  // This ensures the microphone is properly initialized for voice transmission
+  const { microphoneBuffer } = useMicrophone(isConnecting || isConnected);
   // Use a ref to always read the freshest microphone buffer inside async flows
   const microphoneBufferRef = useRef(microphoneBuffer);
   useEffect(() => {

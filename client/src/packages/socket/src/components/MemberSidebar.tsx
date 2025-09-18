@@ -90,7 +90,7 @@ export const MemberSidebar = ({
     <Box
       width="240px"
       style={{
-        background: "var(--color-panel)",
+        background: "var(--gray-3)",
         borderRadius: "12px",
         height: "100%",
         overflow: "hidden",
@@ -149,7 +149,7 @@ export const MemberSidebar = ({
                         height: "8px",
                         borderRadius: "50%",
                         background: statusColor,
-                        border: "2px solid var(--color-panel)",
+                        border: "2px solid var(--gray-3)",
                       }}
                     />
                   </Flex>

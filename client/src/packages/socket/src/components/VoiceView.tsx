@@ -42,7 +42,7 @@ export const VoiceView = ({
     >
       <Flex
         style={{
-          background: "var(--color-panel)",
+          background: "var(--gray-3)",
           borderRadius: "12px",
         }}
         height="100%"
@@ -93,7 +93,7 @@ export const VoiceView = ({
                       style={{
                         background: clientsSpeaking[id]
                           ? "var(--accent-3)"
-                          : "var(--color-panel)",
+                          : "var(--gray-3)",
                         borderRadius: "12px",
                         opacity: 1, // Always show at full opacity when user has joined channel
                         transition: "opacity 0.3s ease, background-color 0.1s ease",
@@ -141,7 +141,7 @@ export const VoiceView = ({
                               right="-4px"
                               gap="1"
                               style={{
-                                background: "var(--color-panel)",
+                                background: "var(--gray-3)",
                                 borderRadius: "8px",
                                 padding: "2px 4px",
                                 border: "1px solid var(--gray-6)",

@@ -62,7 +62,7 @@ server:
     SERVER_ICON: "production-icon.png"
   
   secrets:
-    serverToken: "super-secure-production-token-change-me"
+    serverPassword: "super-secure-production-password-change-me"
     corsOrigin: "https://gryt.mycompany.com"
 
 # Web Client Configuration

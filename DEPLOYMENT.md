@@ -122,7 +122,7 @@ docker run -p 80:80 gryt/client:latest
      
    server:
      secrets:
-       serverToken: "super-secure-production-token"
+       serverPassword: "super-secure-production-password"
        corsOrigin: "https://gryt.mycompany.com"
    ```
 
@@ -206,7 +206,7 @@ SERVER_ICON="example.png"
 SFU_WS_HOST="ws://gryt-sfu:5005"
 STUN_SERVERS="stun:stun.l.google.com:19302"
 CORS_ORIGIN="https://yourdomain.com"
-SERVER_TOKEN="your-secure-token"
+SERVER_PASSWORD="your-secure-password"
 GRYT_AUTH_API="https://auth.gryt.chat"
 NODE_ENV=production
 ```
@@ -401,7 +401,7 @@ kubectl top pods -l app.kubernetes.io/name=gryt
 ```bash
 # Create secrets from files
 kubectl create secret generic gryt-secrets \
-  --from-file=server-token=./server-token.txt \
+  --from-file=server-password=./server-password.txt \
   --from-file=cors-origin=./cors-origin.txt \
   -n gryt
 

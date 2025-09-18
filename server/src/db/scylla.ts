@@ -8,6 +8,7 @@ export interface UserRecord {
   created_at: Date;
   last_seen: Date;
   last_token_refresh?: Date; // Track when token was last refreshed
+  is_active: boolean; // Whether the user is currently active on the server
 }
 
 export interface Reaction {
@@ -78,7 +79,8 @@ export async function initScylla(): Promise<void> {
       server_user_id text,
       nickname text,
       created_at timestamp,
-      last_seen timestamp
+      last_seen timestamp,
+      is_active boolean
     )`
   );
 
@@ -88,9 +90,63 @@ export async function initScylla(): Promise<void> {
       gryt_user_id text,
       nickname text,
       created_at timestamp,
-      last_seen timestamp
+      last_seen timestamp,
+      is_active boolean
     )`
   );
+
+  // Add is_active column to existing tables if it doesn't exist
+  try {
+    await client.execute(`ALTER TABLE users_by_gryt_id ADD is_active boolean`);
+    console.log('✅ Added is_active column to users_by_gryt_id table');
+  } catch (error: any) {
+    if (error.message.includes('already exists') || error.message.includes('Invalid column name')) {
+      console.log('ℹ️ is_active column already exists in users_by_gryt_id table');
+    } else {
+      console.error('❌ Failed to add is_active column to users_by_gryt_id:', error.message);
+    }
+  }
+
+  try {
+    await client.execute(`ALTER TABLE users_by_server_id ADD is_active boolean`);
+    console.log('✅ Added is_active column to users_by_server_id table');
+  } catch (error: any) {
+    if (error.message.includes('already exists') || error.message.includes('Invalid column name')) {
+      console.log('ℹ️ is_active column already exists in users_by_server_id table');
+    } else {
+      console.error('❌ Failed to add is_active column to users_by_server_id:', error.message);
+    }
+  }
+
+  // Set default value for existing users (set them as active)
+  // Note: We can't use WHERE is_active = null in Cassandra, so we'll update all rows
+  try {
+    // Get all existing users and update them
+    const grytUsers = await client.execute(`SELECT gryt_user_id FROM users_by_gryt_id`);
+    const serverUsers = await client.execute(`SELECT server_user_id FROM users_by_server_id`);
+    
+    // Update users_by_gryt_id
+    for (const row of grytUsers.rows) {
+      await client.execute(
+        `UPDATE users_by_gryt_id SET is_active = true WHERE gryt_user_id = ?`,
+        [row.gryt_user_id],
+        { prepare: true }
+      );
+    }
+    
+    // Update users_by_server_id
+    for (const row of serverUsers.rows) {
+      await client.execute(
+        `UPDATE users_by_server_id SET is_active = true WHERE server_user_id = ?`,
+        [row.server_user_id],
+        { prepare: true }
+      );
+    }
+    
+    console.log(`✅ Set default is_active = true for ${grytUsers.rows.length} users in users_by_gryt_id and ${serverUsers.rows.length} users in users_by_server_id`);
+  } catch (error: any) {
+    console.error('❌ Failed to set default is_active values:', error.message);
+  }
 
   await client.execute(
     `CREATE TABLE IF NOT EXISTS messages_by_conversation (
@@ -136,61 +192,61 @@ export async function upsertUser(grytUserId: string, nickname: string): Promise<
   console.log(`👤 Upserting user:`, { grytUserId, nickname });
   
   try {
-    // First, check if user already exists
+    // Check if user already exists for this Gryt ID
     const existingUser = await getUserByGrytId(grytUserId);
     
     if (existingUser) {
-      // User exists, update their nickname and last_seen
-      const serverUserId = existingUser.server_user_id;
-      
-      console.log(`👤 User exists, updating:`, { grytUserId, serverUserId, nickname });
+      // Update existing user's last_seen and nickname
+      console.log(`👤 Updating existing user:`, { grytUserId, serverUserId: existingUser.server_user_id, nickname });
       
       await c.execute(
-        `UPDATE users_by_gryt_id SET nickname = ?, last_seen = ? WHERE gryt_user_id = ?`,
-        [nickname, now, grytUserId],
+        `UPDATE users_by_gryt_id SET nickname = ?, last_seen = ?, is_active = ? WHERE gryt_user_id = ?`,
+        [nickname, now, true, grytUserId],
         { prepare: true }
       );
       
       await c.execute(
-        `UPDATE users_by_server_id SET nickname = ?, last_seen = ? WHERE server_user_id = ?`,
-        [nickname, now, serverUserId],
+        `UPDATE users_by_server_id SET nickname = ?, last_seen = ?, is_active = ? WHERE server_user_id = ?`,
+        [nickname, now, true, existingUser.server_user_id],
         { prepare: true }
       );
       
-      console.log(`✅ User successfully updated:`, { grytUserId, serverUserId });
+      console.log(`✅ User successfully updated:`, { grytUserId, serverUserId: existingUser.server_user_id });
       return { 
         gryt_user_id: grytUserId, 
-        server_user_id: serverUserId, 
+        server_user_id: existingUser.server_user_id, 
         nickname,
         created_at: existingUser.created_at, 
-        last_seen: now 
+        last_seen: now,
+        is_active: true
       };
     } else {
-      // User doesn't exist, create new one
-      const serverUserId = `user_${randomUUID()}`; // Generate unique server user ID
+      // Create new user with persistent serverUserId
+      const serverUserId = `user_${randomUUID()}`;
       
-      console.log(`👤 Creating new user:`, { grytUserId, serverUserId, nickname });
+      console.log(`👤 Creating new user with persistent serverUserId:`, { grytUserId, serverUserId, nickname });
       
       // Insert into both tables for efficient lookups
       await c.execute(
-        `INSERT INTO users_by_gryt_id (gryt_user_id, server_user_id, nickname, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
-        [grytUserId, serverUserId, nickname, now, now],
+        `INSERT INTO users_by_gryt_id (gryt_user_id, server_user_id, nickname, created_at, last_seen, is_active) VALUES (?, ?, ?, ?, ?, ?)`,
+        [grytUserId, serverUserId, nickname, now, now, true],
         { prepare: true }
       );
       
       await c.execute(
-        `INSERT INTO users_by_server_id (server_user_id, gryt_user_id, nickname, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
-        [serverUserId, grytUserId, nickname, now, now],
+        `INSERT INTO users_by_server_id (server_user_id, gryt_user_id, nickname, created_at, last_seen, is_active) VALUES (?, ?, ?, ?, ?, ?)`,
+        [serverUserId, grytUserId, nickname, now, now, true],
         { prepare: true }
       );
       
-      console.log(`✅ User successfully created:`, { grytUserId, serverUserId });
+      console.log(`✅ User successfully created with persistent serverUserId:`, { grytUserId, serverUserId });
       return { 
         gryt_user_id: grytUserId, 
         server_user_id: serverUserId, 
         nickname,
         created_at: now, 
-        last_seen: now 
+        last_seen: now,
+        is_active: true
       };
     }
   } catch (error) {
@@ -204,7 +260,7 @@ export async function getUserByGrytId(grytUserId: string): Promise<UserRecord | 
   
   try {
     const rs = await c.execute(
-      `SELECT gryt_user_id, server_user_id, nickname, created_at, last_seen FROM users_by_gryt_id WHERE gryt_user_id = ?`,
+      `SELECT gryt_user_id, server_user_id, nickname, created_at, last_seen, is_active FROM users_by_gryt_id WHERE gryt_user_id = ?`,
       [grytUserId],
       { prepare: true }
     );
@@ -216,6 +272,7 @@ export async function getUserByGrytId(grytUserId: string): Promise<UserRecord | 
       nickname: r["nickname"],
       created_at: r["created_at"],
       last_seen: r["last_seen"],
+      is_active: r["is_active"] || true, // Default to true for backward compatibility
     };
   } catch (error) {
     console.error(`❌ Failed to get user by Gryt ID:`, error);
@@ -228,7 +285,7 @@ export async function getUserByServerId(serverUserId: string): Promise<UserRecor
   
   try {
     const rs = await c.execute(
-      `SELECT server_user_id, gryt_user_id, nickname, created_at, last_seen FROM users_by_server_id WHERE server_user_id = ?`,
+      `SELECT server_user_id, gryt_user_id, nickname, created_at, last_seen, is_active FROM users_by_server_id WHERE server_user_id = ?`,
       [serverUserId],
       { prepare: true }
     );
@@ -240,10 +297,43 @@ export async function getUserByServerId(serverUserId: string): Promise<UserRecor
       nickname: r["nickname"],
       created_at: r["created_at"],
       last_seen: r["last_seen"],
+      is_active: r["is_active"] || true, // Default to true for backward compatibility
     };
   } catch (error) {
     console.error(`❌ Failed to get user by server ID:`, error);
     throw error;
+  }
+}
+
+// Verify that a user's claimed identity matches their Gryt Auth ID
+export async function verifyUserIdentity(serverUserId: string, claimedGrytUserId: string): Promise<boolean> {
+  const c = getScyllaClient();
+  
+  try {
+    const rs = await c.execute(
+      `SELECT gryt_user_id FROM users_by_server_id WHERE server_user_id = ?`,
+      [serverUserId],
+      { prepare: true }
+    );
+    const r = rs.first();
+    
+    if (!r) {
+      console.warn(`⚠️ No user found for serverUserId: ${serverUserId}`);
+      return false;
+    }
+    
+    const actualGrytUserId = r["gryt_user_id"] as string;
+    const isValid = actualGrytUserId === claimedGrytUserId;
+    
+    console.log(`🔐 Identity verification for ${serverUserId}: ${isValid ? 'VALID' : 'INVALID'}`, {
+      claimed: claimedGrytUserId,
+      actual: actualGrytUserId
+    });
+    
+    return isValid;
+  } catch (error) {
+    console.error(`❌ Failed to verify user identity:`, error);
+    return false;
   }
 }
 
@@ -252,7 +342,7 @@ export async function getAllRegisteredUsers(): Promise<UserRecord[]> {
   
   try {
     const rs = await c.execute(
-      `SELECT server_user_id, gryt_user_id, nickname, created_at, last_seen FROM users_by_server_id`,
+      `SELECT server_user_id, gryt_user_id, nickname, created_at, last_seen, is_active FROM users_by_server_id`,
       [],
       { prepare: true }
     );
@@ -263,12 +353,43 @@ export async function getAllRegisteredUsers(): Promise<UserRecord[]> {
       nickname: r["nickname"],
       created_at: r["created_at"],
       last_seen: r["last_seen"],
+      is_active: r["is_active"] || true, // Default to true for backward compatibility
     }));
     
     console.log(`👥 Fetched ${users.length} registered users from database`);
     return users;
   } catch (error) {
     console.error(`❌ Failed to get all registered users:`, error);
+    throw error;
+  }
+}
+
+export async function setUserInactive(serverUserId: string): Promise<void> {
+  const c = getScyllaClient();
+  
+  try {
+    console.log(`👤 Setting user as inactive (removing from members list):`, { serverUserId });
+    
+    // Update both tables to set user as inactive (removes from members list)
+    await c.execute(
+      `UPDATE users_by_server_id SET is_active = ? WHERE server_user_id = ?`,
+      [false, serverUserId],
+      { prepare: true }
+    );
+    
+    // Get the gryt_user_id to update the other table
+    const user = await getUserByServerId(serverUserId);
+    if (user) {
+      await c.execute(
+        `UPDATE users_by_gryt_id SET is_active = ? WHERE gryt_user_id = ?`,
+        [false, user.gryt_user_id],
+        { prepare: true }
+      );
+    }
+    
+    console.log(`✅ User successfully set as inactive (removed from members list):`, { serverUserId });
+  } catch (error) {
+    console.error(`❌ Failed to set user as inactive:`, error);
     throw error;
   }
 }

@@ -4,14 +4,14 @@ import { randomBytes } from 'crypto';
 
 interface ServerRegistrationData {
   server_id: string;
-  server_token: string;
+  server_password: string;
   room_id: string;
 }
 
 interface ClientJoinData {
   room_id: string;
   server_id: string;
-  server_token: string;
+  server_password: string;
   user_token: string;
 }
 
@@ -19,7 +19,7 @@ interface AudioControlData {
   room_id: string;
   user_id: string;
   server_id: string;
-  server_token: string;
+  server_password: string;
   is_muted: boolean;
   is_deafened: boolean;
 }
@@ -49,14 +49,14 @@ export class SFUClient {
     isHealthy: true,
   };
 
-  constructor(serverId: string, serverToken: string, sfuHost: string) {
+  constructor(serverId: string, serverPassword: string, sfuHost: string) {
     this.serverId = serverId;
-    this.serverToken = serverToken;
+    this.serverToken = serverPassword; // Using password as token for SFU authentication
     this.sfuHost = sfuHost;
     
     // Validate configuration
-    if (!serverId || !serverToken || !sfuHost) {
-      throw new Error('SFU client requires serverId, serverToken, and sfuHost');
+    if (!serverId || !serverPassword || !sfuHost) {
+      throw new Error('SFU client requires serverId, serverPassword, and sfuHost');
     }
   }
 
@@ -281,7 +281,7 @@ export class SFUClient {
 
     const registrationData: ServerRegistrationData = {
       server_id: this.serverId,
-      server_token: this.serverToken,
+      server_password: this.serverToken,
       room_id: roomId,
     };
 
@@ -321,7 +321,7 @@ export class SFUClient {
     return {
       room_id: roomId,
       server_id: this.serverId,
-      server_token: this.serverToken,
+      server_password: this.serverToken,
       user_token: userToken,
     };
   }
@@ -351,7 +351,7 @@ export class SFUClient {
       room_id: roomId,
       user_id: userId,
       server_id: this.serverId,
-      server_token: this.serverToken,
+      server_password: this.serverToken,
       is_muted: isMuted,
       is_deafened: isDeafened,
     };

@@ -189,8 +189,8 @@ SERVER_ICON="example.png"
 # Websocket allowed origins
 CORS_ORIGIN="https://gryt.chat"
 
-# Websocket secret token (also used for SFU authentication)
-SERVER_TOKEN="your-secure-server-token-here"
+# Server password for client authentication (optional - leave empty for open server)
+# SERVER_PASSWORD="your-secure-server-password"
 
 # ScyllaDB / Cassandra settings
 SCYLLA_CONTACT_POINTS=your-scylla-host.com

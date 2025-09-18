@@ -20,7 +20,7 @@ export const ChannelSkeleton = () => {
             p="2"
             style={{
               width: "100%",
-              background: "var(--gray-2)",
+              background: "var(--gray-3)",
               borderRadius: "12px",
               border: "1px solid var(--gray-4)",
             }}

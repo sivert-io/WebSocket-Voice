@@ -76,11 +76,11 @@ spec:
             secretKeyRef:
               name: {{ include "gryt.fullname" . }}-secrets
               key: SFU_WS_HOST
-        - name: SERVER_TOKEN
+        - name: SERVER_PASSWORD
           valueFrom:
             secretKeyRef:
               name: {{ include "gryt.fullname" . }}-secrets
-              key: SERVER_TOKEN
+              key: SERVER_PASSWORD
         - name: CORS_ORIGIN
           valueFrom:
             secretKeyRef:

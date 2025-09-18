@@ -25,7 +25,7 @@ git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && helm 
 
 ### Production Deploy
 ```bash
-git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && helm install gryt ./helm/gryt -f helm/gryt/examples/production-values.yaml --set gryt.domain=yourdomain.com --set server.secrets.serverToken=your-secure-token
+git clone https://github.com/sivert-io/WebSocket-Voice.git && cd webrtc && helm install gryt ./helm/gryt -f helm/gryt/examples/production-values.yaml --set gryt.domain=yourdomain.com --set server.secrets.serverPassword=your-secure-password
 ```
 
 ## 🎯 What You Get
@@ -50,7 +50,7 @@ All services work out-of-the-box, but you can customize:
 ```env
 # Server
 SERVER_NAME="My Gryt Server"
-SERVER_TOKEN="your-secure-token"
+SERVER_PASSWORD="your-secure-password"
 SFU_WS_HOST="wss://your-sfu-server.com"
 STUN_SERVERS="stun:stun.l.google.com:19302"
 

@@ -55,7 +55,7 @@ server:
     SERVER_ICON: "dev-icon.png"
   
   secrets:
-    serverToken: "dev-token-123"
+    serverPassword: "dev-password-123"
     corsOrigin: "http://gryt-dev.local"
 
 # Web Client Configuration

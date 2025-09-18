@@ -340,47 +340,37 @@ function useSocketsHook() {
           // We have a token, try to use it
           console.log(`🔑 Using existing access token for server ${host}`);
           // The server will validate the token and refresh if needed
-        } else if (grytToken && nickname) {
-          // No access token, but we have Gryt token - get join token and join the server
-          console.log(`👤 Getting join token for server ${host}`);
-          
-          // Use a simple approach for now - just emit the join event with the Gryt token
-          // The server will handle getting the join token
-          socket.emit("server:join", {
-            joinToken: grytToken, // For now, use the Gryt token as the join token
-            nickname,
-            serverToken: servers[host].token // Send server token for access control
-          });
+          // Request server details since we should be authenticated
+          setTimeout(() => {
+            console.log(`📤 Requesting server details for ${host} (reconnected)`);
+            socket.emit("server:details");
+          }, 1000); // Small delay to ensure server is ready
         } else {
-          forceSignOutWithAccount(logout, `No authentication tokens available for server ${host}`);
-          toast.error('Please sign in to Gryt Auth to continue');
+          // No access token - join server with password (if required)
+          console.log(`👤 Joining server ${host} with password`);
+          
+          // For now, try joining without password (server will allow if no password set)
+          // TODO: Add password input UI
+          socket.emit("server:join", {
+            password: "", // Empty password - server will allow if no password set
+            nickname
+          });
         }
 
         socket.on("details", (data: serverDetails) => {
           
-          // Check if server details were denied due to missing token
-          if (data.error === "token_required") {
-            console.log(`🔑 Server ${host} requires token, attempting to re-join...`);
+          // Check if server details were denied due to not joining
+          if (data.error === "join_required") {
+            console.log(`🔑 Server ${host} requires joining, attempting to re-join...`);
             
-            // Get the stored server token and re-attempt to join
-            const storedToken = servers[host]?.token;
-            if (storedToken) {
-              // Add a delay to prevent rate limiting
-              setTimeout(() => {
-                console.log(`🔄 Re-joining server ${host} with stored token`);
-                socket.emit("server:join", {
-                  joinToken: grytToken,
-                  nickname,
-                  serverToken: storedToken
-                });
-              }, 500); // 0.5 second delay
-            } else {
-              console.error(`❌ No stored token for server ${host}`);
-              toast.error(`No access token for server ${host}. Please re-add the server.`);
-              // Remove the server from the list since we can't access it
-              // This would need to be implemented in the settings store
-            }
-            return;
+            // Add a delay to prevent rate limiting
+            setTimeout(() => {
+              console.log(`🔄 Re-joining server ${host}`);
+              socket.emit("server:join", {
+                joinToken: grytToken,
+                nickname
+              });
+            }, 500); // 0.5 second delay
           }
           
           if (data.error && data.message) {
@@ -429,6 +419,10 @@ function useSocketsHook() {
           console.log(`✅ Joined server ${host}:`, { nickname: joinInfo.nickname, hasToken: !!joinInfo.accessToken });
           // Store the access token in localStorage for this server
           localStorage.setItem(`accessToken_${host}`, joinInfo.accessToken);
+          
+          // Request server details now that we've joined
+          console.log(`📤 Requesting server details for ${host}`);
+          socket.emit("server:details");
         });
 
         // Handle token refresh
@@ -447,7 +441,25 @@ function useSocketsHook() {
             return;
           }
           
-          // Handle user authorization errors
+          // Handle password errors
+          if (errorInfo.error === 'invalid_password') {
+            console.log(`🚫 Invalid password for server ${host}:`, errorInfo);
+            
+            // Show user-friendly error message
+            const message = errorInfo.message || 'Invalid server password.';
+            toast.error(message, { duration: 6000 });
+            
+            // TODO: Show password input dialog
+            setTimeout(() => {
+              toast(
+                `Please check with the server administrator for the correct password.`,
+                { duration: 8000 }
+              );
+            }, 2000);
+            return;
+          }
+          
+          // Handle user authorization errors (legacy)
           if (errorInfo.error === 'user_not_authorized' || errorInfo.error === 'join_token_invalid' || errorInfo.error === 'join_verification_failed') {
             console.log(`🚫 User authorization failed for server ${host}:`, errorInfo);
             
@@ -660,7 +672,31 @@ function useSocketsHook() {
     }
   }, [servers, connectSound, disconnectSound, connectSoundEnabled, disconnectSoundEnabled]);
 
-  return { sockets, serverDetailsList, clients, memberLists, getChannelDetails, requestMemberList, failedServerDetails, serverConnectionStatus };
+  // Function to leave a server
+  const leaveServer = (host: string) => {
+    const socket = sockets[host];
+    if (socket) {
+      console.log(`📤 Leaving server: ${host}`);
+      socket.emit('server:leave');
+      
+      // Listen for server:left confirmation
+      socket.once('server:left', (data: { message: string }) => {
+        console.log(`✅ Successfully left server ${host}:`, data.message);
+        toast.success(`Left server ${host}`);
+      });
+      
+      // Listen for server:error
+      socket.once('server:error', (error: string) => {
+        console.error(`❌ Failed to leave server ${host}:`, error);
+        toast.error(`Failed to leave server: ${error}`);
+      });
+    } else {
+      console.warn(`⚠️ No socket found for server: ${host}`);
+      toast.error(`Not connected to server ${host}`);
+    }
+  };
+
+  return { sockets, serverDetailsList, clients, memberLists, getChannelDetails, requestMemberList, failedServerDetails, serverConnectionStatus, leaveServer };
 }
 
 export const useSockets = singletonHook(
@@ -673,6 +709,7 @@ export const useSockets = singletonHook(
     requestMemberList: () => {},
     failedServerDetails: {},
     serverConnectionStatus: {},
+    leaveServer: () => {},
   },
   useSocketsHook
 );

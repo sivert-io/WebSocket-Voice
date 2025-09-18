@@ -8,17 +8,17 @@ type WebSocketMessage struct {
 
 // ServerRegistrationData represents server registration information
 type ServerRegistrationData struct {
-	ServerID    string `json:"server_id"`
-	ServerToken string `json:"server_token"`
-	RoomID      string `json:"room_id"`
+	ServerID       string `json:"server_id"`
+	ServerPassword string `json:"server_password"`
+	RoomID         string `json:"room_id"`
 }
 
 // ClientJoinData represents client join information
 type ClientJoinData struct {
-	RoomID      string `json:"room_id"`
-	ServerID    string `json:"server_id"`
-	ServerToken string `json:"server_token"`
-	UserToken   string `json:"user_token"`
+	RoomID         string `json:"room_id"`
+	ServerID       string `json:"server_id"`
+	ServerPassword string `json:"server_password"`
+	UserToken      string `json:"user_token"`
 }
 
 // Supported WebSocket message events

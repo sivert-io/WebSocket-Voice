@@ -109,7 +109,7 @@ server:
   
   # Secrets (will be base64 encoded)
   secrets:
-    serverToken: "your-secure-token"
+    serverPassword: "your-secure-password"
     corsOrigin: "https://yourdomain.com"
   
   # Health checks
