@@ -13,10 +13,15 @@ if (stunHosts.length === 0) {
   consola.error("Missing STUN servers! SFU may not reach all clients.");
 }
 
-export function sendInfo(socket: Socket) {
+export function sendInfo(socket: Socket, clientsInfo?: any) {
+  // Count active registered users
+  const activeMembers = clientsInfo ? Object.values(clientsInfo).filter((client: any) => 
+    client.serverUserId && !client.serverUserId.startsWith('temp_')
+  ).length : 0;
+  
   const serverInfo = {
     name: process.env.SERVER_NAME || "Unknown Server",
-    members: Object.keys({}).length.toString(), // You might want to pass actual client count
+    members: activeMembers.toString(),
     version: process.env.SERVER_VERSION || "1.0.0",
   };
   

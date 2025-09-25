@@ -189,9 +189,9 @@ function useCreateMicrophoneHook() {
       console.log("🎤 Found audio devices:", audioDevices.length);
       setDevices(audioDevices);
 
-      // Auto-select device from localStorage or first available
+      // Auto-select device from settings or first available
       if (audioDevices.length > 0) {
-        let selectedDeviceId = currentDeviceId;
+        let selectedDeviceId = micID; // Use micID from settings as source of truth
         
         // Check if stored device is still available
         if (selectedDeviceId && !audioDevices.find(d => d.deviceId === selectedDeviceId)) {
@@ -209,7 +209,15 @@ function useCreateMicrophoneHook() {
     } catch (error) {
       console.error("🎤 Error enumerating devices:", error);
     }
-  }, [isBrowserSupported, currentDeviceId]);
+  }, [isBrowserSupported, currentDeviceId, micID]);
+
+  // Synchronize currentDeviceId with micID from settings
+  useEffect(() => {
+    if (micID && micID !== currentDeviceId) {
+      console.log("🎤 Syncing currentDeviceId with micID from settings:", micID);
+      setCurrentDeviceId(micID);
+    }
+  }, [micID, currentDeviceId]);
 
   // When a microphone handle is requested (e.g., connecting to voice), but no device is selected yet,
   // enumerate devices and auto-select one on demand. This will prompt for mic permission only at this time.

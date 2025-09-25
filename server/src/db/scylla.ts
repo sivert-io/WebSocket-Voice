@@ -356,7 +356,7 @@ export async function getAllRegisteredUsers(): Promise<UserRecord[]> {
       is_active: r["is_active"] || true, // Default to true for backward compatibility
     }));
     
-    console.log(`👥 Fetched ${users.length} registered users from database`);
+        console.log(`👥 Fetched ${users.length} registered users from database`);
     return users;
   } catch (error) {
     console.error(`❌ Failed to get all registered users:`, error);

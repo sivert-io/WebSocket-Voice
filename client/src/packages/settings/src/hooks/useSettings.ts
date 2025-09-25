@@ -59,6 +59,10 @@ interface Settings {
   settingsTab: string;
   setSettingsTab: (value: string) => void;
   openSettings: (tab?: string) => void;
+
+  // Debug overlay settings
+  showDebugOverlay: boolean;
+  setShowDebugOverlay: (value: boolean) => void;
 }
 
 function updateStorage(key: string, value: string, state: (d: any) => void) {
@@ -76,6 +80,11 @@ function useSettingsHook() {
   const [isMuted, setIsMutedState] = useState(false);
   const [isDeafened, setIsDeafenedState] = useState(false);
   const [preDeafenMuteState, setPreDeafenMuteState] = useState(false);
+
+  // Debug overlay settings
+  const [showDebugOverlay, setShowDebugOverlay] = useState(
+    localStorage.getItem("showDebugOverlay") === "true" // Default to false
+  );
 
   // Voice call settings
   const [connectSoundEnabled, setConnectSoundEnabled] = useState(
@@ -170,6 +179,11 @@ function useSettingsHook() {
   function updateAfkTimeoutMinutes(newTimeout: number) {
     setAfkTimeoutMinutes(newTimeout);
     localStorage.setItem("afkTimeoutMinutes", newTimeout.toString());
+  }
+
+  function updateShowDebugOverlay(show: boolean) {
+    setShowDebugOverlay(show);
+    localStorage.setItem("showDebugOverlay", show.toString());
   }
 
   // Voice call settings update functions
@@ -320,6 +334,9 @@ function useSettingsHook() {
     setIsAFK,
     afkTimeoutMinutes,
     setAfkTimeoutMinutes: updateAfkTimeoutMinutes,
+    // Debug overlay settings
+    showDebugOverlay,
+    setShowDebugOverlay: updateShowDebugOverlay,
   };
 }
 
@@ -379,6 +396,10 @@ const init: Settings = {
   setIsAFK: () => {},
   afkTimeoutMinutes: 5,
   setAfkTimeoutMinutes: () => {},
+
+  // Debug overlay settings
+  showDebugOverlay: localStorage.getItem("showDebugOverlay") === "true",
+  setShowDebugOverlay: () => {},
 };
 
 export const useSettings = singletonHook(init, useSettingsHook);

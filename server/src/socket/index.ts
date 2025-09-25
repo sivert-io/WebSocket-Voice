@@ -318,38 +318,28 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
       const newJoinedState = streamID.length > 0;
       const serverUserId = clientsInfo[clientId].serverUserId;
       
-      // Debug: Log the current client info
-      consola.info(`🔍 Current client info for ${clientId}:`, {
-        nickname: clientsInfo[clientId].nickname,
-        serverUserId: serverUserId,
-        wasInChannel,
-        newJoinedState,
-        streamID
-      });
+      // Skip processing if streamID is empty and user wasn't in channel (avoid spam)
+      if (!streamID && !wasInChannel) {
+        consola.debug(`🔍 Skipping empty streamID for ${clientId} (not in channel)`);
+        return;
+      }
       
-      console.log(`🎪 SERVER streamID [${clientId}]:`, {
-        nickname: clientsInfo[clientId].nickname,
-        serverUserId,
-        oldStreamID: clientsInfo[clientId].streamID,
-        newStreamID: streamID,
-        wasInChannel,
-        newJoinedState,
-        stateWillChange: wasInChannel !== newJoinedState,
-        timestamp: Date.now()
-      });
+      // Only log significant changes
+      if (wasInChannel !== newJoinedState) {
+        consola.info(`🔍 Voice state change for ${clientId}:`, {
+          nickname: clientsInfo[clientId].nickname,
+          serverUserId: serverUserId,
+          wasInChannel,
+          newJoinedState,
+          streamID
+        });
+      }
       
       // Prevent duplicate connections: check if this serverUserId is already connected to voice elsewhere
       // IMPORTANT: Do this BEFORE updating the client's state
       if (newJoinedState && serverUserId) {
-        // Debug: Log all current connections
-        consola.info(`🔍 Checking for duplicates for serverUserId: ${serverUserId}`);
-        consola.info(`🔍 Current clientsInfo:`, Object.entries(clientsInfo).map(([id, info]) => ({
-          clientId: id,
-          serverUserId: info.serverUserId,
-          nickname: info.nickname,
-          hasJoinedChannel: info.hasJoinedChannel,
-          streamID: info.streamID
-        })));
+        // Debug: Log all current connections (only when needed)
+        consola.debug(`🔍 Checking for duplicates for serverUserId: ${serverUserId}`);
         
         // Server-level check: look for existing connections in clientsInfo
         const existingConnection = Object.entries(clientsInfo).find(([otherClientId, clientInfo]) => {
@@ -357,7 +347,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
           const isSameUser = clientInfo.serverUserId === serverUserId;
           const isInVoice = clientInfo.hasJoinedChannel;
           
-          consola.info(`🔍 Checking client ${otherClientId}:`, {
+          consola.debug(`🔍 Checking client ${otherClientId}:`, {
             isDifferentClient,
             isSameUser,
             isInVoice,
@@ -455,10 +445,9 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
         syncAllClients(io, clientsInfo);
         broadcastMemberList(io, clientsInfo);
       } else {
-        // Only streamID changed; avoid spamming by not broadcasting if identical
-        console.log(`📡 SERVER streamID changed only [${clientId}] - broadcasting`);
-        syncAllClients(io, clientsInfo);
-        broadcastMemberList(io, clientsInfo);
+        // Only streamID changed; avoid spamming by not broadcasting
+        consola.debug(`📡 SERVER streamID changed only [${clientId}] - no broadcast needed`);
+        // Don't broadcast when only streamID changes to avoid spamming
       }
     },
 
@@ -1026,7 +1015,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
 
   socket.on("info", () => {
     console.log(`📤 CLIENT REQUESTED INFO from ${clientId} (${socket.handshake.address})`);
-    sendInfo(socket);
+    sendInfo(socket, clientsInfo);
   });
 
   socket.on("disconnect", (reason) => {
@@ -1053,7 +1042,7 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
   });
 
   // Send initial info
-  sendInfo(socket);
+  sendInfo(socket, clientsInfo);
 
   // Client connected successfully - authentication will be handled during server:join
   consola.info(`✅ Client ${clientId} connected successfully`);
@@ -1073,13 +1062,50 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
 
   // Check if client has a valid access token
   const clientAccessToken = socket.handshake.auth?.accessToken;
+  consola.info(`🔍 Client ${clientId} connection - auth:`, {
+    hasAccessToken: !!clientAccessToken,
+    authKeys: Object.keys(socket.handshake.auth || {}),
+    host: socket.handshake.headers.host
+  });
+  
   if (clientAccessToken) {
     const tokenPayload = verifyAccessToken(clientAccessToken);
+    consola.info(`🔍 Token validation for ${clientId}:`, {
+      tokenValid: !!tokenPayload,
+      serverHost: tokenPayload?.serverHost,
+      expectedHost: socket.handshake.headers.host,
+      grytUserId: tokenPayload?.grytUserId
+    });
+    
     if (tokenPayload && tokenPayload.serverHost === socket.handshake.headers.host) {
       consola.info(`✅ Client ${clientId} has valid access token`);
-      // Update client info with token data
-      clientsInfo[clientId].accessToken = clientAccessToken;
-      // We could also update nickname from token if needed
+      
+      // Check if user actually exists in database (async operation)
+      (async () => {
+        try {
+          const userExists = await getUserByServerId(tokenPayload.serverUserId);
+          if (userExists && userExists.is_active) {
+            // User exists and is active - restore session
+            clientsInfo[clientId].accessToken = clientAccessToken;
+            clientsInfo[clientId].grytUserId = tokenPayload.grytUserId;
+            clientsInfo[clientId].serverUserId = tokenPayload.serverUserId;
+            clientsInfo[clientId].nickname = tokenPayload.nickname;
+            consola.info(`🔄 Restored user session: ${tokenPayload.nickname} (${tokenPayload.serverUserId})`);
+            
+            // Broadcast updated member list since user is now active
+            syncAllClients(io, clientsInfo);
+            broadcastMemberList(io, clientsInfo);
+          } else {
+            // User doesn't exist or is inactive - invalidate token and force rejoin
+            consola.warn(`⚠️ Client ${clientId} has valid token but user not found in database or inactive - will need to rejoin`);
+            socket.emit('token:invalid', 'User not found in database. Please rejoin the server.');
+          }
+        } catch (error) {
+          consola.error(`❌ Error checking user existence for ${clientId}:`, error);
+          consola.warn(`⚠️ Client ${clientId} token validation failed due to database error - will need to rejoin`);
+          socket.emit('token:invalid', 'Database error. Please rejoin the server.');
+        }
+      })();
     } else {
       consola.warn(`⚠️ Client ${clientId} has invalid access token - will need to rejoin`);
     }
@@ -1087,10 +1113,16 @@ export function socketHandler(io: Server, socket: Socket, sfuClient: SFUClient |
     consola.info(`ℹ️ Client ${clientId} has no access token - will need to join server`);
   }
 
-  // Send client verification (but not details - they need to join first)
+  // Send client verification
   verifyClient(socket);
-  // Note: We don't send server details or sync clients here because the user hasn't joined the server yet
-  // This will be done when they actually call 'server:join'
+  
+  // If client has valid token, they're already "joined" - send server details immediately
+  if (clientsInfo[clientId].grytUserId) {
+    consola.info(`📤 Sending server details to restored user: ${clientsInfo[clientId].nickname}`);
+    sendServerDetails(socket, clientsInfo);
+    syncAllClients(io, clientsInfo);
+    broadcastMemberList(io, clientsInfo);
+  }
 
   // Register all event handlers
   Object.entries(eventHandlers).forEach(([event, handler]) => {

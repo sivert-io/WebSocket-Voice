@@ -9,8 +9,7 @@ import connectMp3 from "@/audio/src/assets/connect.mp3";
 import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
 import { useServerSettings } from "@/settings/src/hooks/useServerSettings";
-import { checkAuthenticationOnLaunch, canUseServer, forceSignOutWithAccount } from "@/common";
-import { useAccount } from "@/common";
+import { checkAuthenticationOnLaunch, canUseServer } from "@/common";
 import { handleRateLimitError } from "../utils/rateLimitHandler";
 // import { useUserId } from "@/common"; // No longer needed with JWT system
 import {
@@ -26,7 +25,6 @@ type Sockets = { [host: string]: Socket };
 
 function useSocketsHook() {
   const [sockets, setSockets] = useState<Sockets>({});
-  const { logout } = useAccount();
   
   // Check authentication on app launch
   useEffect(() => {
@@ -431,6 +429,16 @@ function useSocketsHook() {
           localStorage.setItem(`accessToken_${host}`, refreshInfo.accessToken);
         });
 
+        // Handle invalid tokens - clear token and force rejoin
+        socket.on("token:invalid", (message: string) => {
+          console.warn(`🚫 Token invalid for server ${host}:`, message);
+          // Clear the invalid token
+          localStorage.removeItem(`accessToken_${host}`);
+          toast.error(`Session expired: ${message}`);
+          // Force page refresh to restart authentication flow
+          setTimeout(() => window.location.reload(), 2000);
+        });
+
         // Handle server join errors - don't force sign out, just show error
         socket.on("server:error", (errorInfo: { error: string; message?: string; retryAfterMs?: number; currentScore?: number; maxScore?: number; canReapply?: boolean }) => {
           console.error(`❌ Server join failed for ${host}:`, errorInfo);
@@ -670,7 +678,7 @@ function useSocketsHook() {
     if (changed) {
       setSockets(newSockets);
     }
-  }, [servers, connectSound, disconnectSound, connectSoundEnabled, disconnectSoundEnabled]);
+  }, [servers]);
 
   // Function to leave a server
   const leaveServer = (host: string) => {
