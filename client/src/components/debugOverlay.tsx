@@ -92,8 +92,8 @@ export function DebugOverlay({ isVisible }: DebugOverlayProps) {
         drag
         dragControls={dragControls}
         dragConstraints={constraintsRef}
-        dragElastic={0.1}
-        dragMomentum={false}
+        dragElastic={0.2}
+        dragMomentum={true}
         initial={{ 
           x: window.innerWidth - 340, 
           y: 10,
@@ -113,7 +113,7 @@ export function DebugOverlay({ isVisible }: DebugOverlayProps) {
         transition={{ 
           type: "spring", 
           stiffness: 300, 
-          damping: 30,
+          damping: 10,
           opacity: { duration: 0.3 }
         }}
         whileDrag={{ 
