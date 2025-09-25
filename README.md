@@ -1,5 +1,11 @@
 # 🌩️ Gryt - Modern WebRTC Voice Chat Platform
 
+> **⚠️ WARNING: Early Development Stage**
+> 
+> This project is currently in its **early experimental stages** and is being developed in real-time. The codebase is **not stable** and will change frequently. Do not expect a fully usable product at this time. This is primarily a **proof of concept** for WebRTC voice communication technology.
+> 
+> **Use at your own risk** - features may break, APIs may change, and the project structure is subject to major modifications without notice.
+
 Welcome to **Gryt**, a cutting-edge WebRTC-based voice chat platform featuring real-time communication, advanced audio processing, and a beautiful modern interface. Built with TypeScript, React, and Go, Gryt provides a Discord-like experience with enterprise-grade voice quality and reliability.
 
 <div align="center">
