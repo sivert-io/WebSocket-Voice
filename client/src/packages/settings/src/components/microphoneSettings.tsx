@@ -29,8 +29,6 @@ export function MicrophoneSettings() {
     loopbackEnabled,
     afkTimeoutMinutes,
     setAfkTimeoutMinutes,
-    showDebugOverlay,
-    setShowDebugOverlay,
   } = useSettings();
 
   // Always create a microphone handle to ensure audio processing works
@@ -352,21 +350,6 @@ export function MicrophoneSettings() {
               </div>
             </Flex>
 
-            {/* Debug Overlay Toggle */}
-            <Flex direction="column" gap="2">
-              <Flex align="center" justify="between">
-                <Text weight="medium" size="2">
-                  Debug Overlay
-                </Text>
-                <Switch
-                  checked={showDebugOverlay}
-                  onCheckedChange={setShowDebugOverlay}
-                />
-              </Flex>
-              <Text size="1" color="gray">
-                Show real-time audio debug information overlay
-              </Text>
-            </Flex>
 
             {/* Status Information */}
             <Flex direction="column" gap="1">

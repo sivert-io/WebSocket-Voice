@@ -1,8 +1,6 @@
-import { Box,Dialog, Flex, IconButton, Tabs } from "@radix-ui/themes";
+import { Box, Dialog, Flex, IconButton, Tabs } from "@radix-ui/themes";
 import { FiX } from "react-icons/fi";
-import { MdMic, MdVolumeUp } from "react-icons/md";
-import { MdPalette } from "react-icons/md";
-import { MdBugReport } from "react-icons/md";
+import { MdMic, MdVolumeUp, MdPalette, MdBugReport } from "react-icons/md";
 
 import { useSettings } from "@/settings";
 
@@ -11,13 +9,41 @@ import { VoiceCallSettings } from "./voiceCallSettings";
 import { AppearanceSettings } from "./theme/appearanceSettings";
 import { DebugSettings } from "./debugSettings";
 
+const TAB_CONFIG = [
+  {
+    value: "appearance",
+    label: "Appearance",
+    icon: MdPalette,
+    content: <AppearanceSettings />,
+  },
+  {
+    value: "voice-calls",
+    label: "Voice Calls",
+    icon: MdVolumeUp,
+    content: <VoiceCallSettings />,
+  },
+  {
+    value: "microphone",
+    label: "Microphone",
+    icon: MdMic,
+    content: <MicrophoneSettings />,
+    conditional: true, // Only render if selected
+  },
+  {
+    value: "debug",
+    label: "Debug",
+    icon: MdBugReport,
+    content: <DebugSettings />,
+  },
+];
+
 export function Settings() {
-  const { 
-    setLoopbackEnabled, 
-    setShowSettings, 
-    showSettings, 
-    settingsTab, 
-    setSettingsTab 
+  const {
+    setLoopbackEnabled,
+    setShowSettings,
+    showSettings,
+    settingsTab,
+    setSettingsTab,
   } = useSettings();
 
   function handleDialogChange(isOpen: boolean) {
@@ -26,7 +52,6 @@ export function Settings() {
   }
 
   function handleTabChange(value: string) {
-    // Ensure we stop any mic monitoring/loopback when leaving the mic tab
     setLoopbackEnabled(false);
     setSettingsTab(value);
   }
@@ -45,88 +70,56 @@ export function Settings() {
             <FiX size={16} />
           </IconButton>
         </Dialog.Close>
-        
+
         <Flex direction="column" gap="4" height="100%">
           <Dialog.Title as="h1" weight="bold" size="6">
             Settings
           </Dialog.Title>
 
           {showSettings && (
-            <Tabs.Root value={settingsTab} onValueChange={handleTabChange} orientation="vertical" style={{ flex: 1 }}>
+            <Tabs.Root
+              value={settingsTab}
+              onValueChange={handleTabChange}
+              orientation="vertical"
+              style={{ flex: 1 }}
+            >
               <Flex gap="4" height="100%">
                 {/* Vertical Tab List */}
                 <Box style={{ minWidth: "200px", flexShrink: 0 }}>
-                  <Tabs.List 
-                    style={{ 
-                      flexDirection: "column", 
+                  <Tabs.List
+                    style={{
+                      flexDirection: "column",
                       alignItems: "stretch",
                       height: "fit-content",
-                      gap: "4px"
+                      gap: "4px",
                     }}
                   >
-                    <Tabs.Trigger 
-                      value="appearance" 
-                      style={{ 
-                        justifyContent: "flex-start",
-                        padding: "12px 16px",
-                        gap: "8px"
-                      }}
-                    >
-                      <MdPalette size={16} />
-                      Appearance
-                    </Tabs.Trigger>
-                    <Tabs.Trigger 
-                      value="voice-calls" 
-                      style={{ 
-                        justifyContent: "flex-start",
-                        padding: "12px 16px",
-                        gap: "8px"
-                      }}
-                    >
-                      <MdVolumeUp size={16} />
-                      Voice Calls
-                    </Tabs.Trigger>
-                    <Tabs.Trigger 
-                      value="microphone" 
-                      style={{ 
-                        justifyContent: "flex-start",
-                        padding: "12px 16px",
-                        gap: "8px"
-                      }}
-                    >
-                      <MdMic size={16} />
-                      Microphone
-                    </Tabs.Trigger>
-                    <Tabs.Trigger 
-                      value="debug" 
-                      style={{ 
-                        justifyContent: "flex-start",
-                        padding: "12px 16px",
-                        gap: "8px"
-                      }}
-                    >
-                      <MdBugReport size={16} />
-                      Debug
-                    </Tabs.Trigger>
+                    {TAB_CONFIG.map(({ value, label, icon: Icon }) => (
+                      <Tabs.Trigger
+                        key={value}
+                        value={value}
+                        style={{
+                          justifyContent: "flex-start",
+                          padding: "12px 16px",
+                          gap: "8px",
+                        }}
+                      >
+                        <Icon size={16} />
+                        {label}
+                      </Tabs.Trigger>
+                    ))}
                   </Tabs.List>
                 </Box>
 
                 {/* Tab Content */}
                 <Box style={{ flex: 1, overflow: "auto", minWidth: 0 }}>
-                  <Tabs.Content value="voice-calls">
-                    <VoiceCallSettings />
-                  </Tabs.Content>
-                  <Tabs.Content value="appearance">
-                    <AppearanceSettings />
-                  </Tabs.Content>
-                  <Tabs.Content value="microphone">
-                    {settingsTab === "microphone" && showSettings && (
-                      <MicrophoneSettings />
-                    )}
-                  </Tabs.Content>
-                  <Tabs.Content value="debug">
-                    <DebugSettings />
-                  </Tabs.Content>
+                  {TAB_CONFIG.map(({ value, content, conditional }) => (
+                    <Tabs.Content key={value} value={value}>
+                      {conditional
+                        ? settingsTab === value && showSettings && content
+                        : content}
+                    </Tabs.Content>
+                  ))}
                 </Box>
               </Flex>
             </Tabs.Root>
