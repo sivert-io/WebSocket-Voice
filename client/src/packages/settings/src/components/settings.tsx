@@ -2,12 +2,14 @@ import { Box,Dialog, Flex, IconButton, Tabs } from "@radix-ui/themes";
 import { FiX } from "react-icons/fi";
 import { MdMic, MdVolumeUp } from "react-icons/md";
 import { MdPalette } from "react-icons/md";
+import { MdBugReport } from "react-icons/md";
 
 import { useSettings } from "@/settings";
 
 import { MicrophoneSettings } from "./microphoneSettings";
 import { VoiceCallSettings } from "./voiceCallSettings";
 import { AppearanceSettings } from "./theme/appearanceSettings";
+import { DebugSettings } from "./debugSettings";
 
 export function Settings() {
   const { 
@@ -95,6 +97,17 @@ export function Settings() {
                       <MdMic size={16} />
                       Microphone
                     </Tabs.Trigger>
+                    <Tabs.Trigger 
+                      value="debug" 
+                      style={{ 
+                        justifyContent: "flex-start",
+                        padding: "12px 16px",
+                        gap: "8px"
+                      }}
+                    >
+                      <MdBugReport size={16} />
+                      Debug
+                    </Tabs.Trigger>
                   </Tabs.List>
                 </Box>
 
@@ -110,6 +123,9 @@ export function Settings() {
                     {settingsTab === "microphone" && showSettings && (
                       <MicrophoneSettings />
                     )}
+                  </Tabs.Content>
+                  <Tabs.Content value="debug">
+                    <DebugSettings />
                   </Tabs.Content>
                 </Box>
               </Flex>
