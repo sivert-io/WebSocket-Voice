@@ -3,7 +3,7 @@ import { AddNewServer, Nickname, Settings, useSettings } from "@/settings";
 import { SignUpModal } from "@/signUp";
 import { DeviceSwitchModal, useServerManagement } from "@/socket";
 
-import { DebugOverlay } from "./components/debugOverlay";
+import { MicrophoneDebugOverlay } from "./components/microphoneDebugOverlay";
 import { LeaveServer } from "./components/leaveServer";
 import { MainApp } from "./components/mainApp";
 import { Welcome } from "./components/welcome";
@@ -23,7 +23,7 @@ export function App() {
         <AddNewServer showAddServer={showAddServer} setShowAddServer={setShowAddServer} />
         <LeaveServer />
         <DeviceSwitchModal />
-        <DebugOverlay isVisible={showDebugOverlay} />
+        <MicrophoneDebugOverlay isVisible={showDebugOverlay} />
       </>
     );
   else return <SignUpModal />;

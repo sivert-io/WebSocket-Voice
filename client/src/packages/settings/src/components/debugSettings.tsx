@@ -15,14 +15,14 @@ export function DebugSettings() {
         {/* Debug Overlay Toggle */}
         <Box>
           <Flex align="center" gap="3">
-            <Text size="2" weight="medium">Show Debug Overlay</Text>
+            <Text size="2" weight="medium">Show Microphone Debug Overlay</Text>
             <Switch 
               checked={showDebugOverlay} 
               onCheckedChange={setShowDebugOverlay}
             />
           </Flex>
           <Text size="1" color="gray" mt="1">
-            Display a floating debug overlay with real-time audio information
+            Display a floating debug overlay with real-time microphone information
           </Text>
         </Box>
       </Flex>
