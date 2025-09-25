@@ -1,6 +1,6 @@
 # 🌩️ Gryt - Modern WebRTC Voice Chat Platform
 
-> [!IMPORTANT]
+> [!CAUTION]
 > **Early Development Stage - Experimental Project**
 > 
 > This project is currently in its **early experimental stages** and is being developed in real-time. The codebase is **not stable** and will change frequently. Do not expect a fully usable product at this time. This is primarily a **proof of concept** for WebRTC voice communication technology.
