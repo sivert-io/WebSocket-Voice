@@ -2,6 +2,7 @@ import { Box, Flex, Heading, RadioGroup, Select, Switch, Text } from "@radix-ui/
 import { useMemo } from "react";
 
 import { accentColors, grayColors, useTheme } from "@/common";
+import { SettingsContainer } from "../settingsComponents";
 
 export function AppearanceSettings() {
   const {
@@ -34,7 +35,7 @@ export function AppearanceSettings() {
   ], []);
 
   return (
-    <Flex direction="column" gap="4" p="4">
+    <SettingsContainer>
       <Heading size="4">Appearance</Heading>
 
       <Flex direction="column" gap="2">
@@ -100,7 +101,7 @@ export function AppearanceSettings() {
           </Box>
         </Flex>
       </Flex>
-    </Flex>
+    </SettingsContainer>
   );
 }
 

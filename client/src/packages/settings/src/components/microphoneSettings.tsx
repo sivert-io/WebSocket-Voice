@@ -6,14 +6,14 @@ import {
   IconButton,
   Select,
   Slider,
-  Switch,
   Text,
   Tooltip,
 } from "@radix-ui/themes";
-import { useEffect, useMemo,useRef, useState } from "react";
+import { useCallback, useEffect, useMemo,useRef, useState } from "react";
 
 import { useMicrophone } from "@/audio";
 import { useSettings } from "@/settings";
+import { SettingsContainer, SliderSetting, ToggleSetting } from "./settingsComponents";
 
 export function MicrophoneSettings() {
   const {
@@ -29,11 +29,25 @@ export function MicrophoneSettings() {
     loopbackEnabled,
     afkTimeoutMinutes,
     setAfkTimeoutMinutes,
+    rnnoiseEnabled,
+    setRnnoiseEnabled,
   } = useSettings();
 
   // Always create a microphone handle to ensure audio processing works
   // The microphone needs to be active both for testing and for voice chat transmission
-  const { devices, microphoneBuffer, getDevices, getVisualizerData, audioContext } = useMicrophone(true);
+  const { devices, microphoneBuffer, getDevices, audioContext } = useMicrophone(true);
+
+  // Get raw audio data for visualizer (before any processing)
+  const getRawVisualizerData = useCallback((): Uint8Array | null => {
+    if (!microphoneBuffer.analyser) {
+      return null;
+    }
+
+    const bufferLength = microphoneBuffer.analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    microphoneBuffer.analyser.getByteFrequencyData(dataArray);
+    return dataArray;
+  }, [microphoneBuffer.analyser]);
 
   const [micLiveVolume, setMicLiveVolume] = useState(0); // Final processed volume for general display
   const [micRawVolume, setMicRawVolume] = useState(0); // Raw input volume for noise gate visualization
@@ -98,8 +112,8 @@ export function MicrophoneSettings() {
         
         setMicLiveVolume(finalVolume); // Show final processed volume for general display
         
-        // Get visualizer data from final processed audio (always available)
-        const vizData = getVisualizerData();
+        // Get visualizer data from raw audio (before any processing)
+        const vizData = getRawVisualizerData();
         setVisualizerData(vizData);
       }
     }, 16);
@@ -109,26 +123,28 @@ export function MicrophoneSettings() {
       // Clear visualizer data on cleanup
       setVisualizerData(null);
     };
-  }, [microphoneBuffer.analyser, microphoneBuffer.finalAnalyser, noiseGate, getVisualizerData]);
+  }, [microphoneBuffer.analyser, microphoneBuffer.finalAnalyser, noiseGate, getRawVisualizerData]);
 
   // Simple visualizer component - memoized to prevent unnecessary re-renders
   const AudioVisualizer = useMemo(() => {
     return () => {
       if (!visualizerData) return null;
 
-      // Create frequency bars
+      // Create frequency bars using raw mic input - always show raw audio
       const bars = Array.from(visualizerData.slice(0, 32)).map((value, index) => {
         const height = Math.max(2, (value / 255) * 40); // Scale to 40px max height
+        // Change color based on noise gate threshold - green if above threshold, gray if below
+        const isAboveThreshold = micRawVolume > noiseGate;
         return (
           <div
             key={index}
             style={{
               width: '3px',
               height: `${height}px`,
-              backgroundColor: isMicLive ? '#10b981' : '#6b7280',
+              backgroundColor: isAboveThreshold ? '#10b981' : '#6b7280',
               marginRight: '1px',
               borderRadius: '1px',
-              transition: 'height 0.1s ease-out',
+              transition: 'height 0.1s ease-out, background-color 0.1s ease-out',
             }}
           />
         );
@@ -140,12 +156,11 @@ export function MicrophoneSettings() {
         </Flex>
       );
     };
-  }, [visualizerData, isMicLive]);
+  }, [visualizerData, micRawVolume, noiseGate]);
 
   return (
-    <>
-      <Flex direction="column" gap="4" p="4">
-        <Heading size="4">Microphone Settings</Heading>
+    <SettingsContainer>
+      <Heading size="4">Microphone Settings</Heading>
 
         {!audioContext && (
           <Callout.Root color="orange">
@@ -183,39 +198,44 @@ export function MicrophoneSettings() {
           </Select.Root>
         </Flex>
 
-        {/* Volume Control */}
-        <Flex direction="column" gap="2">
-          <Text weight="medium" size="2">
-            Microphone Volume: {micVolume}%
-          </Text>
-          <Text size="1" color="gray">
-            Your microphone input level (50% = normal volume, 100% = 2x boost)
-          </Text>
-          <Slider
-            value={[micVolume]}
-            onValueChange={(value) => setMicVolume(value[0])}
-            max={100}
-            min={0}
-            step={1}
-          />
-        </Flex>
+        {/* Audio Level Indicator - Always visible when microphone is active */}
+        {audioContext && (
+          <Flex direction="column" gap="2">
+            <Text weight="medium" size="2">
+              Audio Levels
+            </Text>
+            
+            {/* Frequency Visualizer */}
+            <Flex direction="column" gap="1">
+              <Text size="1" color="gray">Audio Spectrum (Raw Input)</Text>
+              <div style={{ 
+                border: '1px solid var(--gray-6)', 
+                borderRadius: '4px', 
+                padding: '4px',
+                backgroundColor: 'var(--gray-3)',
+                minHeight: '48px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <AudioVisualizer />
+              </div>
+            </Flex>
 
-        {/* Output Volume Control */}
-        <Flex direction="column" gap="2">
-          <Text weight="medium" size="2">
-            Output Volume: {outputVolume}%
-          </Text>
-          <Text size="1" color="gray">
-            Controls volume of all incoming audio (50% = normal, 100% = 2x boost)
-          </Text>
-          <Slider
-            value={[outputVolume]}
-            onValueChange={(value) => setOutputVolume(value[0])}
-            max={100}
-            min={0}
-            step={1}
-          />
-        </Flex>
+            {/* Status Information */}
+            <Flex direction="column" gap="1">
+              <Text size="1" color="gray">
+                Status: {audioContext ? "✅ Active" : "❌ Inactive"}
+                {loopbackEnabled && " • 🔊 PLAYBACK ON"}
+              </Text>
+              {microphoneBuffer.processedStream && (
+                <Text size="1" color="green">
+                  ✅ Enhanced audio processing enabled
+                </Text>
+              )}
+            </Flex>
+          </Flex>
+        )}
 
         {/* Enhanced Noise Gate with Real-time Audio Level */}
         <Flex direction="column" gap="2">
@@ -291,81 +311,50 @@ export function MicrophoneSettings() {
           </Flex>
         </Flex>
 
-        {/* AFK Timeout Setting */}
-        <Flex direction="column" gap="2">
-          <Text weight="medium" size="2">
-            AFK Timeout: {afkTimeoutMinutes} minutes
-          </Text>
-          <Text size="1" color="gray">
-            You'll be marked as AFK after this many minutes of silence. Only applies when connected to voice channels.
-          </Text>
-          <Slider
-            value={[afkTimeoutMinutes]}
-            onValueChange={(value) => setAfkTimeoutMinutes(value[0])}
-            max={30}
-            min={1}
-            step={1}
-          />
-        </Flex>
+        {/* Volume Controls */}
+        <SliderSetting
+          title={`Microphone Volume: ${micVolume}%`}
+          description="Your microphone input level (50% = normal volume, 100% = 2x boost)"
+          value={micVolume}
+          onChange={setMicVolume}
+        />
+
+        <SliderSetting
+          title={`Output Volume: ${outputVolume}%`}
+          description="Controls volume of all incoming audio (50% = normal, 100% = 2x boost)"
+          value={outputVolume}
+          onChange={setOutputVolume}
+        />
+
+        {/* RNNoise Noise Reduction */}
+        <ToggleSetting
+          title="Noise Reduction (RNNoise)"
+          description="Advanced AI-powered noise reduction using RNNoise WebAssembly. Reduces background noise while preserving speech quality."
+          checked={rnnoiseEnabled}
+          onCheckedChange={setRnnoiseEnabled}
+          statusText={rnnoiseEnabled 
+            ? "✅ RNNoise is processing your audio to reduce background noise"
+            : "❌ RNNoise is disabled - background noise will not be filtered"
+          }
+        />
 
         {/* Test Microphone */}
-        <Flex direction="column" gap="2">
-          <Text weight="medium" size="2">
-            Test Microphone (Playback)
-          </Text>
-          <Flex align="center" justify="between">
-            <Flex direction="column" gap="1">
-              <Text size="2" color="gray">
-                Enable to hear yourself through speakers/headphones
-              </Text>
-              <Text size="1" color="gray">
-                Audio levels and noise gate are always visible above
-              </Text>
-            </Flex>
-            <Switch checked={loopbackEnabled} onCheckedChange={setLoopbackEnabled} />
-          </Flex>
-        </Flex>
+        <ToggleSetting
+          title="Test Microphone (Playback)"
+          description="Enable to hear yourself through speakers/headphones. Audio levels and noise gate are always visible above."
+          checked={loopbackEnabled}
+          onCheckedChange={setLoopbackEnabled}
+        />
 
-        {/* Audio Level Indicator - Always visible when microphone is active */}
-        {audioContext && (
-          <Flex direction="column" gap="2">
-            <Text weight="medium" size="2">
-              Audio Levels
-            </Text>
-            
-            {/* Frequency Visualizer */}
-            <Flex direction="column" gap="1">
-              <Text size="1" color="gray">Audio Spectrum</Text>
-              <div style={{ 
-                border: '1px solid var(--gray-6)', 
-                borderRadius: '4px', 
-                padding: '4px',
-                backgroundColor: 'var(--gray-3)',
-                minHeight: '48px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <AudioVisualizer />
-              </div>
-            </Flex>
-
-
-            {/* Status Information */}
-            <Flex direction="column" gap="1">
-              <Text size="1" color="gray">
-                Status: {audioContext ? "✅ Active" : "❌ Inactive"}
-                {loopbackEnabled && " • 🔊 PLAYBACK ON"}
-              </Text>
-              {microphoneBuffer.processedStream && (
-                <Text size="1" color="green">
-                  ✅ Enhanced audio processing enabled
-                </Text>
-              )}
-            </Flex>
-          </Flex>
-        )}
-      </Flex>
-    </>
+        {/* AFK Timeout Setting */}
+        <SliderSetting
+          title={`AFK Timeout: ${afkTimeoutMinutes} minutes`}
+          description="You'll be marked as AFK after this many minutes of silence. Only applies when connected to voice channels."
+          value={afkTimeoutMinutes}
+          onChange={setAfkTimeoutMinutes}
+          min={1}
+          max={30}
+        />
+    </SettingsContainer>
   );
 }

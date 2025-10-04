@@ -14,6 +14,10 @@ interface Settings {
   setLoopbackEnabled: (value: boolean) => void;
   loopbackEnabled: boolean;
 
+  // RNNoise noise reduction settings
+  rnnoiseEnabled: boolean;
+  setRnnoiseEnabled: (value: boolean) => void;
+
   // Voice call settings
   connectSoundEnabled: boolean;
   setConnectSoundEnabled: (value: boolean) => void;
@@ -66,8 +70,13 @@ interface Settings {
 }
 
 function updateStorage(key: string, value: string, state: (d: any) => void) {
-  state(value);
+state(value);
   localStorage.setItem(key, value);
+}
+
+function updateRnnoiseEnabled(value: boolean, setRnnoiseEnabled: (value: boolean) => void) {
+  setRnnoiseEnabled(value);
+  localStorage.setItem("rnnoiseEnabled", value.toString());
 }
 
 
@@ -80,6 +89,11 @@ function useSettingsHook() {
   const [isMuted, setIsMutedState] = useState(false);
   const [isDeafened, setIsDeafenedState] = useState(false);
   const [preDeafenMuteState, setPreDeafenMuteState] = useState(false);
+
+  // RNNoise noise reduction settings
+  const [rnnoiseEnabled, setRnnoiseEnabled] = useState(
+    localStorage.getItem("rnnoiseEnabled") !== "false" // Default to true
+  );
 
   // Debug overlay settings
   const [showDebugOverlay, setShowDebugOverlay] = useState(
@@ -301,6 +315,9 @@ function useSettingsHook() {
     setNoiseGate: updateNoiseGate,
     loopbackEnabled,
     setLoopbackEnabled,
+    // RNNoise noise reduction settings
+    rnnoiseEnabled,
+    setRnnoiseEnabled: (value: boolean) => updateRnnoiseEnabled(value, setRnnoiseEnabled),
     isMuted,
     setIsMuted,
     isDeafened,
@@ -354,6 +371,9 @@ const init: Settings = {
   setNoiseGate: () => {},
   loopbackEnabled: false,
   setLoopbackEnabled: () => {},
+  // RNNoise noise reduction settings
+  rnnoiseEnabled: localStorage.getItem("rnnoiseEnabled") !== "false",
+  setRnnoiseEnabled: () => {},
   isMuted: false,
   setIsMuted: () => {},
   isDeafened: false,

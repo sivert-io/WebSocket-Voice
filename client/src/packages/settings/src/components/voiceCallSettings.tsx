@@ -17,6 +17,7 @@ import useSound from "use-sound";
 import connectMp3 from "@/audio/src/assets/connect.mp3";
 import disconnectMp3 from "@/audio/src/assets/disconnect.mp3";
 import { useSettings } from "@/settings";
+import { SettingsContainer } from "./settingsComponents";
 
 export function VoiceCallSettings() {
   const {
@@ -433,13 +434,7 @@ export function VoiceCallSettings() {
   };
 
   return (
-    <Flex
-      direction="column"
-      gap="2"
-      style={{
-        paddingBottom: "16px",
-      }}
-    >
+    <SettingsContainer>
       <Heading as="h2" size="4">
         Voice Call Sounds
       </Heading>
@@ -718,6 +713,6 @@ export function VoiceCallSettings() {
           </AlertDialog.Content>
         </AlertDialog.Root>
       )}
-    </Flex>
+    </SettingsContainer>
   );
 } 

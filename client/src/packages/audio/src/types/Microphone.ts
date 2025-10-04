@@ -9,6 +9,7 @@ export type MicrophoneBufferType = {
   muteGain?: GainNode; // Dedicated gain node for muting
   volumeGain?: GainNode; // Dedicated gain node for volume control
   noiseGate?: GainNode; // Dedicated gain node for noise gate functionality
+  rnnoiseProcessor?: ScriptProcessorNode; // RNNoise noise reduction processor
 };
 
 export interface MicrophoneInterface {

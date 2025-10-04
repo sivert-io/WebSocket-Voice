@@ -6,6 +6,7 @@ import { useSettings } from "@/settings";
 
 import { MicrophoneBufferType, MicrophoneInterface } from "../types/Microphone";
 import { useHandles } from "./useHandles";
+import { createRNNoiseProcessor, RNNoiseProcessor } from "../processors/rnnoiseProcessor";
 
 function useCreateMicrophoneHook() {
   const { handles, addHandle, removeHandle, isLoaded } = useHandles();
@@ -14,13 +15,17 @@ function useCreateMicrophoneHook() {
     micID, 
     micVolume, 
     isMuted, 
-    noiseGate
+    noiseGate,
+    rnnoiseEnabled
   } = useSettings();
   
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(undefined);
   const [devices, setDevices] = useState<InputDeviceInfo[]>([]);
   const [micStream, setMicStream] = useState<MediaStream | undefined>(undefined);
   const [currentDeviceId, setCurrentDeviceId] = useState<string | undefined>(micID);
+  
+  // RNNoise processor state
+  const rnnoiseProcessorRef = useRef<RNNoiseProcessor | null>(null);
   
   // Store the current source node to prevent multiple connections
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -71,6 +76,35 @@ function useCreateMicrophoneHook() {
     }
   }, [handles.length, audioContext]);
 
+  // Initialize RNNoise processor when enabled
+  useEffect(() => {
+    if (rnnoiseEnabled && audioContext && !rnnoiseProcessorRef.current) {
+      console.log('🎤 Initializing RNNoise processor...');
+      const processor = createRNNoiseProcessor(audioContext.sampleRate);
+      processor.initialize().then(() => {
+        processor.setEnabled(true);
+        rnnoiseProcessorRef.current = processor;
+        console.log('✅ RNNoise processor initialized');
+      }).catch((error) => {
+        console.error('❌ Failed to initialize RNNoise processor:', error);
+      });
+    } else if (!rnnoiseEnabled && rnnoiseProcessorRef.current) {
+      console.log('🎤 Disabling RNNoise processor...');
+      rnnoiseProcessorRef.current.setEnabled(false);
+    }
+  }, [rnnoiseEnabled, audioContext]);
+
+  // Cleanup RNNoise processor
+  useEffect(() => {
+    return () => {
+      if (rnnoiseProcessorRef.current) {
+        console.log('🎤 Cleaning up RNNoise processor...');
+        rnnoiseProcessorRef.current.destroy();
+        rnnoiseProcessorRef.current = null;
+      }
+    };
+  }, []);
+
   // Enhanced microphone buffer with full audio processing chain
   const microphoneBuffer = useMemo<MicrophoneBufferType>(() => {
     if (!audioContext) {
@@ -114,13 +148,40 @@ function useCreateMicrophoneHook() {
     processingChain.connect(analyser); // Raw audio for noise gate threshold
     processingChain.connect(rawOutput); // Raw audio backup (not used for loopback anymore)
 
-    // Step 3: Connect directly to noise gate (no noise suppression)
+    // Step 3: RNNoise noise reduction (if enabled)
+    let rnnoiseProcessor: ScriptProcessorNode | undefined;
+    if (rnnoiseEnabled) {
+      try {
+        rnnoiseProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+        rnnoiseProcessor.onaudioprocess = async (event) => {
+          if (rnnoiseProcessorRef.current) {
+            const inputBuffer = event.inputBuffer.getChannelData(0);
+            const outputBuffer = event.outputBuffer.getChannelData(0);
+            
+            try {
+              const processedBuffer = await rnnoiseProcessorRef.current.processAudio(inputBuffer);
+              outputBuffer.set(processedBuffer);
+            } catch (error) {
+              console.error('❌ RNNoise processing error:', error);
+              outputBuffer.set(inputBuffer); // Fallback to original audio
+            }
+          }
+        };
+        
+        processingChain.connect(rnnoiseProcessor);
+        console.log('🎤 RNNoise processor added to audio chain');
+      } catch (error) {
+        console.error('❌ Failed to create RNNoise processor:', error);
+      }
+    }
+
+    // Step 4: Connect to noise gate
     processingChain.connect(noiseGate);
 
-    // Step 4: Noise gate control (applied to output stream only)
+    // Step 5: Noise gate control (applied to output stream only)
     noiseGate.connect(muteGain);
 
-    // Step 5: Mute control and final output with final analyser
+    // Step 6: Mute control and final output with final analyser
     muteGain.connect(finalAnalyser); // Final processed audio for UI and loopback
     finalAnalyser.connect(outputDestination);
 
@@ -135,6 +196,7 @@ function useCreateMicrophoneHook() {
       muteGain,
       volumeGain,
       noiseGate,
+      rnnoiseProcessor, // RNNoise noise reduction processor
     };
 
     console.log("🎤 Enhanced microphone buffer created:", {
@@ -550,6 +612,7 @@ const init: MicrophoneInterface = {
     muteGain: undefined,
     volumeGain: undefined,
     noiseGate: undefined,
+    rnnoiseProcessor: undefined,
   },
   audioContext: undefined,
   addHandle: () => {},

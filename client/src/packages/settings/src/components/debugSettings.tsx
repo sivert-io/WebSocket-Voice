@@ -1,5 +1,6 @@
 import { Box, Flex, Heading, Text, Switch } from "@radix-ui/themes";
 import { useSettings } from "@/settings";
+import { SettingsContainer } from "./settingsComponents";
 
 export function DebugSettings() {
   const { 
@@ -8,9 +9,8 @@ export function DebugSettings() {
   } = useSettings();
 
   return (
-    <Box>
-      <Flex direction="column" gap="4">
-        <Heading size="4">Debug Settings</Heading>
+    <SettingsContainer>
+      <Heading size="4">Debug Settings</Heading>
         
         {/* Debug Overlay Toggle */}
         <Box>
@@ -25,7 +25,6 @@ export function DebugSettings() {
             Display a floating debug overlay with real-time microphone information
           </Text>
         </Box>
-      </Flex>
-    </Box>
+    </SettingsContainer>
   );
 }
