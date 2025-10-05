@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { singletonHook } from "react-singleton-hook";
 import { io, Socket } from "socket.io-client";
@@ -80,7 +80,7 @@ function useSocketsHook() {
     return serverDetailsList[host]?.channels.find((c) => c.id === channel);
   }
 
-  function requestMemberList(host: string) {
+  const requestMemberList = useCallback((host: string) => {
     const socket = sockets[host];
     if (socket && socket.connected) {
       console.log(`📤 CLIENT REQUESTING member list from [${host}]`);
@@ -88,7 +88,7 @@ function useSocketsHook() {
     } else {
       console.warn(`⚠️ Cannot request member list from [${host}] - socket not connected`);
     }
-  }
+  }, [sockets]);
 
   // Send complete client state whenever any state changes
   useEffect(() => {
@@ -534,21 +534,12 @@ function useSocketsHook() {
         });
 
         socket.on("clients", (data: any) => {
-          console.log(`📥 CLIENT RECEIVED clients update from [${host}]:`, {
-            totalClients: Object.keys(data).length,
-            clientSummary: Object.entries(data).map(([id, client]: [string, any]) => ({
-              id,
-              nickname: client.nickname,
-              hasJoinedChannel: client.hasJoinedChannel,
-              isConnectedToVoice: client.isConnectedToVoice,
-              streamID: client.streamID,
-              isMuted: client.isMuted,
-              isDeafened: client.isDeafened,
-              isAFK: client.isAFK,
-            })),
-            timestamp: Date.now(),
-            host
-          });
+          // Only log when client count changes significantly
+          const currentCount = Object.keys(clients[host] || {}).length;
+          const newCount = Object.keys(data).length;
+          if (Math.abs(newCount - currentCount) > 0) {
+            console.log(`📥 CLIENT RECEIVED clients update from [${host}]: ${newCount} clients`);
+          }
           
           setClients((old) => {
             const newClients = {
@@ -620,18 +611,11 @@ function useSocketsHook() {
 
         // Handle member list updates
         socket.on("members:list", (data: MemberInfo[]) => {
-          console.log(`📥 CLIENT RECEIVED members:list from [${host}]:`, {
-            totalMembers: data.length,
-            memberSummary: data.map(member => ({
-              serverUserId: member.serverUserId,
-              nickname: member.nickname,
-              status: member.status,
-              isConnectedToVoice: member.isConnectedToVoice,
-              hasJoinedChannel: member.hasJoinedChannel,
-            })),
-            timestamp: Date.now(),
-            host
-          });
+          // Only log when member count changes significantly
+          const currentCount = memberLists[host]?.length || 0;
+          if (Math.abs(data.length - currentCount) > 0) {
+            console.log(`📥 CLIENT RECEIVED members:list from [${host}]: ${data.length} members`);
+          }
           
           // Override all member colors to gray for consistency
           const membersWithGrayColor = data.map(member => ({

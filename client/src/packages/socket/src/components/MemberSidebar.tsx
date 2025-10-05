@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Avatar, Flex, Text, Box } from "@radix-ui/themes";
 import { BsVolumeOffFill } from "react-icons/bs";
 import { MdMicOff } from "react-icons/md";
@@ -47,14 +48,11 @@ export const MemberSidebar = ({
     return a.nickname.localeCompare(b.nickname);
   });
 
-  // Debug member filtering
-  console.log("👥 MemberSidebar - Total members received:", members.length);
-  console.log("✅ MemberSidebar - Members shown:", memberList.length);
-  console.log("📊 MemberSidebar - Members:", memberList.map(m => ({ 
-    serverUserId: m.serverUserId, 
-    nickname: m.nickname, 
-    status: m.status 
-  })));
+  // Debug member filtering (only log when members count changes)
+  useEffect(() => {
+    console.log("👥 MemberSidebar - Total members received:", members.length);
+    console.log("✅ MemberSidebar - Members shown:", memberList.length);
+  }, [members.length, memberList.length]);
 
   const getStatusColor = (member: MemberInfo) => {
     switch (member.status) {

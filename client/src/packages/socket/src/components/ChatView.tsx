@@ -1,4 +1,4 @@
-import { Box, Button, Card, Flex, ScrollArea, Text, TextField } from "@radix-ui/themes";
+import { Box, Button, Card, Flex, ScrollArea, Text, TextField, Skeleton } from "@radix-ui/themes";
 import { useEffect,useMemo, useRef, useState } from "react";
 
 export type Reaction = {
@@ -185,6 +185,91 @@ const MessageContextMenu = ({
   );
 };
 
+// Message skeleton component - realistic chat bubbles
+const MessageSkeleton = () => {
+  const skeletonMessages = [
+    { width: "45%", height: "32px", align: "start" },
+    { width: "60%", height: "40px", align: "end" },
+    { width: "35%", height: "28px", align: "start" },
+    { width: "70%", height: "48px", align: "end" },
+    { width: "50%", height: "36px", align: "start" }
+  ];
+
+  return (
+    <Flex direction="column" style={{ gap: 12, paddingBottom: "16px" }}>
+      {skeletonMessages.map((msg, i) => (
+        <Flex key={i} direction="column" style={{ width: "100%" }} align={msg.align as "start" | "end"}>
+          <Skeleton height="14px" width="60px" style={{ marginBottom: 6, opacity: 0.6 }} />
+          <Skeleton 
+            height={msg.height}
+            width={msg.width}
+            style={{ 
+              borderRadius: 16,
+              alignSelf: msg.align === "end" ? "flex-end" : "flex-start",
+              maxWidth: "80%",
+              opacity: 0.7
+            }} 
+          />
+        </Flex>
+      ))}
+    </Flex>
+  );
+};
+
+// Discord-style welcome message component
+const WelcomeMessage = ({ channelName }: { channelName?: string }) => (
+  <Flex direction="column" style={{ padding: "48px 24px", alignItems: "center", textAlign: "center" }}>
+    {/* Channel Icon */}
+    <Box
+      style={{
+        width: "120px",
+        height: "120px",
+        borderRadius: "50%",
+        background: "var(--gray-4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: "24px",
+        border: "3px solid var(--gray-6)",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)"
+      }}
+    >
+      <Text size="8" weight="bold" color="gray">
+        #
+      </Text>
+    </Box>
+    
+    {/* Welcome Text */}
+    <Text size="7" weight="bold" style={{ marginBottom: "12px", color: "var(--gray-12)" }}>
+      Welcome to #{channelName || "channel"}!
+    </Text>
+    
+    {/* Description */}
+    <Text size="4" color="gray" style={{ marginBottom: "24px", maxWidth: "500px", lineHeight: 1.5 }}>
+      This is the start of the <Text weight="medium" color="gray">#{channelName || "channel"}</Text> channel. 
+      Start a conversation by typing a message below.
+    </Text>
+    
+    {/* Action Hint */}
+    <Flex 
+      align="center" 
+      gap="3" 
+      style={{ 
+        color: "var(--accent-9)",
+        background: "var(--accent-2)",
+        padding: "12px 20px",
+        borderRadius: "8px",
+        border: "1px solid var(--accent-6)"
+      }}
+    >
+      <Text size="3">💬</Text>
+      <Text size="3" color="blue" weight="medium">
+        Type a message to get started
+      </Text>
+    </Flex>
+  </Flex>
+);
+
 export const ChatView = ({
   chatMessages,
   chatText,
@@ -200,6 +285,7 @@ export const ChatView = ({
   rateLimitCountdown,
   canViewVoiceChannelText,
   isVoiceChannelTextChat,
+  isLoadingMessages,
 }: {
   chatMessages: ChatMessage[];
   chatText: string;
@@ -215,7 +301,9 @@ export const ChatView = ({
   rateLimitCountdown?: number;
   canViewVoiceChannelText?: boolean;
   isVoiceChannelTextChat?: boolean;
+  isLoadingMessages?: boolean;
 }) => {
+  // Loading state for skeleton display - updated interface
   // Ref for the messages container to enable auto-scroll
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -357,8 +445,10 @@ export const ChatView = ({
               <Text size="2" color="gray" style={{ textAlign: "center", padding: "16px" }}>
                 Voice channel messages are private to connected users
               </Text>
+          ) : isLoadingMessages ? (
+              <MessageSkeleton />
           ) : groups.length === 0 ? (
-              <Text size="2">No messages yet</Text>
+              <WelcomeMessage channelName={channelName} />
           ) : (
             groups.map((group, idx) => {
               const isSelf = !!currentUserId && group.senderId === currentUserId;

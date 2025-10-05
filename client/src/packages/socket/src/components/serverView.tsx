@@ -124,13 +124,15 @@ export const ServerView = () => {
   const { sockets, serverDetailsList, clients, memberLists, requestMemberList, failedServerDetails } = useSockets();
   const userId = useUserId();
 
-  // Request member list when server is connected
+    // Request member list when server is connected
   useEffect(() => {
     if (isConnected && currentlyViewingServer?.host) {
+      // Only log once per connection to reduce spam
       console.log(`📤 Requesting member list for server: ${currentlyViewingServer.host}`);
       requestMemberList(currentlyViewingServer.host);
     }
   }, [isConnected, currentlyViewingServer?.host, requestMemberList]);
+
 
 
   // Set up timeout for server details loading
@@ -298,12 +300,31 @@ export const ServerView = () => {
 
   const [chatText, setChatText] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [messageCache, setMessageCache] = useState<{ [conversationId: string]: ChatMessage[] }>({});
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
   const rateLimitIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Active conversation derives from selected channel first, then SFU-derived channel
   const activeConversationId = selectedChannelId || currentChannelId || "";
+
+
+  // Function to get cached messages for a conversation
+  const getCachedMessages = (conversationId: string): ChatMessage[] => {
+    return messageCache[conversationId] || [];
+  };
+
+  // Cache empty arrays for channels that have been checked and are empty
+  useEffect(() => {
+    if (!isLoadingMessages && chatMessages.length === 0 && activeConversationId) {
+      // If we're not loading and have no messages, cache this as empty
+      setMessageCache(prev => ({
+        ...prev,
+        [activeConversationId]: []
+      }));
+    }
+  }, [isLoadingMessages, chatMessages.length, activeConversationId]);
 
   // Clear rate limiting state when switching servers (but not channels)
   useEffect(() => {
@@ -363,6 +384,18 @@ export const ServerView = () => {
           });
           return newMessages;
         });
+        
+        // Also update the cache for this conversation
+        setMessageCache(prev => {
+          const existingMessages = prev[msg.conversation_id] || [];
+          const filtered = existingMessages.filter(
+            (m) => !(m.pending && m.text === msg.text && m.conversation_id === msg.conversation_id)
+          );
+          return {
+            ...prev,
+            [msg.conversation_id]: [...filtered, msg]
+          };
+        });
       } else {
         console.log(`⏭️ Message not for current conversation, skipping`);
       }
@@ -385,6 +418,25 @@ export const ServerView = () => {
           final_count: merged.length 
         });
         return merged;
+      });
+      
+      // Set loading to false when history is loaded
+      setIsLoadingMessages(false);
+      
+      // Also update the cache with the history (even if empty)
+      setMessageCache(prev => {
+        const existingMessages = prev[payload.conversation_id] || [];
+        const existingIds = new Set(existingMessages.map((m) => m.message_id));
+        const merged = [...existingMessages];
+        for (const it of payload.items) {
+          if (!existingIds.has(it.message_id)) {
+            merged.push(it);
+          }
+        }
+        return {
+          ...prev,
+          [payload.conversation_id]: merged // This will be empty array if no messages
+        };
       });
     };
     // Handle reaction updates
@@ -415,6 +467,20 @@ export const ServerView = () => {
           });
           return updated;
         });
+        
+        // Also update the cache
+        setMessageCache(prev => {
+          const existingMessages = prev[updatedMessage.conversation_id] || [];
+          const updated = existingMessages.map((msg) => 
+            msg.message_id === updatedMessage.message_id 
+              ? { ...msg, reactions: updatedMessage.reactions }
+              : msg
+          );
+          return {
+            ...prev,
+            [updatedMessage.conversation_id]: updated
+          };
+        });
       } else {
         console.log(`⏭️ Reaction update not for current conversation, skipping`);
       }
@@ -437,7 +503,23 @@ export const ServerView = () => {
       activeConversationId,
       hasConnection: !!currentConnection
     });
-    setChatMessages([]);
+    
+    // First, load cached messages instantly to prevent flash
+    const cachedMessages = getCachedMessages(activeConversationId);
+    if (cachedMessages.length > 0) {
+      console.log(`📦 Loading ${cachedMessages.length} cached messages for conversation ${activeConversationId}`);
+      setChatMessages(cachedMessages);
+      setIsLoadingMessages(false); // We have cached messages, no loading needed
+    } else if (cachedMessages.length === 0 && messageCache[activeConversationId]) {
+      // We have cached empty array, no loading needed
+      console.log(`📦 Loading empty cached messages for conversation ${activeConversationId}`);
+      setChatMessages([]);
+      setIsLoadingMessages(false);
+    } else {
+      setChatMessages([]);
+      setIsLoadingMessages(true); // No cached messages, show loading state
+    }
+    
     if (!currentConnection || !activeConversationId) return;
     
     // Check if we're trying to fetch from a voice channel's text chat
@@ -547,6 +629,13 @@ export const ServerView = () => {
       pending: true,
     };
     setChatMessages((prev) => [...prev, optimistic]);
+    
+    // Also add to cache
+    setMessageCache(prev => ({
+      ...prev,
+      [activeConversationId]: [...(prev[activeConversationId] || []), optimistic]
+    }));
+    
     setChatText("");
     
     // Send message with access token
@@ -1016,6 +1105,7 @@ export const ServerView = () => {
               rateLimitCountdown={rateLimitCountdown}
               canViewVoiceChannelText={canViewVoiceChannelText}
               isVoiceChannelTextChat={isVoiceChannelTextChat}
+              {...(isLoadingMessages !== undefined && { isLoadingMessages })}
             />
           </Flex>
         )}

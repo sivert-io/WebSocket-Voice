@@ -10,17 +10,42 @@ export function unverifyClient(socket: Socket) {
   socket.leave("verifiedClients");
 }
 
-// Simple debounce map per io instance
+// Enhanced debounce and state tracking per io instance
 const lastEmitAtByIO = new WeakMap<Server, number>();
-const EMIT_MIN_INTERVAL_MS = 50; // coalesce bursts within 50ms
+const lastClientsStateByIO = new WeakMap<Server, string>();
+const EMIT_MIN_INTERVAL_MS = 100; // increased debounce time
+const MEMBER_LIST_DEBOUNCE_MS = 200; // separate debounce for member list
 
 export function syncAllClients(io: Server, clientsInfo: Clients) {
   const now = Date.now();
   const last = lastEmitAtByIO.get(io) || 0;
-  if (now - last < EMIT_MIN_INTERVAL_MS) {
-    return; // skip burst
+  
+  // Create a hash of the current client state to detect actual changes
+  const currentStateHash = JSON.stringify(
+    Object.entries(clientsInfo)
+      .filter(([_, client]) => client.serverUserId && !client.serverUserId.startsWith('temp_'))
+      .map(([id, client]) => ({
+        id,
+        serverUserId: client.serverUserId,
+        nickname: client.nickname,
+        hasJoinedChannel: client.hasJoinedChannel,
+        isConnectedToVoice: client.isConnectedToVoice,
+        isMuted: client.isMuted,
+        isDeafened: client.isDeafened,
+        isAFK: client.isAFK,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id))
+  );
+  
+  const lastStateHash = lastClientsStateByIO.get(io);
+  
+  // Skip if no actual state change or too frequent
+  if (currentStateHash === lastStateHash || now - last < EMIT_MIN_INTERVAL_MS) {
+    return; // skip if no change or too frequent
   }
+  
   lastEmitAtByIO.set(io, now);
+  lastClientsStateByIO.set(io, currentStateHash);
 
   // Filter to only include registered users (those with real serverUserId, not temp IDs)
   const registeredClients: Clients = {};
@@ -51,7 +76,19 @@ export function syncAllClients(io: Server, clientsInfo: Clients) {
   io.to("verifiedClients").emit("clients", registeredClients);
 }
 
+// Separate debounce tracking for member list
+const lastMemberListEmitByIO = new WeakMap<Server, number>();
+const lastMemberListStateByIO = new WeakMap<Server, string>();
+
 export async function broadcastMemberList(io: Server, clientsInfo: Clients) {
+  const now = Date.now();
+  const last = lastMemberListEmitByIO.get(io) || 0;
+  
+  // Skip if too frequent
+  if (now - last < MEMBER_LIST_DEBOUNCE_MS) {
+    return;
+  }
+  
   try {
     // Get all registered users from database
     const registeredUsers = await getAllRegisteredUsers();
@@ -94,6 +131,28 @@ export async function broadcastMemberList(io: Server, clientsInfo: Clients) {
           streamID: onlineClient?.streamID || '',
         };
       });
+    
+    // Create a hash of the member list to detect actual changes
+    const currentMemberStateHash = JSON.stringify(
+      members.map(m => ({
+        serverUserId: m.serverUserId,
+        status: m.status,
+        isConnectedToVoice: m.isConnectedToVoice,
+        hasJoinedChannel: m.hasJoinedChannel,
+        isMuted: m.isMuted,
+        isDeafened: m.isDeafened,
+      })).sort((a, b) => a.serverUserId.localeCompare(b.serverUserId))
+    );
+    
+    const lastMemberStateHash = lastMemberListStateByIO.get(io);
+    
+    // Skip if no actual member state change
+    if (currentMemberStateHash === lastMemberStateHash) {
+      return;
+    }
+    
+    lastMemberListEmitByIO.set(io, now);
+    lastMemberListStateByIO.set(io, currentMemberStateHash);
     
     console.log(`📡 Broadcasting member list with ${members.length} registered users to verifiedClients`);
     io.to("verifiedClients").emit("members:list", members);
